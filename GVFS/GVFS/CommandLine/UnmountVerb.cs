@@ -114,7 +114,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool Unmount(string pipeName, out string errorMessage)
+        internal bool Unmount(string pipeName, out string errorMessage)
         {
             errorMessage = string.Empty;
             string rawGetStatusResponse = string.Empty;
@@ -155,17 +155,30 @@ namespace GVFS.CommandLine
                             return false;
                     }
 
-                    pipeClient.SendRequest(NamedPipeMessages.Unmount.Request);
+                    pipeClient.SendRequest(new NamedPipeMessages.Message(
+                        NamedPipeMessages.Unmount.Request, NamedPipeMessages.Unmount.ReportProgress));
                     string unmountResponse = pipeClient.ReadRawResponse();
 
                     switch (unmountResponse)
                     {
                         case NamedPipeMessages.Unmount.Acknowledged:
-                            string finalResponse = pipeClient.ReadRawResponse();
-                            if (finalResponse == NamedPipeMessages.Unmount.Completed)
+                            NamedPipeMessages.Message finalResponse = pipeClient.ReadResponse();
+                            while (finalResponse.Header == NamedPipeMessages.Unmount.Waiting)
+                            {
+                                this.Output.WriteLine();
+                                this.Output.WriteLine(finalResponse.Body);
+                                finalResponse = pipeClient.ReadResponse();
+                            }
+
+                            if (finalResponse.Header == NamedPipeMessages.Unmount.Completed)
                             {
                                 errorMessage = string.Empty;
                                 return true;
+                            }
+                            else if (finalResponse.Header == NamedPipeMessages.Unmount.TimedOut)
+                            {
+                                errorMessage = finalResponse.Body;
+                                return false;
                             }
                             else
                             {

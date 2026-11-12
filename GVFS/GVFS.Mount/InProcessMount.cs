@@ -46,6 +46,9 @@ namespace GVFS.Mount
 
         private readonly bool showDebugWindow;
         private readonly string mountId;
+        private readonly Lock prefetchRequestsLock = new Lock();
+        private readonly Dictionary<NamedPipeServer.Connection, string> prefetchRequests = new Dictionary<NamedPipeServer.Connection, string>();
+        private readonly ManualResetEventSlim prefetchRequestsCompleted = new ManualResetEventSlim(true);
 
         // Set only for a linked worktree mount
         private readonly string primaryEnlistmentId;
@@ -109,6 +112,8 @@ namespace GVFS.Mount
             Unmounting,
             MountFailed
         }
+
+        protected virtual TimeSpan PrefetchDrainTimeout => TimeSpan.FromSeconds(30);
 
         public void Mount(EventLevel verbosity, Keywords keywords)
         {
@@ -794,13 +799,26 @@ namespace GVFS.Mount
             }
         }
 
-        private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
+        internal void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
             if (!IsRequestHandledInState(this.currentState, message.Header))
             {
                 connection.TrySendResponse(NamedPipeMessages.MountNotReadyResult);
+                return;
+            }
+
+            bool isPrefetchRequest = message.Header == NamedPipeMessages.PrefetchCommits.Request
+                || message.Header == NamedPipeMessages.PrefetchBlobs.RequestHeader;
+            if (isPrefetchRequest && !this.TryAcceptPrefetchRequest(message, connection))
+            {
+                connection.TrySendResponse(
+                    new NamedPipeMessages.Message(
+                        message.Header == NamedPipeMessages.PrefetchCommits.Request
+                            ? NamedPipeMessages.PrefetchCommits.MountNotReadyResult
+                            : NamedPipeMessages.PrefetchBlobs.MountNotReadyResult,
+                        null));
                 return;
             }
 
@@ -813,7 +831,7 @@ namespace GVFS.Mount
                         break;
 
                     case NamedPipeMessages.Unmount.Request:
-                        this.HandleUnmountRequest(connection);
+                        this.HandleUnmountRequest(message, connection);
                         break;
 
                     case NamedPipeMessages.AcquireLock.AcquireRequest:
@@ -879,6 +897,20 @@ namespace GVFS.Mount
                 this.tracer.RelatedError(metadata, "HandleRequest: Unhandled exception in request handler");
                 throw;
             }
+            finally
+            {
+                if (isPrefetchRequest)
+                {
+                    lock (this.prefetchRequestsLock)
+                    {
+                        this.prefetchRequests.Remove(connection);
+                        if (this.prefetchRequests.Count == 0)
+                        {
+                            this.prefetchRequestsCompleted.Set();
+                        }
+                    }
+                }
+            }
         }
 
         private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
@@ -918,6 +950,11 @@ namespace GVFS.Mount
                 string[] folders = request.Folders.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
                 StringBuilder resetFolderPaths = new StringBuilder();
                 List<string> movedFolders = BackupFoldersWhileUnmounted(request, response, folders);
+                if (movedFolders == null)
+                {
+                    connection.TrySendResponse(response.CreateMessage());
+                    return;
+                }
 
                 foreach (string folder in movedFolders)
                 {
@@ -968,20 +1005,27 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
-        private List<string> BackupFoldersWhileUnmounted(NamedPipeMessages.DehydrateFolders.Request request, NamedPipeMessages.DehydrateFolders.Response response, string[] folders)
+        internal List<string> BackupFoldersWhileUnmounted(NamedPipeMessages.DehydrateFolders.Request request, NamedPipeMessages.DehydrateFolders.Response response, string[] folders)
         {
             /* We can't move folders while the virtual file system is mounted, so unmount it first.
              * After moving the folders, remount the virtual file system.
              */
 
             var movedFolders = new List<string>();
+            string teardownError = "Another mount operation is in progress.";
+            if (this.TryBeginTeardown(willRemountInSameProcess: true) != MountState.Ready
+                || !this.TryUnmountAndStopWorkingDirectoryCallbacks(out teardownError, willRemountInSameProcess: true))
+            {
+                foreach (string folder in folders)
+                {
+                    response.FailedFolders.Add($"{folder}\0{teardownError}");
+                }
+
+                return null;
+            }
+
             try
             {
-                /* Set to "Mounting" instead of "Unmounting" so that incoming requests
-                 * that are rejected will know they can try again soon.
-                 */
-                this.currentState = MountState.Mounting;
-                this.UnmountAndStopWorkingDirectoryCallbacks(willRemountInSameProcess: true);
                 foreach (string folder in folders)
                 {
                     try
@@ -1006,7 +1050,10 @@ namespace GVFS.Mount
             finally
             {
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer, alreadyInitialized: true);
-                this.currentState = MountState.Ready;
+                lock (this.prefetchRequestsLock)
+                {
+                    this.currentState = MountState.Ready;
+                }
             }
 
             return movedFolders;
@@ -1075,8 +1122,14 @@ namespace GVFS.Mount
             if (request.RequestData == null)
             {
                 this.tracer.RelatedError($"{nameof(this.HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
-                this.UnmountAndStopWorkingDirectoryCallbacks();
-                Environment.Exit((int)ReturnCode.NullRequestData);
+                if (this.TryBeginTeardown(willRemountInSameProcess: false) == MountState.Ready
+                    && this.TryUnmountAndStopWorkingDirectoryCallbacks(out _))
+                {
+                    this.ExitMount(ReturnCode.NullRequestData);
+                }
+
+                connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
+                return;
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
@@ -1356,16 +1409,26 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
+        private bool TryAcceptPrefetchRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            lock (this.prefetchRequestsLock)
+            {
+                if (this.currentState != MountState.Ready)
+                {
+                    return false;
+                }
+
+                int? processId = connection.GetClientProcessId();
+                string operation = message.Header == NamedPipeMessages.PrefetchCommits.Request ? "commit prefetch" : "blob prefetch";
+                this.prefetchRequests.Add(connection, $"{operation} (requester PID {processId?.ToString() ?? "unavailable"}, mount PID {Environment.ProcessId})");
+                this.prefetchRequestsCompleted.Reset();
+                return true;
+            }
+        }
+
         private void HandlePrefetchCommitsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
             this.tracer.RelatedInfo("Received prefetch commits request");
-
-            if (this.currentState != MountState.Ready)
-            {
-                connection.TrySendResponse(
-                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
-                return;
-            }
 
             NamedPipeMessages.PrefetchCommits.Response response;
             try
@@ -1373,20 +1436,7 @@ namespace GVFS.Mount
                 PrefetchProgress progress = message.Body == NamedPipeMessages.PrefetchCommits.ReportProgress
                     ? new PrefetchProgress(this.tracer)
                     : null;
-                Func<NamedPipeMessages.PrefetchCommits.Response> prefetch = () =>
-                {
-                    // Enqueue directly to avoid a re-entrant named pipe call.
-                    PrefetchStep prefetchStep = new PrefetchStep(
-                        this.context,
-                        this.gitObjects,
-                        requireCacheLock: false,
-                        postFetchCallback: packIndexes =>
-                        {
-                            this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
-                        });
-                    bool success = prefetchStep.TryPrefetchCommitsAndTrees(out string error, progress: progress);
-                    return new NamedPipeMessages.PrefetchCommits.Response { Success = success, Error = error };
-                };
+                Func<NamedPipeMessages.PrefetchCommits.Response> prefetch = () => this.PrefetchCommits(progress);
 
                 if (progress == null)
                 {
@@ -1441,13 +1491,6 @@ namespace GVFS.Mount
         {
             this.tracer.RelatedInfo("Received prefetch blobs request");
 
-            if (this.currentState != MountState.Ready)
-            {
-                connection.TrySendResponse(
-                    new NamedPipeMessages.Message(NamedPipeMessages.PrefetchBlobs.MountNotReadyResult, null));
-                return;
-            }
-
             NamedPipeMessages.PrefetchBlobs.Request request = NamedPipeMessages.PrefetchBlobs.Request.FromMessage(message);
 
             // Validate inputs — do not trust IPC requests blindly
@@ -1484,60 +1527,7 @@ namespace GVFS.Mount
             NamedPipeMessages.PrefetchBlobs.Response response;
             try
             {
-                // Create a fresh GitObjectsHttpRequestor using the mount's warm auth.
-                // BlobPrefetcher constructs its own PrefetchGitObjects internally.
-                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(
-                    this.tracer, this.enlistment, this.cacheServer, this.retryConfig))
-                {
-                    // Open LastBlobPrefetch.dat so BlobPrefetcher can update noop state
-                    string lastPrefetchPath = Path.Combine(this.enlistment.DotGVFSRoot, "LastBlobPrefetch.dat");
-                    FileBasedDictionary<string, string> lastPrefetchArgs;
-                    string dictError;
-                    if (!FileBasedDictionary<string, string>.TryCreate(
-                            this.tracer, lastPrefetchPath, new PhysicalFileSystem(),
-                            out lastPrefetchArgs, out dictError))
-                    {
-                        this.tracer.RelatedWarning("HandlePrefetchBlobsRequest: Unable to load last prefetch args: " + dictError);
-                        lastPrefetchArgs = null;
-                    }
-
-                    // Cap thread counts to avoid starving virtualization callbacks
-                    int maxThreads = Math.Max(1, Environment.ProcessorCount / 2);
-                    int downloadThreads = Math.Min(maxThreads, 16);
-
-                    BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
-                        this.tracer,
-                        this.enlistment,
-                        objectRequestor,
-                        request.Files,
-                        request.Folders,
-                        prefetchCache: null,
-                        maxCacheSize: 0,
-                        chunkSize: 4000,
-                        searchThreadCount: maxThreads,
-                        downloadThreadCount: downloadThreads,
-                        indexThreadCount: maxThreads);
-
-                    int matchedBlobCount;
-                    int downloadedBlobCount;
-                    int hydratedFileCount;
-
-                    blobPrefetcher.PrefetchWithStats(
-                        request.HeadCommitId,
-                        isBranch: false,
-                        hydrateFilesAfterDownload: false,
-                        matchedBlobCount: out matchedBlobCount,
-                        downloadedBlobCount: out downloadedBlobCount,
-                        hydratedFileCount: out hydratedFileCount);
-
-                    response = new NamedPipeMessages.PrefetchBlobs.Response
-                    {
-                        Success = !blobPrefetcher.HasFailures,
-                        Error = blobPrefetcher.HasFailures ? "Blob prefetch encountered failures" : null,
-                        MatchedBlobCount = matchedBlobCount,
-                        DownloadedBlobCount = downloadedBlobCount,
-                    };
-                }
+                response = this.PrefetchBlobs(request);
             }
             catch (BlobPrefetcher.FetchException e)
             {
@@ -1559,6 +1549,79 @@ namespace GVFS.Mount
             }
 
             connection.TrySendResponse(response.CreateMessage());
+        }
+
+        protected virtual NamedPipeMessages.PrefetchCommits.Response PrefetchCommits(PrefetchProgress progress)
+        {
+            // Enqueue directly while the request keeps the scheduler and context alive.
+            PrefetchStep prefetchStep = new PrefetchStep(
+                this.context,
+                this.gitObjects,
+                requireCacheLock: false,
+                postFetchCallback: packIndexes =>
+                {
+                    this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
+                });
+            bool success = prefetchStep.TryPrefetchCommitsAndTrees(out string error, progress: progress);
+            return new NamedPipeMessages.PrefetchCommits.Response { Success = success, Error = error };
+        }
+
+        protected virtual NamedPipeMessages.PrefetchBlobs.Response PrefetchBlobs(NamedPipeMessages.PrefetchBlobs.Request request)
+        {
+            // Create a fresh GitObjectsHttpRequestor using the mount's warm auth.
+            // BlobPrefetcher constructs its own PrefetchGitObjects internally.
+            using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(
+                this.tracer, this.enlistment, this.cacheServer, this.retryConfig))
+            {
+                // Open LastBlobPrefetch.dat so BlobPrefetcher can update noop state
+                string lastPrefetchPath = Path.Combine(this.enlistment.DotGVFSRoot, "LastBlobPrefetch.dat");
+                FileBasedDictionary<string, string> lastPrefetchArgs;
+                string dictError;
+                if (!FileBasedDictionary<string, string>.TryCreate(
+                        this.tracer, lastPrefetchPath, new PhysicalFileSystem(),
+                        out lastPrefetchArgs, out dictError))
+                {
+                    this.tracer.RelatedWarning("HandlePrefetchBlobsRequest: Unable to load last prefetch args: " + dictError);
+                    lastPrefetchArgs = null;
+                }
+
+                // Cap thread counts to avoid starving virtualization callbacks
+                int maxThreads = Math.Max(1, Environment.ProcessorCount / 2);
+                int downloadThreads = Math.Min(maxThreads, 16);
+
+                BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
+                    this.tracer,
+                    this.enlistment,
+                    objectRequestor,
+                    request.Files,
+                    request.Folders,
+                    prefetchCache: null,
+                    maxCacheSize: 0,
+                    chunkSize: 4000,
+                    searchThreadCount: maxThreads,
+                    downloadThreadCount: downloadThreads,
+                    indexThreadCount: maxThreads);
+
+                int matchedBlobCount;
+                int downloadedBlobCount;
+                int hydratedFileCount;
+
+                blobPrefetcher.PrefetchWithStats(
+                    request.HeadCommitId,
+                    isBranch: false,
+                    hydrateFilesAfterDownload: false,
+                    matchedBlobCount: out matchedBlobCount,
+                    downloadedBlobCount: out downloadedBlobCount,
+                    hydratedFileCount: out hydratedFileCount);
+
+                return new NamedPipeMessages.PrefetchBlobs.Response
+                {
+                    Success = !blobPrefetcher.HasFailures,
+                    Error = blobPrefetcher.HasFailures ? "Blob prefetch encountered failures" : null,
+                    MatchedBlobCount = matchedBlobCount,
+                    DownloadedBlobCount = downloadedBlobCount,
+                };
+            }
         }
 
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
@@ -1608,9 +1671,9 @@ namespace GVFS.Mount
                 carriesMountFailure: state == MountState.MountFailed);
         }
 
-        private void HandleUnmountRequest(NamedPipeServer.Connection connection)
+        private void HandleUnmountRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
-            switch (this.currentState)
+            switch (this.TryBeginTeardown(willRemountInSameProcess: false))
             {
                 case MountState.Mounting:
                     connection.TrySendResponse(NamedPipeMessages.Unmount.NotMounted);
@@ -1623,14 +1686,20 @@ namespace GVFS.Mount
                     break;
 
                 case MountState.Ready:
-                    this.currentState = MountState.Unmounting;
-
                     connection.TrySendResponse(NamedPipeMessages.Unmount.Acknowledged);
-                    this.UnmountAndStopWorkingDirectoryCallbacks();
+                    Action<string> onWaiting = message.Body == NamedPipeMessages.Unmount.ReportProgress
+                        ? status => connection.TrySendResponse(new NamedPipeMessages.Message(NamedPipeMessages.Unmount.Waiting, status))
+                        : null;
+                    if (!this.TryUnmountAndStopWorkingDirectoryCallbacks(out string error, onWaiting: onWaiting))
+                    {
+                        connection.TrySendResponse(new NamedPipeMessages.Message(NamedPipeMessages.Unmount.TimedOut, error));
+                        return;
+                    }
+
                     connection.TrySendResponse(NamedPipeMessages.Unmount.Completed);
 
                     this.unmountEvent.Set();
-                    Environment.Exit((int)ReturnCode.Success);
+                    this.ExitMount(ReturnCode.Success);
                     break;
 
                 case MountState.Unmounting:
@@ -1643,7 +1712,7 @@ namespace GVFS.Mount
             }
         }
 
-        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
+        protected virtual void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache, bool alreadyInitialized = false)
         {
             string error;
 
@@ -2128,7 +2197,71 @@ namespace GVFS.Mount
             }
         }
 
-        private void UnmountAndStopWorkingDirectoryCallbacks(bool willRemountInSameProcess = false)
+        private MountState TryBeginTeardown(bool willRemountInSameProcess)
+        {
+            // Admission and this state transition share a lock; accepted work cannot escape the drain.
+            lock (this.prefetchRequestsLock)
+            {
+                MountState previousState = this.currentState;
+                if (previousState == MountState.Ready)
+                {
+                    this.currentState = willRemountInSameProcess ? MountState.Mounting : MountState.Unmounting;
+                }
+
+                return previousState;
+            }
+        }
+
+        private bool TryUnmountAndStopWorkingDirectoryCallbacks(
+            out string error,
+            bool willRemountInSameProcess = false,
+            Action<string> onWaiting = null)
+        {
+            Stopwatch wait = Stopwatch.StartNew();
+            string lastStatus = null;
+            while (true)
+            {
+                string status;
+                TimeSpan remaining = this.PrefetchDrainTimeout - wait.Elapsed;
+                lock (this.prefetchRequestsLock)
+                {
+                    if (this.prefetchRequests.Count == 0)
+                    {
+                        break;
+                    }
+
+                    status = "Waiting for " + string.Join("; ", this.prefetchRequests.Values) + ".";
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        this.currentState = MountState.Ready;
+                        error = $"Prefetch did not finish within {this.PrefetchDrainTimeout.TotalSeconds:0} seconds. The repository stays mounted. {status}";
+                        this.tracer.RelatedWarning(error);
+                        return false;
+                    }
+                }
+
+                if (status != lastStatus)
+                {
+                    this.tracer.RelatedInfo(status);
+                    onWaiting?.Invoke(status);
+                    lastStatus = status;
+                }
+
+                // No admission, scheduler, or prefetch lock is held during the wait.
+                this.prefetchRequestsCompleted.Wait(remaining < TimeSpan.FromSeconds(1) ? remaining : TimeSpan.FromSeconds(1));
+            }
+
+            this.StopWorkingDirectoryCallbacks(willRemountInSameProcess);
+            error = null;
+            return true;
+        }
+
+        protected virtual void ExitMount(ReturnCode returnCode)
+        {
+            Environment.Exit((int)returnCode);
+        }
+
+        protected virtual void StopWorkingDirectoryCallbacks(bool willRemountInSameProcess)
         {
             if (this.maintenanceScheduler != null)
             {

@@ -4,6 +4,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Platform.Windows.DiskLayoutUpgrades;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -269,6 +270,24 @@ namespace GVFS.Platform.Windows
         {
             return WindowsPlatform.IsElevatedImplementation();
         }
+
+        public override bool TryGetNamedPipeClientProcessId(NamedPipeServerStream pipe, out int processId, out string error)
+        {
+            if (GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint clientProcessId))
+            {
+                processId = checked((int)clientProcessId);
+                error = null;
+                return true;
+            }
+
+            processId = 0;
+            error = new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message;
+            return false;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);
 
         public override bool IsProcessActive(int processId)
         {

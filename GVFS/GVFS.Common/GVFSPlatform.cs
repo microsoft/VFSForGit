@@ -103,6 +103,13 @@ namespace GVFS.Common
         public abstract string GetGVFSServiceNamedPipeName(string serviceName);
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
+        public virtual bool TryGetNamedPipeClientProcessId(NamedPipeServerStream pipe, out int processId, out string error)
+        {
+            processId = 0;
+            error = "The platform does not expose named pipe client process IDs.";
+            return false;
+        }
+
         public abstract string GetOSVersionInformation();
         public abstract string GetSecureDataRootForGVFS();
         public abstract string GetSecureDataRootForGVFSComponent(string componentName);

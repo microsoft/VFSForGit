@@ -203,6 +203,17 @@ namespace GVFS.Common.NamedPipes
                 get { return !this.isStopping() && this.serverStream.IsConnected; }
             }
 
+            public virtual int? GetClientProcessId()
+            {
+                if (GVFSPlatform.Instance.TryGetNamedPipeClientProcessId(this.serverStream, out int processId, out string error))
+                {
+                    return processId;
+                }
+
+                this.tracer.RelatedWarning("Could not read the pipe client PID: " + error);
+                return null;
+            }
+
             public NamedPipeMessages.Message ReadMessage()
             {
                 return NamedPipeMessages.Message.FromString(this.ReadRequest());

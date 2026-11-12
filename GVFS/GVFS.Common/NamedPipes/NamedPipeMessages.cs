@@ -72,6 +72,9 @@ namespace GVFS.Common.NamedPipes
             public const string Completed = "Complete";
             public const string AlreadyUnmounting = "AlreadyUnmounting";
             public const string MountFailed = "MountFailed";
+            public const string ReportProgress = "ReportProgress";
+            public const string Waiting = "UnmountWaiting";
+            public const string TimedOut = "UnmountTimedOut";
         }
 
         public static class ModifiedPaths

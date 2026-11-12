@@ -179,6 +179,114 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             throw new EndOfStreamException("Mount closed the connection before the prefetch response ended");
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        [Order(7)]
+        [Timeout(120000)]
+        public async Task UnmountWaitsForAcceptedPrefetchAndKeepsMountAliveOnTimeout(bool waitForTimeout)
+        {
+            this.Enlistment.Prefetch("--commits");
+            string pipeName = "GVFS_" + this.Enlistment.EnlistmentRoot.ToUpper().Replace(':', '_');
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+            using NamedPipeClientStream prefetch = new NamedPipeClientStream(
+                ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            using NamedPipeClientStream unmount = new NamedPipeClientStream(
+                ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            using FileStream prefetchLock = new FileStream(
+                Path.Combine(this.PackRoot, "prefetch-commits-trees.lock"),
+                FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            bool unmountStarted = false;
+            bool unmountCompleted = false;
+            bool unmountTerminalReceived = false;
+            bool prefetchCompleted = false;
+            try
+            {
+                await prefetch.ConnectAsync(10000, cancellation.Token);
+                await prefetch.WriteAsync(Encoding.UTF8.GetBytes("PrefetchCommits|ReportProgress\x03"), cancellation.Token);
+                Assert.That(await ReadPrefetchResponse(prefetch, cancellation.Token), Is.EqualTo("PrefetchCommitsStarted"));
+                Assert.That(await ReadPrefetchResponse(prefetch, cancellation.Token), Does.StartWith("PrefetchCommitsProgress|"));
+                await unmount.ConnectAsync(10000, cancellation.Token);
+                await unmount.WriteAsync(Encoding.UTF8.GetBytes("Unmount|ReportProgress\x03"), cancellation.Token);
+                unmountStarted = true;
+                Assert.That(await ReadPrefetchResponse(unmount, cancellation.Token), Is.EqualTo("Ack"));
+                string waiting = await ReadPrefetchResponse(unmount, cancellation.Token);
+                Assert.That(waiting, Does.StartWith("UnmountWaiting|").And.Contain("commit prefetch").And.Contain($"requester PID {Environment.ProcessId}"));
+
+                using (NamedPipeClientStream rejected = new NamedPipeClientStream(
+                    ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
+                {
+                    await rejected.ConnectAsync(10000, cancellation.Token);
+                    await rejected.WriteAsync(Encoding.UTF8.GetBytes("PrefetchCommits\x03"), cancellation.Token);
+                    Assert.That(await ReadPrefetchResponse(rejected, cancellation.Token), Is.EqualTo("MountNotReady"));
+                }
+
+                if (waitForTimeout)
+                {
+                    string timeout = await ReadPrefetchResponse(unmount, cancellation.Token);
+                    unmountTerminalReceived = true;
+                    Assert.That(timeout, Does.StartWith("UnmountTimedOut|").And.Contain("30 seconds").And.Contain("stays mounted").And.Contain($"requester PID {Environment.ProcessId}"));
+                    Assert.That(this.Enlistment.IsMounted(), Is.True);
+                }
+
+                prefetchLock.Dispose();
+                string response;
+                do
+                {
+                    response = await ReadPrefetchResponse(prefetch, cancellation.Token);
+                }
+                while (response.StartsWith("PrefetchCommitsProgress|", StringComparison.Ordinal));
+
+                prefetchCompleted = true;
+                Assert.That(response, Does.StartWith("PrefetchCommitsComplete|"));
+                using JsonDocument result = JsonDocument.Parse(response.Substring("PrefetchCommitsComplete|".Length));
+                Assert.That(result.RootElement.GetProperty("Success").GetBoolean(), Is.True, response);
+                if (waitForTimeout)
+                {
+                    this.Enlistment.UnmountGVFS();
+                }
+                else
+                {
+                    string completion = await ReadPrefetchResponse(unmount, cancellation.Token);
+                    unmountTerminalReceived = true;
+                    unmountCompleted = completion == "Complete";
+                    Assert.That(completion, Is.EqualTo("Complete"));
+                }
+
+                unmountCompleted = true;
+            }
+            finally
+            {
+                prefetchLock.Dispose();
+                // Release the paused operation even when an assertion fails.
+                if (!prefetchCompleted && prefetch.IsConnected)
+                {
+                    string response;
+                    do
+                    {
+                        response = await ReadPrefetchResponse(prefetch, cancellation.Token);
+                    }
+                    while (response.StartsWith("PrefetchCommitsProgress|", StringComparison.Ordinal));
+                }
+
+                if (unmountStarted && !unmountTerminalReceived && unmount.IsConnected)
+                {
+                    string response;
+                    do
+                    {
+                        response = await ReadPrefetchResponse(unmount, cancellation.Token);
+                    }
+                    while (response.StartsWith("UnmountWaiting|", StringComparison.Ordinal));
+                    unmountCompleted = response == "Complete";
+                }
+
+                if (unmountCompleted)
+                {
+                    Assert.That(SpinWait.SpinUntil(() => !this.Enlistment.IsMounted(), TimeSpan.FromSeconds(10)), Is.True);
+                    this.Enlistment.MountGVFS();
+                }
+            }
+        }
+
         private string[] ReadPrefetchPackFileNames()
         {
             return Directory.GetFiles(this.PackRoot, $"{PrefetchPackPrefix}*.pack");
