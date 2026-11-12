@@ -17,7 +17,7 @@ namespace GVFS.Platform.Windows
         private const int MaximumAncestryDepth = 64;
         private const uint UnknownParent = uint.MaxValue;
 
-        private readonly object cacheGate = new object();
+        private readonly Lock cacheGate = new Lock();
         private readonly Dictionary<ProcessPair, CacheEntry> cache = new Dictionary<ProcessPair, CacheEntry>();
         private readonly LinkedList<ProcessPair> recency = new LinkedList<ProcessPair>();
         private readonly Func<uint, long?> getStartTime;
