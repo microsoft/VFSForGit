@@ -121,15 +121,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.PostFetchJobShouldComplete();
         }
 
-        [TestCase("git-maintenance-step.lock")]
-        [TestCase("prefetch-commits-trees.lock")]
+        [TestCase("git-maintenance-step")]
+        [TestCase("prefetch-commits-trees")]
         [Order(6)]
         public void PrefetchCommitsFallsBackWhileCacheOrPrefetchIsBusy(string lockName)
         {
-            string lockRoot = lockName == "git-maintenance-step.lock"
+            this.ReadPrefetchPackFileNames().Length.ShouldBeAtLeast(1);
+            string lockRoot = lockName == "git-maintenance-step"
                 ? this.Enlistment.GetObjectRoot(this.fileSystem)
                 : this.PackRoot;
-            string lockPath = Path.Combine(lockRoot, lockName);
+            string lockPath = Path.Combine(lockRoot, lockName + ".lock");
             using (ManualResetEventSlim declined = new ManualResetEventSlim())
             using (Process prefetch = new Process
             {
