@@ -65,6 +65,7 @@ namespace GVFS.Virtualization.Projection
         private ManualResetEventSlim projectionParseComplete;
 
         private volatile bool projectionInvalid;
+        private long projectionGeneration;
 
         // Number of times that the negative path cache has (potentially) been updated by GVFS preventing
         // git from creating a placeholder (since the last time the cache was cleared)
@@ -315,6 +316,27 @@ namespace GVFS.Virtualization.Projection
             return this.projectionParseComplete.IsSet;
         }
 
+        public virtual long ProjectionGeneration => Interlocked.Read(ref this.projectionGeneration);
+
+        public virtual bool TryCreatePlaceholder(long generation, Action create)
+        {
+            this.projectionReadWriteLock.EnterReadLock();
+            try
+            {
+                if (!this.projectionParseComplete.IsSet || generation != this.ProjectionGeneration)
+                {
+                    return false;
+                }
+
+                create();
+                return true;
+            }
+            finally
+            {
+                this.projectionReadWriteLock.ExitReadLock();
+            }
+        }
+
         /// <summary>
         /// Get the total number of directories in the projection.
         /// This is computed from the in-memory tree built during index parsing,
@@ -359,6 +381,7 @@ namespace GVFS.Virtualization.Projection
             this.context.Tracer.RelatedEvent(EventLevel.Informational, "InvalidateProjection", null);
 
             this.projectionParseComplete.Reset();
+            Interlocked.Increment(ref this.projectionGeneration);
 
             try
             {
@@ -402,7 +425,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public void OnPlaceholderFolderCreated(string virtualPath)
+        public virtual void OnPlaceholderFolderCreated(string virtualPath)
         {
             string sha = null;
             if (this.updateUsnJournal && this.TryGetFolderDataFromTreeUsingPath(virtualPath, out FolderData folderData))
