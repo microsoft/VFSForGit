@@ -49,6 +49,16 @@ namespace GVFS.Virtualization.Projection
             /// </summary>
             public int PathLength { get; set; }
             public byte[] PathBuffer { get; } = new byte[MaxPathBufferSize];
+
+            /// <summary>
+            /// True when the path ends in the git path separator ('/'), as the path of a
+            /// sparse-directory entry does. A file, symlink, or gitlink path never ends in '/'.
+            /// </summary>
+            public bool PathEndsInSlash
+            {
+                get { return this.PathLength > 0 && this.PathBuffer[this.PathLength - 1] == PathSeparatorCode; }
+            }
+
             public FolderData BuildingProjection_LastParent { get; set; }
 
             // Only used when buildingNewProjection is true
