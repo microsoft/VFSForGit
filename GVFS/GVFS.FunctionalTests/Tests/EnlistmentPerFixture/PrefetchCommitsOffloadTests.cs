@@ -230,6 +230,43 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        [Order(9)]
+        public void ClonePrefetchContextRunsDirectlyWithCompletedCache(bool mounted)
+        {
+            this.ReadPrefetchPackFileNames().Length.ShouldBeAtLeast(1);
+            if (!mounted)
+            {
+                this.Enlistment.UnmountGVFS();
+            }
+
+            try
+            {
+                string output = this.Enlistment.Prefetch("--commits --from-clone --verbose");
+                output.ShouldContain("Prefetch client process ID: ");
+                output.ShouldContain("TryDownloadPrefetchPacks");
+                Assert.That(output, Does.Not.Contain("TryPrefetchCommitsViaMountProcess"));
+                Assert.That(output, Does.Not.Contain("If the mount performs this prefetch"));
+                this.PostFetchJobShouldComplete();
+
+                if (mounted)
+                {
+                    string ordinaryPrefetch = this.Enlistment.Prefetch("--commits --verbose");
+                    ordinaryPrefetch.ShouldContain("Mount completed prefetch successfully");
+                    Assert.That(ordinaryPrefetch, Does.Not.Contain("VFS for Git: history prefetch"));
+                    this.PostFetchJobShouldComplete();
+                }
+            }
+            finally
+            {
+                if (!mounted)
+                {
+                    this.Enlistment.MountGVFS();
+                }
+            }
+        }
+
         private string[] ReadPrefetchPackFileNames()
         {
             return Directory.GetFiles(this.PackRoot, $"{PrefetchPackPrefix}*.pack");

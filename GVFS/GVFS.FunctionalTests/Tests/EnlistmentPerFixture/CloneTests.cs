@@ -10,6 +10,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -120,6 +121,153 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void DeleteObjectCache()
         {
             RepositoryHelpers.DeleteTestDirectory(this.seedRoot);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PrefetchBannerIsLimitedToCloneLaunchedProcesses(bool fromClone)
+        {
+            string enlistmentRoot = Path.Combine(this.seedRoot, "seed");
+            ProcessResult result = ProcessHelper.Run(
+                GVFSTestConfig.PathToGVFS,
+                $"prefetch \"{enlistmentRoot}\" --commits --hydrate" + (fromClone ? " --from-clone" : string.Empty),
+                this.seedRoot,
+                timeoutMs: 30000);
+
+            result.ExitCode.ShouldEqual(3, result.Output + result.Errors);
+            result.Output.ShouldContain("You can only specify --hydrate with --files or --folders");
+            if (fromClone)
+            {
+                result.Output.ShouldContain("VFS for Git: history prefetch");
+                result.Output.ShouldContain("Repository: " + enlistmentRoot);
+                result.Output.ShouldContain("Prefetch client process ID: ");
+                result.Output.ShouldContain("After mount succeeds, you can use the repository while prefetch runs.");
+                result.Output.ShouldContain("gvfs prefetch --commits");
+                string logPath = result.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Single(line => line.StartsWith("Log: ", StringComparison.Ordinal))
+                    .Substring("Log: ".Length);
+                File.Exists(logPath).ShouldEqual(true, "The banner must identify its actual log file.");
+                Directory.GetFiles(Path.Combine(enlistmentRoot, ".gvfs", "logs"), "gvfs_prefetch_*.log")
+                    .ShouldContain(path => path.Equals(logPath, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                result.Output.Contains("VFS for Git: history prefetch").ShouldEqual(false);
+                result.Output.Contains("Prefetch client process ID: ").ShouldEqual(false);
+            }
+        }
+
+        [TestCase]
+        public async Task CloneReportsBackgroundPrefetchProcessId()
+        {
+            string root = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            Directory.CreateDirectory(root);
+            string destination = Path.Combine(root, "clone with spaces");
+            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            Task server = ServeCloneRequests(listener, cancellation.Token, path =>
+            {
+                path.ShouldContain("/gvfs/prefetch");
+                return ("application/x-gvfs-timestamped-packfiles-indexes", null);
+            });
+            Process prefetch = null;
+            Process clone = null;
+            try
+            {
+                ProcessStartInfo process = this.CreateCloneProcess(
+                    root, GVFSTestConfig.RepoToClone, destination,
+                    "--branch", Properties.Settings.Default.Commitish,
+                    "--local-cache-path", this.localCacheRoot,
+                    "--cache-server-url", endpoint, "--no-mount");
+                string config = process.Environment["GIT_CONFIG_GLOBAL"];
+                foreach (string setting in new[] { "gvfs.trust-pack-indexes false", "gvfs.read-timeout-seconds 30", "gvfs.max-retries 0" })
+                {
+                    GitProcess.InvokeProcess(root, $"config --file \"{config}\" {setting}").ExitCode.ShouldEqual(0);
+                }
+
+                clone = Process.Start(process);
+                Task<string> errors = clone.StandardError.ReadToEndAsync(cancellation.Token);
+                StringBuilder output = new StringBuilder();
+                while (prefetch == null)
+                {
+                    string line = await clone.StandardOutput.ReadLineAsync(cancellation.Token);
+                    if (line == null)
+                    {
+                        Assert.Fail("Clone did not report a prefetch client PID.\r\n" + output + await errors);
+                    }
+
+                    output.AppendLine(line);
+                    Match match = Regex.Match(line, @"minimized window \(client PID (\d+)\)");
+                    if (match.Success)
+                    {
+                        prefetch = Process.GetProcessById(int.Parse(match.Groups[1].Value));
+                    }
+                }
+
+                output.ToString().ShouldContain(destination);
+                clone.WaitForExit(10000).ShouldEqual(true, "Clone must not wait for background prefetch.");
+                clone.ExitCode.ShouldEqual(0, output.ToString());
+                prefetch.HasExited.ShouldEqual(false, "The reported PID must identify the active prefetch process.");
+                prefetch.MainModule.FileName.Equals(GVFSTestConfig.PathToGVFS, StringComparison.OrdinalIgnoreCase)
+                    .ShouldEqual(true, "The reported PID must identify the GVFS client.");
+                string logPath = null;
+                SpinWait.SpinUntil(
+                    () =>
+                    {
+                        logPath = Directory.GetFiles(
+                            Path.Combine(destination, ".gvfs", "logs"), "gvfs_prefetch_*.log").SingleOrDefault();
+                        return logPath != null &&
+                            GVFSHelpers.ReadAllTextFromWriteLockedFile(logPath).Contains("\"Commits\":true");
+                    },
+                    TimeSpan.FromSeconds(30)).ShouldEqual(true, "The prefetch client must write commit-prefetch metadata.");
+                string log = GVFSHelpers.ReadAllTextFromWriteLockedFile(logPath);
+                log.ShouldContain("\"Commits\":true");
+                log.ShouldContain("\"EnlistmentRoot\":" + System.Text.Json.JsonSerializer.Serialize(destination));
+            }
+            finally
+            {
+                cancellation.Cancel();
+                listener.Stop();
+                try
+                {
+                    await ObserveCloneServer(server, cancellation.Token);
+                }
+                finally
+                {
+                    if (prefetch != null)
+                    {
+                        using (prefetch)
+                        {
+                            if (!prefetch.HasExited)
+                            {
+                                prefetch.Kill(entireProcessTree: true);
+                                prefetch.WaitForExit(5000).ShouldEqual(true);
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        if (clone != null)
+                        {
+                            using (clone)
+                            {
+                                if (!clone.HasExited)
+                                {
+                                    clone.Kill(entireProcessTree: true);
+                                    clone.WaitForExit(5000).ShouldEqual(true);
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        RepositoryHelpers.DeleteTestDirectory(root);
+                    }
+                }
+            }
         }
 
         [TestCase(false)]
@@ -313,7 +461,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 ProcessResult result = await Task.Run(() => ProcessHelper.Run(process, timeoutMs: 75000));
                 result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
-                result.Output.Contains("Prefetch of commit graph has been started")
+                result.Output.Contains("Started history prefetch in a minimized window (client PID ")
                     .ShouldEqual(!cachedPack && !noPrefetch && !trustPackIndexes, result.Output);
 
                 string logsRoot = Path.Combine(destination, ".gvfs", "logs");
