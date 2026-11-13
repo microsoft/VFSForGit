@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj" />
+    <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
