@@ -239,6 +239,122 @@ namespace GVFS.UnitTests.Windows.Virtualization
             lookups.ShouldEqual(4);
         }
 
+        [TestCase(10L, false, 0)]
+        [TestCase(20L, null, 1)]
+        [TestCase(30L, null, 1)]
+        public void PlaceholderAncestryUsesOlderReaderIdentityWhenItsParentExited(long readerStart, bool? expected, int expectedSnapshots)
+        {
+            int snapshots = 0;
+            Dictionary<uint, uint> parents = new Dictionary<uint, uint> { { 1, 0 }, { 10, 1 }, { 20, 99 } };
+            Func<uint, long?> getStartTime = id => id == 10 ? 20 : readerStart;
+            PlaceholderRequestProcessTree.IsDescendant(20, 10, 20, getStartTime, (request, owner) =>
+            {
+                ++snapshots;
+                return PlaceholderRequestProcessTree.IsDescendant(parents, request, (uint)owner);
+            }).ShouldEqual(expected);
+            snapshots.ShouldEqual(expectedSnapshots);
+        }
+
+        [TestCase]
+        public void PlaceholderAncestryCachesAnOlderReaderWithAnExitedParent()
+        {
+            int lookups = 0;
+            int snapshots = 0;
+            Func<uint, long?> getStartTime = id => id == 10 ? 20 : 10;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(getStartTime, (request, owner, start) =>
+            {
+                ++lookups;
+                return PlaceholderRequestProcessTree.IsDescendant(request, owner, start, getStartTime, (_, _) =>
+                {
+                    ++snapshots;
+                    return null;
+                });
+            });
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(10, false, false, "git checkout", string.Empty);
+            for (int file = 0; file < 100; ++file)
+            {
+                tree.IsDescendant(20, holder, 20).ShouldEqual(false);
+            }
+
+            lookups.ShouldEqual(1);
+            snapshots.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void PlaceholderWaitQueuesAnOlderReaderWithAnExitedParent()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, true))
+            {
+                int snapshots = 0;
+                Func<uint, long?> getStartTime = id => id == 1234 ? 20 : 10;
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                    getStartTime, (request, owner, start) => PlaceholderRequestProcessTree.IsDescendant(
+                        request, owner, start, getStartTime, (_, _) => { ++snapshots; return null; }));
+                tester.WindowsVirtualizer.IsRequestDescendant = tree.IsDescendant;
+                ((MockPlatform)GVFSPlatform.Instance).ProcessStartTimes[1234] = 20;
+                this.HoldCheckoutLock();
+                try
+                {
+                    tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1, "reader").ShouldEqual(HResult.Pending);
+                    tester.MockVirtualization.CommandCompletions.Count.ShouldEqual(0);
+                    tester.BackgroundTaskRunner.Count.ShouldEqual(0);
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                }
+
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                tester.MockVirtualization.CreatedPlaceholders.ShouldContain(path => path == "test.txt");
+                snapshots.ShouldEqual(0);
+            }
+        }
+
+        [TestCase(10u, 20L, true, 0)]
+        [TestCase(20u, 30L, true, 1)]
+        public void PlaceholderAncestryRetainsOwnerAndDescendantRejection(uint processId, long readerStart, bool expected, int expectedSnapshots)
+        {
+            int snapshots = 0;
+            Dictionary<uint, uint> parents = new Dictionary<uint, uint> { { 1, 0 }, { 10, 1 }, { 20, 10 } };
+            PlaceholderRequestProcessTree.IsDescendant(processId, 10, 20, id => id == 10 ? 20 : readerStart, (request, owner) =>
+            {
+                ++snapshots;
+                return PlaceholderRequestProcessTree.IsDescendant(parents, request, (uint)owner);
+            }).ShouldEqual(expected);
+            snapshots.ShouldEqual(expectedSnapshots);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PlaceholderAncestryRevalidatesBothIdentitiesBeforeAcceptingAnOlderReader(bool ownerChanges)
+        {
+            int ownerReads = 0;
+            int requestReads = 0;
+            int snapshots = 0;
+            PlaceholderRequestProcessTree.IsDescendant(20, 10, 20, id =>
+            {
+                if (id == 10)
+                {
+                    return ++ownerReads == 1 || !ownerChanges ? 20 : 21;
+                }
+
+                return ++requestReads == 1 || ownerChanges ? 10 : 11;
+            }, (_, _) => { ++snapshots; return null; }).ShouldEqual(null);
+            snapshots.ShouldEqual(0);
+        }
+
+        [TestCase(null, 10L)]
+        [TestCase(21L, 10L)]
+        [TestCase(20L, null)]
+        public void PlaceholderAncestryDoesNotInferOlderReaderAncestryWithoutVerifiedIdentities(long? ownerStart, long? readerStart)
+        {
+            int snapshots = 0;
+            PlaceholderRequestProcessTree.IsDescendant(
+                20, 10, 20, id => id == 10 ? ownerStart : readerStart,
+                (_, _) => { ++snapshots; return false; }).ShouldEqual(null);
+            snapshots.ShouldEqual(0);
+        }
+
         [TestCase]
         public void PlaceholderAncestryCacheRetriesUnknownAndFailedLookups()
         {

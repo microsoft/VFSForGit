@@ -106,6 +106,15 @@ namespace GVFS.Platform.Windows
 
         internal static bool? IsDescendant(uint processId, int ancestorId, long? expectedAncestorStart, ITracer tracer)
         {
+            return IsDescendant(
+                processId, ancestorId, expectedAncestorStart, GetStartTime,
+                (requestId, ownerId) => ReadAncestry(requestId, ownerId, tracer));
+        }
+
+        internal static bool? IsDescendant(
+            uint processId, int ancestorId, long? expectedAncestorStart,
+            Func<uint, long?> getStartTime, Func<uint, int, bool?> readAncestry)
+        {
             if (processId == ancestorId)
             {
                 return true;
@@ -116,13 +125,24 @@ namespace GVFS.Platform.Windows
                 return null;
             }
 
-            long? ancestorStart = GetStartTime((uint)ancestorId);
-            long? requestStart = GetStartTime(processId);
+            long? ancestorStart = getStartTime((uint)ancestorId);
+            long? requestStart = getStartTime(processId);
             if (ancestorStart != expectedAncestorStart || !requestStart.HasValue)
             {
                 return null;
             }
 
+            bool? related = requestStart.Value < ancestorStart.Value ? false : readAncestry(processId, ancestorId);
+            if (getStartTime(processId) != requestStart || getStartTime((uint)ancestorId) != expectedAncestorStart)
+            {
+                return null;
+            }
+
+            return related;
+        }
+
+        private static bool? ReadAncestry(uint processId, int ancestorId, ITracer tracer)
+        {
             using (SafeFileHandle snapshot = CreateToolhelp32Snapshot(SnapshotProcesses, 0))
             {
                 ProcessEntry entry = new ProcessEntry { Size = (uint)Marshal.SizeOf<ProcessEntry>() };
@@ -146,13 +166,7 @@ namespace GVFS.Platform.Windows
                     return null;
                 }
 
-                bool? related = IsDescendant(parents, processId, (uint)ancestorId, GetStartTime);
-                if (GetStartTime(processId) != requestStart || GetStartTime((uint)ancestorId) != expectedAncestorStart)
-                {
-                    return null;
-                }
-
-                return related;
+                return IsDescendant(parents, processId, (uint)ancestorId, GetStartTime);
             }
         }
 
