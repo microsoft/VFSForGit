@@ -19,6 +19,8 @@ namespace GVFS.CommandLine
     {
         private const string CloneVerbName = "clone";
 
+        internal delegate bool TryCloneStep(out string error);
+
         public string RepositoryURL { get; set; }
 
         public override string EnlistmentRootPathParameter { get; set; }
@@ -497,17 +499,44 @@ namespace GVFS.CommandLine
                     : $"git checkout exited with code {result.ExitCode}.");
         }
 
+        internal static bool TryPrepareRootAttributes(
+            ITracer tracer,
+            bool usedCachedCommit,
+            TryCloneStep prepareRootAttributes,
+            TryCloneStep downloadCommit,
+            out string error,
+            out bool recoveryAttempted)
+        {
+            recoveryAttempted = false;
+            if (prepareRootAttributes(out error))
+            {
+                return true;
+            }
+
+            if (!usedCachedCommit)
+            {
+                return false;
+            }
+
+            tracer.RelatedWarning(
+                new EventMetadata { { "RootAttributesError", error } },
+                "Clone could not prepare root .gitattributes from cached objects. Download the commit pack and retry root attributes.");
+            recoveryAttempted = true;
+            return downloadCommit(out error) && prepareRootAttributes(out error);
+        }
+
         internal static GitProcess.Result CheckoutWithCommitRetry(
             ITracer tracer,
             GitProcess git,
             string branch,
             bool optimisticCheckout,
             Func<bool> downloadCommit,
-            out bool downloadFailed)
+            out bool downloadFailed,
+            bool allowCommitDownload = true)
         {
             downloadFailed = false;
             GitProcess.Result result = git.ForceCheckout(branch);
-            if (result.ExitCodeIsSuccess || !IsMissingTreeCheckoutError(result.Errors, optimisticCheckout))
+            if (result.ExitCodeIsSuccess || !allowCommitDownload || !IsMissingTreeCheckoutError(result.Errors, optimisticCheckout))
             {
                 return result;
             }
@@ -820,7 +849,8 @@ namespace GVFS.CommandLine
                 GVFSConstants.GitConfig.OptimisticCloneCheckout,
                 GVFSConstants.GitConfig.OptimisticCloneCheckoutDefault,
                 git.TryGetBoolFromConfig);
-            if (optimisticCheckout && gitRepo.CommitAndRootTreeExists(commitId, out _))
+            bool usedCachedCommit = optimisticCheckout && gitRepo.CommitAndRootTreeExists(commitId, out _);
+            if (usedCachedCommit)
             {
                 tracer.RelatedEvent(
                     EventLevel.Informational,
@@ -871,7 +901,21 @@ namespace GVFS.CommandLine
                 Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
-            if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
+            TryCloneStep downloadCommit = (out string error) => this.TryDownloadCommit(
+                commitId,
+                enlistment,
+                objectRequestor,
+                gitObjects,
+                gitRepo,
+                out error,
+                checkLocalObjectCache: false);
+            if (!TryPrepareRootAttributes(
+                tracer,
+                usedCachedCommit,
+                (out string error) => this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out error),
+                downloadCommit,
+                out errorMessage,
+                out bool rootRecoveryAttempted))
             {
                 return new Result(errorMessage);
             }
@@ -891,15 +935,9 @@ namespace GVFS.CommandLine
                 git,
                 branch,
                 optimisticCheckout,
-                () => this.TryDownloadCommit(
-                    commitId,
-                    enlistment,
-                    objectRequestor,
-                    gitObjects,
-                    gitRepo,
-                    out downloadError,
-                    checkLocalObjectCache: false),
-                out bool downloadFailed);
+                () => downloadCommit(out downloadError),
+                out bool downloadFailed,
+                allowCommitDownload: !rootRecoveryAttempted);
             if (downloadFailed)
             {
                 return new Result(downloadError);

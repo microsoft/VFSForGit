@@ -494,6 +494,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             return this.CloneReusesCachedTreesAndRecoversMissingTrees(true, "nested", 1, true);
         }
 
+        [TestCase("empty")]
+        [TestCase("zeroed")]
+        [TestCase("truncated")]
+        public Task CloneRecoversCorruptRootTree(string corruption)
+        {
+            return this.CloneReusesCachedTreesAndRecoversMissingTrees(true, "root-" + corruption, 1, true);
+        }
+
         [TestCase(true, "complete", 0, true)]
         [TestCase(false, "complete", 1, true)]
         [TestCase(true, "commit", 1, true)]
@@ -507,6 +515,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase(false, "global-override", 0, true)]
         [TestCase(true, "process-override", 1, true)]
         [TestCase(false, "process-override", 0, true)]
+        [TestCase(false, "root-empty", 1, true)]
+        [TestCase(false, "root-zeroed", 1, true)]
+        [TestCase(false, "root-truncated", 1, true)]
+        [TestCase(true, "root-download-fails", 1, false)]
+        [TestCase(true, "root-download-incomplete", 1, false)]
+        [TestCase(true, "root-nested-incomplete", 1, false)]
         public async Task CloneReusesCachedTreesAndRecoversMissingTrees(
             bool optimisticCheckout, string cacheState, int expectedDownloads, bool expectSuccess)
         {
@@ -585,7 +599,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     }
                 }
 
-                bool missingNestedTree = cacheState == "nested" || cacheState == "download-fails" || cacheState == "download-incomplete";
+                bool corruptRootTree = cacheState.StartsWith("root-", StringComparison.Ordinal);
+                bool missingNestedTree = cacheState == "nested" || cacheState == "download-fails" ||
+                    cacheState == "download-incomplete" || cacheState == "root-nested-incomplete";
                 string missingObject = cacheState == "commit" ? commit :
                     cacheState == "root" ? rootTree :
                     missingNestedTree ? nestedTree : null;
@@ -594,6 +610,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     string path = Path.Combine(objects, missingObject.Substring(0, 2), missingObject.Substring(2));
                     File.SetAttributes(path, FileAttributes.Normal);
                     File.Delete(path);
+                }
+
+                if (corruptRootTree)
+                {
+                    string rootTreePath = Path.Combine(objects, rootTree.Substring(0, 2), rootTree.Substring(2));
+                    byte[] rootTreeBytes = File.ReadAllBytes(rootTreePath);
+                    byte[] corruptBytes = cacheState == "root-zeroed" ? new byte[rootTreeBytes.Length] :
+                        cacheState == "root-truncated" ? rootTreeBytes.Take(rootTreeBytes.Length / 2).ToArray() :
+                        Array.Empty<byte>();
+                    File.SetAttributes(rootTreePath, FileAttributes.Normal);
+                    File.WriteAllBytes(rootTreePath, corruptBytes);
                 }
 
                 string[] commitAndTrees = GitProcess.Invoke(
@@ -615,14 +642,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     }
                 }
 
-                IEnumerable<string> servedObjects = cacheState == "download-incomplete"
-                    ? commitAndTrees.Where(objectId => objectId != nestedTree)
-                    : commitAndTrees;
+                string omittedTree = cacheState == "root-download-incomplete" ? rootTree :
+                    cacheState == "download-incomplete" || cacheState == "root-nested-incomplete" ? nestedTree : null;
+                IEnumerable<string> servedObjects = commitAndTrees.Where(objectId => objectId != omittedTree);
                 using MemoryStream input = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", servedObjects) + "\n"));
                 string packPrefix = Path.Combine(root, "server-pack");
                 ProcessResult packed = GitProcess.InvokeProcess(source, $"pack-objects \"{packPrefix}\"", environment, input);
                 packed.ExitCode.ShouldEqual(0, packed.Errors);
-                byte[] pack = cacheState == "download-fails"
+                byte[] pack = cacheState == "download-fails" || cacheState == "root-download-fails"
                     ? Encoding.ASCII.GetBytes("invalid pack")
                     : File.ReadAllBytes(packPrefix + "-" + packed.Output.Trim() + ".pack");
                 int downloads = 0;
@@ -707,16 +734,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     Path.Combine(destination, ".gvfs", "logs"), "gvfs_clone_*.log").Single());
                 bool reusedCommit = effectiveOptimisticCheckout && cacheState != "commit" && cacheState != "root";
                 log.Contains("Clone_UseCachedCommit").ShouldEqual(reusedCommit, log);
-                if (reusedCommit && missingNestedTree)
+                if (reusedCommit && missingNestedTree && !corruptRootTree)
                 {
                     log.ShouldContain("Download the commit pack and retry checkout.");
                     log.ShouldContain($"fatal: unable to read tree ({nestedTree})");
                 }
 
+                if (reusedCommit && corruptRootTree)
+                {
+                    log.ShouldContain("Download the commit pack and retry root attributes.");
+                    log.ShouldContain("Error returned from ls-tree");
+                    log.Contains("Clone checkout could not read a tree.").ShouldBeFalse(log);
+                }
+
                 if (!expectSuccess)
                 {
-                    (result.Output + result.Errors).ShouldContain(cacheState == "download-fails"
+                    (result.Output + result.Errors).ShouldContain(cacheState == "download-fails" || cacheState == "root-download-fails"
                         ? "Could not download commit"
+                        : cacheState == "root-download-incomplete" ? "Error returned from ls-tree"
                         : "Could not complete checkout of branch: test-branch");
                 }
 

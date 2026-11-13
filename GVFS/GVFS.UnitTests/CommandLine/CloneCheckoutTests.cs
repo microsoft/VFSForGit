@@ -13,6 +13,95 @@ namespace GVFS.UnitTests.CommandLine
         private const string Branch = "test-branch";
         private const string CheckoutCommand = "checkout -f " + Branch;
 
+        [TestCase(true, true, true, true, true, 1, 0, null)]
+        [TestCase(false, false, true, true, false, 1, 0, "root attributes failed")]
+        [TestCase(true, false, true, true, true, 2, 1, null)]
+        [TestCase(true, false, false, true, false, 1, 1, "commit download failed")]
+        [TestCase(true, false, true, false, false, 2, 1, "root attributes failed")]
+        public void RootAttributesRecoveryIsBoundedAndPreservesErrors(
+            bool usedCachedCommit,
+            bool firstPreparationSucceeds,
+            bool downloadSucceeds,
+            bool retrySucceeds,
+            bool expectedSuccess,
+            int expectedPreparations,
+            int expectedDownloads,
+            string expectedError)
+        {
+            int preparations = 0;
+            int downloads = 0;
+            MockTracer tracer = new MockTracer();
+
+            bool success = CloneVerb.TryPrepareRootAttributes(
+                tracer,
+                usedCachedCommit,
+                (out string error) =>
+                {
+                    bool prepared = ++preparations == 1 ? firstPreparationSucceeds : retrySucceeds;
+                    error = prepared ? null : "root attributes failed";
+                    return prepared;
+                },
+                (out string error) =>
+                {
+                    ++downloads;
+                    error = downloadSucceeds ? null : "commit download failed";
+                    return downloadSucceeds;
+                },
+                out string finalError,
+                out bool recoveryAttempted);
+
+            success.ShouldEqual(expectedSuccess);
+            finalError.ShouldEqual(expectedError);
+            preparations.ShouldEqual(expectedPreparations);
+            downloads.ShouldEqual(expectedDownloads);
+            recoveryAttempted.ShouldEqual(expectedDownloads == 1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(expectedDownloads);
+            if (recoveryAttempted)
+            {
+                tracer.RelatedWarningEvents[0].ShouldContain("root attributes failed");
+            }
+        }
+
+        [TestCase]
+        public void RootRecoveryPreventsAnotherDownloadForMissingCheckoutTrees()
+        {
+            int preparations = 0;
+            int downloads = 0;
+            CloneVerb.TryCloneStep downloadCommit = (out string error) =>
+            {
+                ++downloads;
+                error = null;
+                return true;
+            };
+            MockTracer tracer = new MockTracer();
+            CloneVerb.TryPrepareRootAttributes(
+                tracer,
+                true,
+                (out string error) =>
+                {
+                    error = ++preparations == 1 ? "root attributes failed" : null;
+                    return error == null;
+                },
+                downloadCommit,
+                out string rootError,
+                out bool recoveryAttempted).ShouldBeTrue();
+            rootError.ShouldEqual(null);
+            MockGitProcess git = new MockGitProcess();
+            git.SetExpectedCommandResult(
+                CheckoutCommand,
+                () => new GitProcess.Result("", "fatal: unable to read tree 1111111111111111111111111111111111111111", 128));
+
+            GitProcess.Result result = CloneVerb.CheckoutWithCommitRetry(
+                tracer, git, Branch, true, () => downloadCommit(out _), out bool failed,
+                allowCommitDownload: !recoveryAttempted);
+
+            result.ExitCode.ShouldEqual(128);
+            failed.ShouldBeFalse();
+            downloads.ShouldEqual(1);
+            git.CommandsRun.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+        }
+
         [TestCase("", true)]
         [TestCase("Already on test-branch", true)]
         [TestCase(" \nAlready on test-branch\n", true)]
