@@ -201,6 +201,22 @@ namespace GVFS.Common.Git
                 settingName);
         }
 
+        public static bool TryGetBoolFromSystemConfig(string gitBinPath, string settingName, out bool? value, out string error)
+        {
+            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
+            return TryGetBoolFromSystemConfig(
+                settingName,
+                arguments => git.InvokeConfigRead(settingName, () => git.InvokeGitOutsideEnlistment(arguments)),
+                out value,
+                out error);
+        }
+
+        internal static bool TryGetBoolFromSystemConfig(string settingName, Func<string, Result> readConfig, out bool? value, out string error)
+        {
+            Result result = readConfig("config --system --includes --type=bool " + settingName);
+            return LibGit2Repo.TryParseConfigBoolOutput(settingName, result.ExitCode, result.Output, result.Errors, out value, out error);
+        }
+
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
             GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);

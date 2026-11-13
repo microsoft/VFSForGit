@@ -567,13 +567,30 @@ You can specify a URL, a name of a configured cache server, or the special names
         /// </summary>
         /// <param name="enlistmentRoot">Enlistment root.  If string.Empty, PrjFlt will be enabled but not attached to any volumes</param>
         /// <param name="errorMessage">Error meesage (in the case of failure)</param>
+        /// <param name="tracer">Tracer used to read enlistment config.  If null, the enlistment's config is not consulted</param>
         /// <returns>True is successful and false otherwise</returns>
-        protected bool TryEnableAndAttachPrjFltThroughService(string enlistmentRoot, out string errorMessage)
+        protected bool TryEnableAndAttachPrjFltThroughService(string enlistmentRoot, out string errorMessage, ITracer tracer = null)
         {
             errorMessage = string.Empty;
 
             NamedPipeMessages.EnableAndAttachProjFSRequest request = new NamedPipeMessages.EnableAndAttachProjFSRequest();
             request.EnlistmentRoot = enlistmentRoot;
+
+            // The service runs as LocalSystem and cannot read the user's global git config, so
+            // resolve the flag here against the enlistment and let the service combine it with the
+            // system-scoped value. Reading it per request keeps a config change from needing a
+            // service restart to take effect.
+            if (tracer != null && !string.IsNullOrEmpty(enlistmentRoot))
+            {
+                string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                GitProcess git = string.IsNullOrEmpty(gitBinPath) ? null : new GitProcess(gitBinPath, enlistmentRoot);
+                request.AutoAllowDevDriveFilter = DevDriveFilterConfig.IsEnabled(
+                    git == null ? null : git.TryGetBoolFromConfig,
+                    clientValue: null,
+                    source: "enlistment",
+                    tracer,
+                    out string _);
+            }
 
             using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {

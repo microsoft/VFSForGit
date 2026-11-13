@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Platform.Windows;
@@ -141,8 +142,14 @@ namespace GVFS.Service.Handlers
             if (state == NamedPipeMessages.CompletionState.Success
                 && !string.IsNullOrEmpty(this.request.EnlistmentRoot))
             {
-                string attachError;
-                if (!ProjFSFilter.TryAttachToVolume(this.request.EnlistmentRoot, this.tracer, out attachError))
+                bool attached = ProjFSFilter.TryAttachToVolume(
+                    this.request.EnlistmentRoot, this.tracer, out string attachError, out bool devDriveFilterRejected, out string volumeRoot);
+                if (!attached && devDriveFilterRejected)
+                {
+                    attached = this.TryRecoverFilter(volumeRoot, out attachError);
+                }
+
+                if (!attached)
                 {
                     state = NamedPipeMessages.CompletionState.Failure;
                     errorMessage = attachError;
@@ -156,6 +163,53 @@ namespace GVFS.Service.Handlers
             response.ErrorMessage = errorMessage;
 
             this.WriteToClient(response.ToMessage(), this.connection, this.tracer);
+        }
+
+        private bool TryRecoverFilter(string volumeRoot, out string error)
+        {
+            return DevDriveFilterRecovery.TryRecover(
+                volumeRoot,
+                this.tracer,
+                () =>
+                {
+                    bool enabled = this.IsAutoAllowDevDriveFilterEnabled(out string reason);
+                    return (enabled, reason);
+                },
+                () =>
+                {
+                    DevDriveFilterPolicy.AllowFilterResult result = DevDriveFilterPolicy.TryAllowFilter(volumeRoot, this.tracer, out string policyError);
+                    return (result, policyError);
+                },
+                () =>
+                {
+                    bool attached = ProjFSFilter.TryAttachToVolume(
+                        this.request.EnlistmentRoot, this.tracer, out string attachError, out bool rejected, out string _);
+                    return (attached, rejected, attachError);
+                },
+                out error);
+        }
+
+        /// <summary>
+        /// Reads gvfs.auto-allow-devdrive-filter fresh for this request. The value is deliberately
+        /// not cached: the service runs for the lifetime of the machine, so a cached value would
+        /// keep an operator's change from taking effect until the service restarted.
+        /// </summary>
+        /// <remarks>
+        /// The service runs as LocalSystem and cannot see the user's global git config, so it reads
+        /// the system scope and combines it with the value the client resolved against the
+        /// enlistment. Either side can turn the feature off; neither can turn it on alone.
+        /// </remarks>
+        private bool IsAutoAllowDevDriveFilterEnabled(out string disabledReason)
+        {
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            LibGit2Repo.TryReadConfigBoolWithGit reader = null;
+            if (!string.IsNullOrEmpty(gitBinPath))
+            {
+                reader = (string key, out bool? value, out string readError) =>
+                    GitProcess.TryGetBoolFromSystemConfig(gitBinPath, key, out value, out readError);
+            }
+
+            return DevDriveFilterConfig.IsEnabled(reader, this.request.AutoAllowDevDriveFilter, "system", this.tracer, out disabledReason);
         }
     }
 }
