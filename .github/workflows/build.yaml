@@ -298,7 +298,6 @@ jobs:
       uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
       with:
         global-json-file: src/global.json
-        dotnet-version: ${{ env.AotMsCodeCoverageInstrumentation == 'true' && '8.0.x' || '' }}
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
@@ -421,7 +420,6 @@ jobs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         global-json-file: src/global.json
-        dotnet-version: 8.0.x
 
     - name: Download all coverage workers
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -451,7 +449,7 @@ jobs:
     - name: Render full managed reports
       shell: pwsh
       run: |
-        dotnet tool install dotnet-reportgenerator-globaltool --version 5.5.11 --tool-path coverage-tools --configfile src\nuget.config
+        dotnet tool install dotnet-reportgenerator-globaltool --version 5.5.11 --framework net10.0 --tool-path coverage-tools --configfile src\nuget.config
         if ($LASTEXITCODE -ne 0) { throw 'Coverage renderer installation failed.' }
         foreach ($group in Get-ChildItem coverage-report\normalized -Directory) {
           .\coverage-tools\reportgenerator.exe "-reports:$($group.FullName)\*.cobertura.xml" "-targetdir:coverage-report\$($group.Name)" "-reporttypes:Html;MarkdownSummaryGithub;Cobertura;JsonSummary" "-title:Managed source coverage - $($group.Name)"
