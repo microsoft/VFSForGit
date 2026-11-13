@@ -14,8 +14,8 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
-            Properties.Settings.Default.Initialize();
             GVFSPlatformLoader.Initialize();
+            Properties.Settings.Default.Initialize();
 
             GVFSTestConfig.IsDevMode = Environment.GetEnvironmentVariable("GVFS_FUNCTIONAL_TEST_DEV_MODE") == "1";
 

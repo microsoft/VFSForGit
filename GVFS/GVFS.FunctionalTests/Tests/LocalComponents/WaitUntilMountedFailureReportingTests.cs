@@ -4,12 +4,15 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
+using System.IO;
 using System.IO.Pipes;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace GVFS.UnitTests.Common
+namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     [TestFixture]
+    [NonParallelizable]
     public class WaitUntilMountedFailureReportingTests
     {
         private const string EnlistmentRoot = "mock:\\fake\\root";
@@ -38,12 +41,6 @@ namespace GVFS.UnitTests.Common
         /// Stands in for GVFS.Mount: answers a single GetStatus request with MountFailed,
         /// then returns the error message WaitUntilMounted produced.
         /// </summary>
-        /// <remarks>
-        /// Uses a raw <see cref="NamedPipeServerStream"/> rather than
-        /// <see cref="NamedPipeServer"/>, because the latter goes through
-        /// GVFSPlatform.CreatePipeByName, which the unit-test mock platform does not
-        /// support.
-        /// </remarks>
         private static string RunAgainstMountFailedServer(string mountError)
         {
             string pipeName = "GVFS_test_mount_failed_" + Guid.NewGuid().ToString("N");
@@ -57,44 +54,58 @@ namespace GVFS.UnitTests.Common
 
             string responseJson = response.ToJson();
 
+            using (CancellationTokenSource deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
             using (NamedPipeServerStream serverStream = new NamedPipeServerStream(
                 pipeName,
                 PipeDirection.InOut,
-                maxNumberOfServerInstances: 1))
+                maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous))
             {
-                Task serverTask = Task.Run(() =>
+                using CancellationTokenRegistration abort = deadline.Token.Register(() => serverStream.Dispose());
+                Task serverTask = Task.Run(async () =>
                 {
-                    serverStream.WaitForConnection();
+                    await serverStream.WaitForConnectionAsync(deadline.Token);
 
                     NamedPipeStreamReader reader = new NamedPipeStreamReader(serverStream);
                     NamedPipeStreamWriter writer = new NamedPipeStreamWriter(serverStream);
 
-                    // WaitUntilMounted sends GetStatus and stops on the first
-                    // MountFailed response, so one exchange is enough.
                     reader.ReadMessage();
                     writer.WriteMessage(responseJson);
                 });
 
                 try
                 {
+                    using MockTracer tracer = new MockTracer();
                     string errorMessage;
                     bool result = GVFSEnlistment.WaitUntilMounted(
-                        new MockTracer(),
+                        tracer,
                         pipeName,
                         EnlistmentRoot,
                         unattended: false,
                         out errorMessage);
 
                     result.ShouldBeFalse();
+                    serverTask.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue(
+                        "The stand-in mount server must answer and complete.");
                     return errorMessage;
                 }
                 finally
                 {
-                    // Surfaces a hung server task instead of silently disposing the stream
-                    // out from under it, which would fault an unobserved task and hide the
-                    // real cause of a failure.
-                    serverTask.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue(
-                        "The stand-in mount server should have answered and completed.");
+                    deadline.Cancel();
+                    try
+                    {
+                        serverTask.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+                    {
+                    }
+                    catch (ObjectDisposedException) when (deadline.IsCancellationRequested)
+                    {
+                    }
+                    catch (IOException) when (deadline.IsCancellationRequested)
+                    {
+                    }
                 }
             }
         }

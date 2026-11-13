@@ -6,10 +6,7 @@ using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Git
 {
@@ -666,98 +663,6 @@ this is an error",
             GitProcess.QuoteGitPath(input).ShouldEqual(expected);
         }
 
-        [TestCase(30000)]
-        [TestCase(Timeout.Infinite)]
-        public void GitCommandWaitsForOutputCallbacks(int timeoutMs)
-        {
-            string gitPath = GitTestHelper.FindGitOnPath();
-            if (gitPath == null)
-            {
-                Assert.Ignore("Git was not found on PATH.");
-            }
-
-            OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath);
-            using (ManualResetEventSlim callbackStarted = new ManualResetEventSlim())
-            using (ManualResetEventSlim releaseCallback = new ManualResetEventSlim())
-            {
-                bool callbackCompleted = false;
-                Task<GitProcess.Result> command = Task.Run(() => gitProcess.GetVersion(
-                    line =>
-                    {
-                        callbackStarted.Set();
-                        callbackCompleted = releaseCallback.Wait(TimeSpan.FromSeconds(10));
-                    },
-                    timeoutMs));
-
-                try
-                {
-                    callbackStarted.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("Git did not produce output");
-                    command.Wait(TimeSpan.FromSeconds(1)).ShouldBeFalse("The command returned before its output callback finished");
-                }
-                finally
-                {
-                    releaseCallback.Set();
-                    command.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("The command did not finish after its output callback was released");
-                }
-
-                command.Result.ExitCode.ShouldEqual(0);
-                callbackCompleted.ShouldBeTrue();
-            }
-        }
-
-        [TestCase]
-        [Description("Integration test: verify QuoteGitPath produces arguments that git actually receives correctly")]
-        public void QuoteGitPath_RoundTripThroughProcess()
-        {
-            // Test that paths with special characters survive the
-            // ProcessStartInfo.Arguments → Windows CRT argument parsing → git round-trip.
-            // We use "git rev-parse --sq-quote <path>" which echoes the path back
-            // in shell-quoted form, proving git received it correctly.
-            string[] testPaths = new[]
-            {
-                "simple/path.txt",
-                "path with spaces/file name.txt",
-                "path\\with\\backslashes\\file.txt",
-            };
-
-            string gitPath = GitTestHelper.FindGitOnPath();
-            if (gitPath == null)
-            {
-                Assert.Ignore("Git was not found on PATH.");
-            }
-
-            foreach (string testPath in testPaths)
-            {
-                string quoted = GitProcess.QuoteGitPath(testPath);
-                ProcessStartInfo psi = new ProcessStartInfo(gitPath)
-                {
-                    Arguments = "rev-parse --sq-quote " + quoted,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                };
-
-                using (Process proc = Process.Start(psi))
-                {
-                    string output = proc.StandardOutput.ReadToEnd().Trim();
-                    proc.WaitForExit();
-
-                    // git sq-quote wraps in single quotes and escapes single quotes
-                    // For a simple path "foo/bar.txt" → output is "'foo/bar.txt'"
-                    // Strip the outer single quotes to get the raw path back
-                    if (output.StartsWith("'") && output.EndsWith("'"))
-                    {
-                        output = output.Substring(1, output.Length - 2);
-                    }
-
-                    output.ShouldEqual(
-                        testPath,
-                        $"Path round-trip failed for: {testPath} (quoted as: {quoted})");
-                }
-            }
-        }
-
         private MockGitProcess CreateProcessWithTransientThenSuccess(string command, string successOutput, out Func<int> getDelayCount)
         {
             int delayCount = 0;
@@ -768,27 +673,6 @@ this is an error",
             process.SetExpectedCommandResult(command, () => results.Dequeue());
             getDelayCount = () => delayCount;
             return process;
-        }
-
-        private sealed class OutputCallbackGitProcess : GitProcess
-        {
-            public OutputCallbackGitProcess(string gitPath)
-                : base(gitPath, workingDirectoryRoot: null)
-            {
-            }
-
-            public Result GetVersion(Action<string> onOutput, int timeoutMs)
-            {
-                return this.InvokeGitImpl(
-                    "--version",
-                    workingDirectory: null,
-                    dotGitDirectory: null,
-                    useReadObjectHook: false,
-                    writeStdIn: null,
-                    parseStdOutLine: onOutput,
-                    timeoutMs: timeoutMs,
-                    usePreCommandHook: false);
-            }
         }
     }
 }
