@@ -55,8 +55,60 @@ namespace GVFS.Common.Maintenance
             return null;
         }
 
+        public static bool HasCompletedPrefetchPacks(ITracer tracer, PhysicalFileSystem fileSystem, string gitPackRoot, bool requireOldestPackIndex = false)
+        {
+            try
+            {
+                if (!fileSystem.DirectoryExists(gitPackRoot))
+                {
+                    return false;
+                }
+
+                foreach (string pack in fileSystem.GetFiles(gitPackRoot, GVFSConstants.PrefetchPackPrefix + "-*.pack")
+                    .Where(pack => GetPrefetchPackTimestamp(pack).HasValue)
+                    .OrderBy(pack => GetPrefetchPackTimestamp(pack).Value))
+                {
+                    if (HasInProgressMarker(fileSystem, pack))
+                    {
+                        continue;
+                    }
+
+                    bool hasIndex = fileSystem.FileExists(Path.ChangeExtension(pack, ".idx"));
+                    if (hasIndex || requireOldestPackIndex)
+                    {
+                        return hasIndex;
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata
+                    {
+                        { nameof(gitPackRoot), gitPackRoot },
+                        { "Exception", ex.ToString() },
+                    },
+                    "Could not check for completed prefetch packs. Using initial-prefetch behavior.");
+                return false;
+            }
+        }
+
         public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
+            return this.TryPrefetchCommitsAndTrees(out error, out _, offloaded: false, gitProcess);
+        }
+
+        public bool TryPrefetchCommitsAndTreesForOffload(out string error, out bool offloadDeclined)
+        {
+            return this.TryPrefetchCommitsAndTrees(out error, out offloadDeclined, offloaded: true, gitProcess: null);
+        }
+
+        private bool TryPrefetchCommitsAndTrees(out string error, out bool offloadDeclined, bool offloaded, GitProcess gitProcess)
+        {
+            error = null;
+            offloadDeclined = false;
             if (gitProcess == null)
             {
                 gitProcess = new GitProcess(this.Context.Enlistment);
@@ -71,7 +123,20 @@ namespace GVFS.Common.Maintenance
                 this.Context.Tracer,
                 Path.Combine(this.Context.Enlistment.GitPackRoot, PrefetchCommitsAndTreesLock)))
             {
-                WaitUntilLockIsAcquired(this.Context.Tracer, prefetchLock);
+                if (offloaded)
+                {
+                    if (!prefetchLock.TryAcquireLock() ||
+                        !HasCompletedPrefetchPacks(this.Context.Tracer, this.Context.FileSystem, this.Context.Enlistment.GitPackRoot, requireOldestPackIndex: true))
+                    {
+                        offloadDeclined = true;
+                        return false;
+                    }
+                }
+                else
+                {
+                    WaitUntilLockIsAcquired(this.Context.Tracer, prefetchLock);
+                }
+
                 long maxGoodTimeStamp;
 
                 this.GitObjects.DeleteStaleTempPrefetchPackAndIdxs();
@@ -79,6 +144,12 @@ namespace GVFS.Common.Maintenance
 
                 if (!this.TryGetMaxGoodPrefetchTimestamp(out maxGoodTimeStamp, out error))
                 {
+                    return false;
+                }
+
+                if (offloaded && maxGoodTimeStamp == NoExistingPrefetchPacks)
+                {
+                    offloadDeclined = true;
                     return false;
                 }
 
@@ -96,6 +167,19 @@ namespace GVFS.Common.Maintenance
             this.SchedulePostFetchJob(packIndexes);
 
             return true;
+        }
+
+        private static bool HasInProgressMarker(PhysicalFileSystem fileSystem, string packPath)
+        {
+            try
+            {
+                fileSystem.GetAttributes(Path.ChangeExtension(packPath, GVFSConstants.InProgressPrefetchMarkerExtension));
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
         }
 
         protected override void PerformMaintenance()
