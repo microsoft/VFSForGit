@@ -116,12 +116,42 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 "--local-cache-path", this.localCacheRoot, "--no-mount", "--no-prefetch");
             ProcessResult result = ProcessHelper.Run(process, timeoutMs: 75000);
             result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+            AssertCloneStages(Path.Combine(this.seedRoot, "seed"));
         }
 
         [OneTimeTearDown]
         public void DeleteObjectCache()
         {
             RepositoryHelpers.DeleteTestDirectory(this.seedRoot);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CloneLogsStagesWithoutChangingRedirectedOutput(bool unattended)
+        {
+            string root = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            Directory.CreateDirectory(root);
+            string destination = Path.Combine(root, "clone");
+            try
+            {
+                ProcessStartInfo process = this.CreateCloneProcess(
+                    root, GVFSTestConfig.RepoToClone, destination,
+                    "--branch", Properties.Settings.Default.Commitish,
+                    "--local-cache-path", this.localCacheRoot, "--no-mount", "--no-prefetch");
+                process.Environment["GVFS_UNATTENDED"] = unattended ? "1" : "0";
+                ProcessResult result = ProcessHelper.Run(process, timeoutMs: 75000);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+                result.Output.ShouldContain("Cloning...Succeeded" + Environment.NewLine);
+                result.Output.ShouldNotContain(ignoreCase: false, "Cloning (");
+                string log = File.ReadAllText(Directory.GetFiles(
+                    Path.Combine(destination, ".gvfs", "logs"), "gvfs_clone_*.log").Single());
+                log.ShouldContain("\"Unattended\":" + unattended.ToString().ToLowerInvariant());
+                AssertCloneStages(destination);
+            }
+            finally
+            {
+                RepositoryHelpers.DeleteTestDirectory(root);
+            }
         }
 
         [TestCase(false)]
@@ -163,6 +193,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 log.ShouldContain("\"ReadTimeoutMs\":1000");
                 log.ShouldContain("\"AttemptNumber\":1");
                 log.ShouldContain("\"WillRetry\":true");
+                ReadCloneStages(Path.Combine(root, "clone")).ShouldEqual(new[]
+                {
+                    "ReadingRemoteReferences:1:Started",
+                    "ReadingRemoteReferences:1:Failed",
+                });
+                result.Output.ShouldContain("Cloning...Failed.");
+                result.Output.ShouldNotContain(ignoreCase: false, "Cloning (");
                 infoRefsRequests.ShouldEqual(2);
                 if (recover)
                 {
@@ -386,6 +423,82 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        internal static void AssertCloneStages(
+            string destination,
+            bool retried = false,
+            bool downloadFailed = false,
+            bool checkoutSucceeded = true,
+            bool rootRetried = false,
+            bool rootAttributesSucceeded = true)
+        {
+            List<string> expectedStages = new List<string>
+            {
+                "ReadingRemoteReferences:1:Started",
+                "ReadingRemoteReferences:1:Succeeded",
+                "PreparingRepositoryAndCache:1:Started",
+                "PreparingRepositoryAndCache:1:Succeeded",
+                "PreparingCommitAndTrees:1:Started",
+                "PreparingCommitAndTrees:1:Succeeded",
+                "PreparingCheckout:1:Started",
+            };
+            if (rootRetried)
+            {
+                expectedStages.Add("PreparingCheckout:1:Retrying");
+                expectedStages.Add("PreparingCommitAndTrees:2:Started");
+                expectedStages.Add("PreparingCommitAndTrees:2:" + (downloadFailed ? "Failed" : "Succeeded"));
+                if (!downloadFailed)
+                {
+                    expectedStages.Add("PreparingCheckout:2:Started");
+                    expectedStages.Add("PreparingCheckout:2:" + (rootAttributesSucceeded ? "Succeeded" : "Failed"));
+                }
+            }
+            else
+            {
+                expectedStages.Add("PreparingCheckout:1:Succeeded");
+            }
+
+            if (!rootRetried || (!downloadFailed && rootAttributesSucceeded))
+            {
+                expectedStages.Add("InitializingIndex:1:Started");
+                if (retried)
+                {
+                    expectedStages.Add("InitializingIndex:1:Retrying");
+                    expectedStages.Add("PreparingCommitAndTrees:2:Started");
+                    expectedStages.Add("PreparingCommitAndTrees:2:" + (downloadFailed ? "Failed" : "Succeeded"));
+                    if (!downloadFailed)
+                    {
+                        expectedStages.Add("InitializingIndex:2:Started");
+                    }
+                }
+
+                if (!downloadFailed)
+                {
+                    expectedStages.Add($"InitializingIndex:{(retried ? 2 : 1)}:" + (checkoutSucceeded ? "Succeeded" : "Failed"));
+                    if (checkoutSucceeded)
+                    {
+                        expectedStages.Add("FinalizingRepository:1:Started");
+                        expectedStages.Add("FinalizingRepository:1:Succeeded");
+                    }
+                }
+            }
+
+            ReadCloneStages(destination).ShouldEqual(expectedStages.ToArray());
+        }
+
+        internal static string[] ReadCloneStages(string destination)
+        {
+            string logPath = Directory.GetFiles(Path.Combine(destination, ".gvfs", "logs"), "gvfs_clone_*.log").Single();
+            List<string> stages = new List<string>();
+            foreach (string line in File.ReadLines(logPath).Where(line => line.Contains(" CloneStage ")))
+            {
+                using JsonDocument payload = JsonDocument.Parse(line.Substring(line.IndexOf('{')));
+                JsonElement metadata = payload.RootElement;
+                stages.Add($"{metadata.GetProperty("Stage").GetString()}:{metadata.GetProperty("Attempt").GetInt32()}:{metadata.GetProperty("State").GetString()}");
+            }
+
+            return stages.ToArray();
+        }
+
         private ProcessStartInfo CreateCloneProcess(string root, string repository, string destination, params string[] options)
         {
             string config = Path.Combine(root, ".gitconfig");
@@ -508,6 +621,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase(true, "root", 1, true)]
         [TestCase(true, "download-fails", 1, false)]
         [TestCase(true, "download-incomplete", 1, false)]
+        [TestCase(false, "packed-nested", 1, true)]
+        [TestCase(false, "packed-download-fails", 1, false)]
+        [TestCase(false, "packed-download-incomplete", 1, false)]
         [TestCase(false, "packed", 0, true)]
         [TestCase(true, "packed-loose", 0, true)]
         [TestCase(false, "packed-loose", 1, true)]
@@ -600,8 +716,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
 
                 bool corruptRootTree = cacheState.StartsWith("root-", StringComparison.Ordinal);
+                bool packedMissingTree = cacheState == "packed-nested" ||
+                    cacheState == "packed-download-fails" ||
+                    cacheState == "packed-download-incomplete";
+                bool downloadFails = cacheState.EndsWith("download-fails", StringComparison.Ordinal);
+                bool downloadIncomplete = cacheState.EndsWith("download-incomplete", StringComparison.Ordinal);
                 bool missingNestedTree = cacheState == "nested" || cacheState == "download-fails" ||
-                    cacheState == "download-incomplete" || cacheState == "root-nested-incomplete";
+                    cacheState == "download-incomplete" || cacheState == "root-nested-incomplete" || packedMissingTree;
                 string missingObject = cacheState == "commit" ? commit :
                     cacheState == "root" ? rootTree :
                     missingNestedTree ? nestedTree : null;
@@ -626,15 +747,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 string[] commitAndTrees = GitProcess.Invoke(
                     source, "rev-list --objects --no-object-names --filter=blob:none HEAD")
                     .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                if (cacheState == "packed" || cacheState == "packed-loose")
+                if (cacheState == "packed" || cacheState == "packed-loose" || packedMissingTree)
                 {
                     string packDirectory = Path.Combine(objects, "pack");
                     Directory.CreateDirectory(packDirectory);
-                    using MemoryStream cacheInput = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", commitAndTrees) + "\n"));
+                    IEnumerable<string> cachedObjects = packedMissingTree
+                        ? commitAndTrees.Where(objectId => objectId != nestedTree)
+                        : commitAndTrees;
+                    using MemoryStream cacheInput = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", cachedObjects) + "\n"));
                     ProcessResult cachePack = GitProcess.InvokeProcess(
                         source, $"pack-objects \"{Path.Combine(packDirectory, "pack")}\"", environment, cacheInput);
                     cachePack.ExitCode.ShouldEqual(0, cachePack.Errors);
-                    if (cacheState == "packed")
+                    if (cacheState == "packed" || packedMissingTree)
                     {
                         string looseCommit = Path.Combine(objects, commit.Substring(0, 2), commit.Substring(2));
                         File.SetAttributes(looseCommit, FileAttributes.Normal);
@@ -643,13 +767,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
 
                 string omittedTree = cacheState == "root-download-incomplete" ? rootTree :
-                    cacheState == "download-incomplete" || cacheState == "root-nested-incomplete" ? nestedTree : null;
+                    downloadIncomplete || cacheState == "root-nested-incomplete" ? nestedTree : null;
                 IEnumerable<string> servedObjects = commitAndTrees.Where(objectId => objectId != omittedTree);
                 using MemoryStream input = new MemoryStream(Encoding.ASCII.GetBytes(string.Join("\n", servedObjects) + "\n"));
                 string packPrefix = Path.Combine(root, "server-pack");
                 ProcessResult packed = GitProcess.InvokeProcess(source, $"pack-objects \"{packPrefix}\"", environment, input);
                 packed.ExitCode.ShouldEqual(0, packed.Errors);
-                byte[] pack = cacheState == "download-fails" || cacheState == "root-download-fails"
+                byte[] pack = downloadFails
                     ? Encoding.ASCII.GetBytes("invalid pack")
                     : File.ReadAllBytes(packPrefix + "-" + packed.Output.Trim() + ".pack");
                 int downloads = 0;
@@ -725,6 +849,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 result.ExitCode.ShouldEqual(expectSuccess ? 0 : 3, result.Output + result.Errors);
                 downloads.ShouldEqual(expectedDownloads);
+                CloneNetworkTests.AssertCloneStages(
+                    destination,
+                    retried: missingNestedTree && !corruptRootTree && (effectiveOptimisticCheckout || packedMissingTree),
+                    downloadFailed: downloadFails,
+                    checkoutSucceeded: expectSuccess,
+                    rootRetried: effectiveOptimisticCheckout && corruptRootTree,
+                    rootAttributesSucceeded: cacheState != "root-download-incomplete");
                 requestedObjects.Count.ShouldEqual(expectedDownloads);
                 foreach (string requestedObject in requestedObjects)
                 {
@@ -749,7 +880,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 if (!expectSuccess)
                 {
-                    (result.Output + result.Errors).ShouldContain(cacheState == "download-fails" || cacheState == "root-download-fails"
+                    (result.Output + result.Errors).ShouldContain(downloadFails
                         ? "Could not download commit"
                         : cacheState == "root-download-incomplete" ? "Error returned from ls-tree"
                         : "Could not complete checkout of branch: test-branch");
