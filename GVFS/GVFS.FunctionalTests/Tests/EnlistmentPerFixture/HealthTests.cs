@@ -8,6 +8,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -135,6 +139,322 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 topHydratedDirectories: topHydratedDirectories,
                 directoryHydrationLevels: directoryHydrationLevels,
                 enlistmentHealthStatus: "Highly Hydrated");
+        }
+
+        [TestCase(0), Order(5)]
+        [TestCase(5)]
+        public void StatusRecordsTheDisplayedResultAndFallbackDiagnostics(int backoffSeconds)
+        {
+            this.RemountWithHydrationStatus(false, backoffSeconds);
+            JsonElement root = this.WaitForHydrationCacheState("FeatureDisabled", out string output, out string[] lines);
+            Assert.AreEqual("Status", root.GetProperty("Mode").GetString());
+            Guid.ParseExact(root.GetProperty("CommandId").GetString(), "N").ShouldNotEqual(Guid.Empty);
+            JsonElement cache = root.GetProperty("Cache");
+            cache.GetProperty("Outcome").GetString().ShouldEqual("NotAvailable");
+            cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
+            Assert.IsTrue(cache.GetProperty("DiagnosticsAvailable").GetBoolean());
+            cache.GetProperty("State").GetString().ShouldEqual("FeatureDisabled");
+            string displayOutcome = root.GetProperty("DisplayOutcome").GetString();
+            output.ShouldContain(displayOutcome == "Percentage" ? "Estimated hydration: " : "Error calculating hydration summary.");
+            root.GetProperty("ResultSource").GetString().ShouldEqual("Fallback");
+            string calculation = lines.Single(line => line.Contains("HydrationSummaryDuration "));
+            using (JsonDocument calculationDocument = JsonDocument.Parse(calculation.Substring(calculation.IndexOf('{'))))
+            {
+                JsonElement summary = calculationDocument.RootElement;
+                summary.GetProperty("CommandId").GetString().ShouldEqual(root.GetProperty("CommandId").GetString());
+                summary.GetProperty("CalculationId").GetString().ShouldEqual(root.GetProperty("CalculationId").GetString());
+                summary.GetProperty("FolderCountSource").GetString().ShouldEqual("IndexParser");
+                Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("TotalFileCount").ValueKind);
+                Assert.AreEqual(JsonValueKind.Number, summary.GetProperty("PlaceholderFolderCount").ValueKind);
+            }
+        }
+
+        [TestCase, Order(6)]
+        public void DetailedHealthRecordsItsCommandMode()
+        {
+            HashSet<string> previous = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
+            this.Enlistment.Health();
+            using (JsonDocument completion = this.ReadHealthCompletion(previous, out _))
+            {
+                completion.RootElement.GetProperty("Mode").GetString().ShouldEqual("Detailed");
+                completion.RootElement.GetProperty("Outcome").GetString().ShouldEqual("Success");
+                Assert.IsFalse(completion.RootElement.TryGetProperty("Cache", out _));
+            }
+        }
+
+        [TestCase, Order(7)]
+        public void CachedStatusRecordsThePublishedCalculationIdentity()
+        {
+            this.RemountWithHydrationStatus(true);
+            JsonElement root = this.WaitForHydrationCacheState("Available", out string output, out _);
+            root.GetProperty("ResultSource").GetString().ShouldEqual("Cache");
+            JsonElement cache = root.GetProperty("Cache");
+            cache.GetProperty("Outcome").GetString().ShouldEqual("Success");
+            cache.GetProperty("DiagnosticsStatus").GetString().ShouldEqual("Parsed");
+            cache.GetProperty("State").GetString().ShouldEqual("Available");
+            Assert.IsTrue(cache.GetProperty("CountsComplete").GetBoolean());
+            Assert.That(cache.GetProperty("AgeMs").GetInt64(), Is.GreaterThanOrEqualTo(0));
+            Guid.ParseExact(cache.GetProperty("CalculationId").GetString(), "N").ShouldNotEqual(Guid.Empty);
+            root.GetProperty("CalculationId").GetString().ShouldEqual(cache.GetProperty("CalculationId").GetString());
+            root.GetProperty("Outcome").GetString().ShouldEqual("Success");
+            root.GetProperty("CalculationOutcome").GetString().ShouldEqual("Success");
+            output.ShouldContain("Estimated hydration: ");
+        }
+
+        [TestCase(true), Order(8)]
+        [TestCase(false)]
+        public void StatusToleratesRetainedFoldersAndNewFilesAfterBranchSwitch(bool cached)
+        {
+            string originalCommit = this.RunGit("rev-parse HEAD").Trim();
+            string prefix = cached ? "hydration-cached" : "hydration-fallback";
+            string retainedFolderName = prefix + "-old-retained";
+            string removedFolderName = prefix + "-old-clean";
+            string currentFolderName = prefix + "-current";
+            string retainedFolder = Path.Combine(this.Enlistment.RepoRoot, retainedFolderName);
+            string removedFolder = Path.Combine(this.Enlistment.RepoRoot, removedFolderName);
+            string newFolder = Path.Combine(this.Enlistment.RepoRoot, prefix + "-untracked");
+            string untrackedFile = Path.Combine(retainedFolder, "untracked.txt");
+            string[] newFiles = Enumerable.Range(0, 3).Select(i => Path.Combine(this.Enlistment.RepoRoot, prefix + "-new-" + i + ".txt")).ToArray();
+            bool oldBranchCreated = false;
+            bool currentBranchCreated = false;
+            bool testCompleted = false;
+
+            void Cleanup(Action action)
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception exception) when (!testCompleted
+                    && (exception is IOException || exception is UnauthorizedAccessException || exception is AssertionException))
+                {
+                    TestContext.Error.WriteLine("Hydration test cleanup failed: " + exception);
+                }
+            }
+
+            try
+            {
+                string blob = this.RunGitWithInput("hash-object -w --stdin", "tracked\n");
+                string subtree = this.RunGitWithInput("mktree", "100644 blob " + blob + "\ttracked.txt\n");
+                string oldTree = this.RunGitWithInput("mktree",
+                    "040000 tree " + subtree + "\t" + removedFolderName + "\n040000 tree " + subtree + "\t" + retainedFolderName + "\n");
+                string newTree = this.RunGitWithInput("mktree", "040000 tree " + subtree + "\t" + currentFolderName + "\n");
+                string oldCommit = this.RunGitWithInput("commit-tree " + oldTree + " -p " + originalCommit, "Old hydration population\n");
+                string newCommit = this.RunGitWithInput("commit-tree " + newTree + " -p " + oldCommit, "Current hydration population\n");
+                this.RunGit("branch hydration-count-old " + oldCommit);
+                oldBranchCreated = true;
+                this.RunGit("branch hydration-count-current " + newCommit);
+                currentBranchCreated = true;
+                this.RunGit("checkout -f hydration-count-old");
+                File.ReadAllText(Path.Combine(retainedFolder, "tracked.txt")).ShouldEqual("tracked\n");
+                File.ReadAllText(Path.Combine(removedFolder, "tracked.txt")).ShouldEqual("tracked\n");
+                File.WriteAllText(untrackedFile, "keep this folder");
+                this.Enlistment.WaitForBackgroundOperations();
+
+                this.RunGit("checkout hydration-count-current");
+                File.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, currentFolderName, "tracked.txt")).ShouldEqual("tracked\n");
+                Directory.CreateDirectory(newFolder);
+                File.WriteAllText(Path.Combine(newFolder, "new.txt"), "new untracked folder");
+                foreach (string file in newFiles)
+                {
+                    File.WriteAllText(file, "new untracked file");
+                }
+
+                this.Enlistment.WaitForBackgroundOperations();
+                File.ReadAllText(untrackedFile).ShouldEqual("keep this folder");
+                Assert.IsFalse(Directory.Exists(removedFolder), "A clean obsolete folder must be removed, unlike the retained folder.");
+                string database = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "VFSForGit.sqlite");
+                string placeholders = GVFSHelpers.GetAllSQLitePlaceholdersAsString(database);
+                placeholders.ShouldContain(retainedFolderName + GVFSHelpers.PlaceholderFieldDelimiter);
+                Assert.That(placeholders, Does.Not.Contain(removedFolderName + GVFSHelpers.PlaceholderFieldDelimiter));
+
+                this.RemountWithHydrationStatus(cached, backoffSeconds: 0);
+                JsonElement completion = this.WaitForHydrationCacheState(cached ? "Available" : "FeatureDisabled", out string output, out string[] lines);
+                completion.GetProperty("Outcome").GetString().ShouldEqual("Success");
+                completion.GetProperty("CalculationOutcome").GetString().ShouldEqual("Success");
+                completion.GetProperty("ResultSource").GetString().ShouldEqual(cached ? "Cache" : "Fallback");
+                output.ShouldContain("Estimated hydration: files 100% (counts exceed current total); folders 100% (counts exceed current total)");
+                JsonElement result = completion.GetProperty(cached ? "Cache" : "Summary");
+                JsonElement counts = cached ? result.GetProperty("Counts") : result;
+                counts.GetProperty("TotalFileCount").GetInt32().ShouldEqual(1);
+                counts.GetProperty("TotalFolderCount").GetInt32().ShouldEqual(1);
+                Assert.That(result.GetProperty("FileCountExcess").GetInt64(), Is.GreaterThan(0));
+                Assert.That(result.GetProperty("FolderCountExcess").GetInt64(), Is.GreaterThan(0));
+                result.GetProperty("FolderCountSource").GetString().ShouldEqual(cached ? "Projection" : "IndexParser");
+                Assert.IsTrue(result.GetProperty("CountsComplete").GetBoolean());
+                if (cached)
+                {
+                    int calculations = this.CountMountHydrationCalculations();
+                    string calculationId = completion.GetProperty("CalculationId").GetString();
+                    for (int i = 0; i < 3; i++)
+                    {
+                        HashSet<string> previous = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
+                        this.Enlistment.Health(statusOnly: true).ShouldEqual(output);
+                        using (JsonDocument repeated = this.ReadHealthCompletion(previous, out string[] repeatedLines))
+                        {
+                            repeated.RootElement.GetProperty("ResultSource").GetString().ShouldEqual("Cache");
+                            repeated.RootElement.GetProperty("CalculationId").GetString().ShouldEqual(calculationId);
+                            Assert.IsFalse(repeatedLines.Any(line => line.Contains("HydrationSummaryDuration ")));
+                        }
+                    }
+
+                    this.CountMountHydrationCalculations().ShouldEqual(calculations);
+                    Stopwatch hookDeadline = Stopwatch.StartNew();
+                    string hookOutput;
+                    do
+                    {
+                        ProcessResult status = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "status");
+                        status.ExitCode.ShouldEqual(0);
+                        hookOutput = status.Output + status.Errors;
+                    }
+                    while (!hookOutput.Contains("Estimated hydration: ") && hookDeadline.Elapsed < TimeSpan.FromSeconds(30));
+
+                    hookOutput.ShouldContain("Estimated hydration: ");
+                }
+                else
+                {
+                    string calculation = lines.Single(line => line.Contains("HydrationSummaryDuration "));
+                    using (JsonDocument record = JsonDocument.Parse(calculation.Substring(calculation.IndexOf('{'))))
+                    {
+                        record.RootElement.GetProperty("Outcome").GetString().ShouldEqual("Success");
+                        record.RootElement.GetProperty("ValidationFailures").GetString().ShouldContain("HydratedFilesExceedTotal");
+                        record.RootElement.GetProperty("ValidationFailures").GetString().ShouldContain("HydratedFoldersExceedTotal");
+                    }
+                }
+
+                testCompleted = true;
+            }
+            finally
+            {
+                foreach (string file in newFiles)
+                {
+                    Cleanup(() => File.Delete(file));
+                }
+
+                if (File.Exists(untrackedFile))
+                {
+                    Cleanup(() => File.Delete(untrackedFile));
+                }
+
+                if (Directory.Exists(newFolder))
+                {
+                    Cleanup(() => Directory.Delete(newFolder, recursive: true));
+                }
+
+                if (Directory.Exists(retainedFolder))
+                {
+                    Cleanup(() => Directory.Delete(retainedFolder, recursive: true));
+                }
+
+                Cleanup(() => this.RunGit("checkout -f " + originalCommit));
+                if (oldBranchCreated)
+                {
+                    Cleanup(() => this.RunGit("branch -D hydration-count-old"));
+                }
+
+                if (currentBranchCreated)
+                {
+                    Cleanup(() => this.RunGit("branch -D hydration-count-current"));
+                }
+
+                Cleanup(() => this.Enlistment.WaitForBackgroundOperations());
+            }
+        }
+
+        private int CountMountHydrationCalculations()
+        {
+            return Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_mount_*.log")
+                .Sum(path => GVFSHelpers.ReadAllTextFromWriteLockedFile(path).Split('\n').Count(line => line.Contains("HydrationSummaryDuration ")));
+        }
+
+        private string RunGitWithInput(string command, string input)
+        {
+            using (MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(input)))
+            {
+                ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, command, inputStream: stream);
+                result.ExitCode.ShouldEqual(0, result.Errors);
+                return result.Output.Trim();
+            }
+        }
+
+        private string RunGit(string command)
+        {
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, command);
+            result.ExitCode.ShouldEqual(0, result.Errors);
+            return result.Output;
+        }
+
+        private JsonElement WaitForHydrationCacheState(string expectedState, out string output, out string[] lines)
+        {
+            Stopwatch deadline = Stopwatch.StartNew();
+            Stopwatch stable = new Stopwatch();
+            string calculationId = null;
+            string lastCompletion = string.Empty;
+            output = string.Empty;
+            lines = Array.Empty<string>();
+            while (deadline.Elapsed < TimeSpan.FromSeconds(30))
+            {
+                HashSet<string> previous = new HashSet<string>(Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log"));
+                output = this.Enlistment.Health(statusOnly: true);
+                using (JsonDocument completion = this.ReadHealthCompletion(previous, out lines))
+                {
+                    JsonElement root = completion.RootElement;
+                    lastCompletion = root.GetRawText();
+                    JsonElement cache = root.GetProperty("Cache");
+                    if (cache.GetProperty("State").GetString() == expectedState
+                        && (expectedState != "Available" || !cache.GetProperty("Invalidated").GetBoolean()))
+                    {
+                        if (expectedState != "Available")
+                        {
+                            return root.Clone();
+                        }
+
+                        string currentId = cache.GetProperty("CalculationId").GetString();
+                        if (currentId != calculationId)
+                        {
+                            calculationId = currentId;
+                            stable.Restart();
+                        }
+
+                        if (stable.Elapsed >= TimeSpan.FromSeconds(2))
+                        {
+                            return root.Clone();
+                        }
+                    }
+                    else
+                    {
+                        calculationId = null;
+                        stable.Reset();
+                    }
+                }
+
+                Thread.Sleep(100);
+            }
+
+            string lastCalculation = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_mount_*.log")
+                .OrderBy(path => path)
+                .SelectMany(path => GVFSHelpers.ReadAllTextFromWriteLockedFile(path).Split('\n'))
+                .LastOrDefault(line => line.Contains("HydrationSummaryDuration "));
+            throw new AssertionException("The hydration cache did not reach " + expectedState + ". Last completion: " + lastCompletion
+                + ". Last mount calculation: " + lastCalculation);
+        }
+
+        private void RemountWithHydrationStatus(bool enabled, int backoffSeconds = 2)
+        {
+            this.Enlistment.UnmountGVFS();
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.show-hydration-status " + (enabled ? "true" : "false")).ExitCode.ShouldEqual(0);
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config --local gvfs.status-cache-backoff-seconds " + backoffSeconds).ExitCode.ShouldEqual(0);
+            this.Enlistment.MountGVFS();
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "status --porcelain").ExitCode.ShouldEqual(0);
+            this.Enlistment.WaitForBackgroundOperations();
+        }
+
+        private JsonDocument ReadHealthCompletion(HashSet<string> previous, out string[] lines)
+        {
+            string log = Directory.GetFiles(this.Enlistment.GVFSLogsRoot, "gvfs_health_*.log").Single(path => !previous.Contains(path));
+            lines = File.ReadAllLines(log);
+            string line = lines.Single(value => value.Contains("health (Stop)"));
+            return JsonDocument.Parse(line.Substring(line.IndexOf('{')));
         }
 
         private void HydratePlaceholder(string filePath)

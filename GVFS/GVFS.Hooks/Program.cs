@@ -6,6 +6,7 @@ using GVFS.Hooks.HooksPlatform;
 using GVFS.Platform.Windows;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,7 +18,6 @@ namespace GVFS.Hooks
         private const string PreCommandHook = "pre-command";
         private const string PostCommandHook = "post-command";
 
-        private const string GitPidArg = "--git-pid=";
         private const int InvalidProcessId = -1;
 
         private const int PostCommandSpinnerDelayMs = 500;
@@ -118,7 +118,7 @@ namespace GVFS.Hooks
                 case "status":
                     /* If status is being run to serialize for caching, or if --porcelain is specified, skip the health display */
                     if (!ArgsBlockHydrationStatus(args)
-                        && ConfigurationAllowsHydrationStatus())
+                        && ConfigurationAllowsHydrationStatus(args))
                     {
                         TryDisplayCachedHydrationStatus();
                     }
@@ -169,13 +169,29 @@ namespace GVFS.Hooks
             return arg.StartsWith("-") && !arg.StartsWith("--") && arg.Substring(1).Contains(flag);
         }
 
-        private static bool ConfigurationAllowsHydrationStatus()
+        private static bool ConfigurationAllowsHydrationStatus(string[] args)
         {
+            // See ConfigReadMaxAttempts for why the retry budget is small here.
             return LibGit2Repo.GetConfigBoolOrDefault(
                 NullTracer.Instance,
                 normalizedCurrentDirectory,
                 GVFSConstants.GitConfig.ShowHydrationStatus,
-                GVFSConstants.GitConfig.ShowHydrationStatusDefault);
+                GVFSConstants.GitConfig.ShowHydrationStatusDefault,
+                (string key, out bool? value, out string error) => TryReadBoolConfigWithGit(args, key, out value, out error),
+                ConfigReadMaxAttempts);
+        }
+
+        private static bool TryReadBoolConfigWithGit(string[] args, string key, out bool? value, out string error)
+        {
+            if (!TryGetParentPid(args, out int parentPid))
+            {
+                value = null;
+                error = "Git did not supply the process Id.";
+                return false;
+            }
+
+            ProcessResult result = ReadGitConfig(parentPid, key, gitPath => GitCommandResolver.CreateConfigBoolQuery(gitPath, key));
+            return LibGit2Repo.TryParseConfigBoolOutput(key, result.ExitCode, result.Output, result.Errors, out value, out error);
         }
 
         /// <summary>
@@ -251,20 +267,72 @@ namespace GVFS.Hooks
         {
             try
             {
-                if (ShouldLock(args))
+                Lazy<int> parentPid = new Lazy<int>(() => GetParentPid(args));
+                bool checkOwnership = GetHookType(args) == PostCommandHook &&
+                    args[1].StartsWith("git-", StringComparison.Ordinal);
+                bool shouldLock;
+                if (checkOwnership)
+                {
+                    shouldLock = true;
+                }
+                else if (!TryShouldLock(
+                    args,
+                    () => ReadGitAliasKeys(parentPid.Value),
+                    Environment.GetEnvironmentVariable("PATH"),
+                    GitCommandResolver.GetFileAttributes,
+                    out shouldLock,
+                    out string resolveError))
+                {
+                    ExitWithError(
+                        resolveError,
+                        $"GVFS cannot tell if 'git {args[1].Substring("git-".Length)}' runs an alias or a program, so it stopped the command.",
+                        "Run the command again. If this error continues, correct the problem that the first line describes.");
+                }
+
+                if (shouldLock)
                 {
                     using (NamedPipeClient pipeClient = new NamedPipeClient(enlistmentPipename))
                     {
                         if (!pipeClient.Connect())
                         {
+                            if (checkOwnership)
+                            {
+                                // Locks exist only in the mount process, so there is nothing to release.
+                                return;
+                            }
+
                             ExitWithError("The repo does not appear to be mounted. Use 'gvfs status' to check.");
                         }
 
-                        int pid = GetParentPid(args);
+                        int pid = parentPid.Value;
                         if (pid == Program.InvalidProcessId ||
                             !GVFSHooksPlatform.IsProcessActive(pid))
                         {
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
+                        }
+
+                        if (checkOwnership)
+                        {
+                            // Executable and alias config can change after acquisition.
+                            if (!GitCommandLock.TryCheckOwnership(
+                                pid,
+                                GVFSHooksPlatform.IsElevated(),
+                                GenerateFullCommand(args),
+                                request =>
+                                {
+                                    pipeClient.SendRequest(request);
+                                    return pipeClient.ReadResponse();
+                                },
+                                out bool ownsLock,
+                                out string error))
+                            {
+                                ExitWithError(error);
+                            }
+
+                            if (!ownsLock)
+                            {
+                                return;
+                            }
                         }
 
                         requestToRun(unattended, args, pid, pipeClient);
@@ -287,15 +355,9 @@ namespace GVFS.Hooks
 
         private static int GetParentPid(string[] args)
         {
-            string pidArg = args.SingleOrDefault(x => x.StartsWith(GitPidArg));
-            if (!string.IsNullOrEmpty(pidArg))
+            if (TryGetParentPid(args, out int pid))
             {
-                pidArg = pidArg.Remove(0, GitPidArg.Length);
-                int pid;
-                if (int.TryParse(pidArg, out pid))
-                {
-                    return pid;
-                }
+                return pid;
             }
 
             ExitWithError(
@@ -303,6 +365,13 @@ namespace GVFS.Hooks
                 "Ensure you are using the correct version of the git client.");
 
             return Program.InvalidProcessId;
+        }
+
+        private static bool TryGetParentPid(string[] args, out int pid)
+        {
+            pid = Program.InvalidProcessId;
+            string pidArg = args.SingleOrDefault(x => x.StartsWith(GitPidArg));
+            return !string.IsNullOrEmpty(pidArg) && int.TryParse(pidArg.Remove(0, GitPidArg.Length), out pid);
         }
 
         private static void AcquireGVFSLockForProcess(bool unattended, string[] args, int pid, NamedPipeClient pipeClient)
@@ -378,14 +447,7 @@ namespace GVFS.Hooks
         {
             try
             {
-                // Don't acquire the GVFS lock if the git command is not acquiring locks.
-                // This enables tools to run status commands without to the index and
-                // blocking other commands from running. The git argument
-                // "--no-optional-locks" results in a 'negative'
-                // value GIT_OPTIONAL_LOCKS environment variable.
-                return GetGitCommand(args).Equals("status", StringComparison.OrdinalIgnoreCase) &&
-                    (args.Any(arg => arg.Equals("--no-lock-index", StringComparison.OrdinalIgnoreCase)) ||
-                    IsGitEnvVarDisabled("GIT_OPTIONAL_LOCKS"));
+                return GitCommandLock.IsAvailabilityOnly(args, Environment.GetEnvironmentVariable);
             }
             catch (Exception e)
             {
@@ -408,26 +470,31 @@ namespace GVFS.Hooks
             return message;
         }
 
-        private static bool IsGitEnvVarDisabled(string envVar)
-        {
-            string envVarValue = Environment.GetEnvironmentVariable(envVar);
-            if (!string.IsNullOrEmpty(envVarValue))
-            {
-                if (string.Equals(envVarValue, "false", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "no", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "off", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(envVarValue, "0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         private static string GetHookType(string[] args)
         {
             return args[0].ToLowerInvariant();
+        }
+
+        private static ProcessResult ReadGitAliasKeys(int parentPid)
+        {
+            return ReadGitConfig(parentPid, "alias keys", GitCommandResolver.CreateAliasKeyQuery);
+        }
+
+        /// <summary>
+        /// Runs a git config query with the parent Git executable, so that the query reads the same
+        /// config as the command that runs this hook.
+        /// </summary>
+        private static ProcessResult ReadGitConfig(int parentPid, string name, Func<string, ProcessStartInfo> createQuery)
+        {
+            string gitPath = GitCommandResolver.GetProcessPath(parentPid);
+            return GitConfigReadRetry.InvokeResult(
+                name,
+                () => ProcessHelper.Run(createQuery(gitPath)),
+                (ProcessResult result) =>
+                    GitConfigReadRetry.IsTransientFileAccessError(result.Errors, lineMustContain: GitCommandResolver.UnableToAccess),
+                NullTracer.Instance,
+                GitConfigReadRetry.Delay,
+                ConfigReadMaxAttempts);
         }
 
         /// <summary>

@@ -36,7 +36,7 @@ namespace GVFS.Common
         /// Returns true if the hydration status feature should be skipped due to
         /// too many recent failures.
         /// </summary>
-        public bool IsDisabled()
+        public virtual bool IsDisabled()
         {
             try
             {
@@ -75,7 +75,7 @@ namespace GVFS.Common
         /// the circuit breaker trips and <see cref="IsDisabled"/> returns true.
         /// Uses exclusive file access to prevent concurrent processes from losing counts.
         /// </summary>
-        public void RecordFailure()
+        public virtual void RecordFailure()
         {
             try
             {

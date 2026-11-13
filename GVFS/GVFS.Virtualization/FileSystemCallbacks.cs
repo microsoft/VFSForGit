@@ -38,6 +38,7 @@ namespace GVFS.Virtualization
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> filePlaceHolderCreationCount;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> folderPlaceHolderCreationCount;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> fileHydrationCount;
+        private long placeholderCreationBlockedForGitCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
@@ -117,6 +118,7 @@ namespace GVFS.Virtualization
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
             this.gitStatusCache.SetProjectedFolderCountProvider(
                 () => this.GitIndexProjection.GetProjectedFolderCount());
+            this.gitStatusCache.SetModifiedPathsProvider(this.GetAllModifiedPaths);
 
             this.logsHeadPath = Path.Combine(this.context.Enlistment.DotGitRoot, GVFSConstants.DotGit.Logs.HeadRelativePath);
 
@@ -273,6 +275,13 @@ namespace GVFS.Virtualization
             metadata.Add(
                 "FilePlaceholdersHydrated",
                 this.GetProcessInteractionData(this.GetAndResetProcessCountMetadata(ref this.fileHydrationCount), ref logToFile));
+
+            long blockedForGitCount = Interlocked.Exchange(ref this.placeholderCreationBlockedForGitCount, 0);
+            metadata.Add("FilePlaceholderCreationBlockedForGit", blockedForGitCount);
+            if (blockedForGitCount > 0)
+            {
+                logToFile = true;
+            }
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("FilePlaceholderCount", this.placeholderDatabase.GetFilePlaceholdersCount());
@@ -584,9 +593,9 @@ namespace GVFS.Virtualization
             }
         }
 
-        public EnlistmentHydrationSummary GetCachedHydrationSummary()
+        public EnlistmentHydrationSummary GetCachedHydrationSummary(out NamedPipeMessages.HydrationStatus.CacheInfo info)
         {
-            return this.gitStatusCache.GetCachedHydrationSummary();
+            return this.gitStatusCache.GetCachedHydrationSummary(out info);
         }
 
         public int GetProjectedFolderCount()
@@ -729,6 +738,7 @@ namespace GVFS.Virtualization
 
         public void OnPlaceholderCreateBlockedForGit()
         {
+            Interlocked.Increment(ref this.placeholderCreationBlockedForGitCount);
             this.GitIndexProjection.OnPlaceholderCreateBlockedForGit();
         }
 

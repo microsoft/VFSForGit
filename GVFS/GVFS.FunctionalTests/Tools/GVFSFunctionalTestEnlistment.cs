@@ -309,9 +309,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.IsEnlistmentMounted();
         }
 
-        public void MountGVFS()
+        public void MountGVFS(Dictionary<string, string> environmentVariables = null)
         {
-            this.gvfsProcess.Mount();
+            this.gvfsProcess.Mount(environmentVariables);
         }
 
         public bool TryMountGVFS()
@@ -360,9 +360,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.Status(trace);
         }
 
-        public string Health(string directory = null)
+        public string Health(string directory = null, bool statusOnly = false)
         {
-            return this.gvfsProcess.Health(directory);
+            return this.gvfsProcess.Health(directory, statusOnly);
         }
 
         public bool WaitForBackgroundOperations(int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)

@@ -28,6 +28,7 @@ namespace GVFS.Common
             public const string GVFSPrefix = "gvfs.";
             public const string MaxRetriesConfig = GVFSPrefix + "max-retries";
             public const string TimeoutSecondsConfig = GVFSPrefix + "timeout-seconds";
+            public const string ReadTimeoutSecondsConfig = GVFSPrefix + "read-timeout-seconds";
             public const string GitStatusCacheBackoffConfig = GVFSPrefix + "status-cache-backoff-seconds";
             public const string MaxActiveEnumerationsConfig = GVFSPrefix + "max-active-enumerations";
             public const string MountId = GVFSPrefix + "mount-id";
@@ -58,6 +59,13 @@ namespace GVFS.Common
 
             public const string ShowHydrationStatus = GVFSPrefix + "show-hydration-status";
             public const bool ShowHydrationStatusDefault = false;
+
+            public const string PlaceholderLockWaitMs = GVFSPrefix + "placeholder-lock-wait-ms";
+            public const int PlaceholderLockWaitMsDefault = 0;
+            public const int PlaceholderLockWaitMsMaximum = 60000;
+
+            public const string OptimisticCloneCheckout = GVFSPrefix + "optimistic-clone-checkout";
+            public const bool OptimisticCloneCheckoutDefault = false;
 
             /* Gates the CLI mount-progress display layer (progress phase strings surfaced
              * over the named pipe during `gvfs mount`). Disabled by default so stabilization
@@ -177,6 +185,8 @@ namespace GVFS.Common
             public const string HeadName = "HEAD";
             public const string GitDirPrefix = "gitdir: ";
             public const string CommonDirName = "commondir";
+            public const string WorktreeConfigName = "config.worktree";
+            public const string WorktreesName = "worktrees";
             public const string SkipCleanCheckName = "skip-clean-check";
             public const string IndexName = "index";
             public const string PackedRefsName = "packed-refs";

@@ -1,72 +1,157 @@
 using GVFS.Common;
+using System;
 using System.Linq;
 
 namespace GVFS.Hooks
 {
     public partial class Program
     {
+        // Hooks run on the git command path, so config reads retry at most once.
+        private const int ConfigReadMaxAttempts = 2;
+        private const string GitPidArg = "--git-pid=";
+
         // The lock serializes changes to the enlistment's index and tracked working tree with GVFS projection updates.
         // Before adding an exemption, check all supported options, subcommands, and child-command paths.
-        // Ref and object writes alone do not require this lock. Index refreshes do.
+        // Ref and object writes alone do not require this lock.
+        // Keep index refresh modes locked. RequiredGitConfig enables opportunistic stat refreshes for diff and difftool.
         // Keep arbitrary Git dispatchers locked because nested command hooks can be suppressed.
         // Excluded readers can observe concurrent working-tree changes. They do not receive snapshot isolation.
-        internal static bool ShouldLock(string[] args)
+        internal static bool TryShouldLock(
+            string[] args,
+            Func<ProcessResult> readGitAliasKeys,
+            string searchPath,
+            Func<string, uint> getFileAttributes,
+            out bool shouldLock,
+            out string error)
         {
+            error = null;
             string gitCommand = GetGitCommand(args);
 
+            // Git reports a built-in by its name. A git- prefix means that Git found no built-in
+            // and will run a program or expand an alias, so the read-only list does not apply.
+            // git-submodule and git-web--browse are programs that Git ships in its exec-path,
+            // which Git puts first on PATH. They keep their exemptions.
+            if (args[1].StartsWith("git-", StringComparison.Ordinal) &&
+                gitCommand != "submodule" &&
+                gitCommand != "web--browse")
+            {
+                shouldLock = true;
+                if (!GitCommandResolver.TryIsAlias(args[1], readGitAliasKeys, searchPath, getFileAttributes, out bool isAlias, out error))
+                {
+                    return false;
+                }
+
+                shouldLock = !isAlias;
+                return true;
+            }
+
+            shouldLock = ShouldLockBuiltIn(gitCommand, args);
+            return true;
+        }
+
+        private static bool ShouldLockBuiltIn(string gitCommand, string[] args)
+        {
             switch (gitCommand)
             {
                 // Keep these alphabetically sorted
                 case "annotate":
                 case "blame":
                 case "branch":
+                case "bundle":
                 case "cat-file":
                 case "check-attr":
                 case "check-ignore":
                 case "check-mailmap":
                 case "check-ref-format":
                 case "cherry":
+                case "column":
                 case "commit-graph":
+                case "commit-tree":
                 case "config":
                 case "count-objects":
                 case "credential":
                 case "diff":
                 case "diff-files":
                 case "diff-index":
+                case "diff-pairs":
                 case "diff-tree":
                 case "difftool":
                 case "fetch":
+                case "fmt-merge-msg":
                 case "for-each-ref":
+                case "format-patch":
+                case "format-rev":
+                case "get-tar-commit-id":
                 case "help":
                 case "hash-object":
                 case "index-pack":
+                case "last-modified":
                 case "log":
                 case "ls-files":
                 case "ls-remote":
                 case "ls-tree":
                 case "merge-base":
+                case "merge-tree":
+                case "mktag":
+                case "mktree":
                 case "multi-pack-index":
                 case "name-rev":
+                case "notes":
                 case "pack-objects":
+                case "pack-refs":
+                case "patch-id":
+                case "pickaxe":
                 case "push":
                 case "range-diff":
+                case "reflog":
                 case "remote":
+                case "replace":
                 case "rev-list":
                 case "rev-parse":
                 case "shortlog":
                 case "show":
                 case "show-branch":
+                case "show-index":
                 case "show-ref":
+                case "stripspace":
                 case "symbolic-ref":
                 case "tag":
                 case "unpack-objects":
                 case "update-ref":
+                case "update-server-info":
+                case "url-parse":
+                case "var":
                 case "verify-commit":
                 case "verify-pack":
                 case "verify-tag":
                 case "version":
                 case "web--browse":
                     return false;
+
+                case "describe":
+                    return !HasOnlySafeOptions(args, GetDescribeOptionType, out _);
+
+                case "grep":
+                    return !HasOnlySafeOptions(args, GetGrepOptionType, out _);
+
+                case "merge-file":
+                    return !HasOnlySafeOptions(args, GetMergeFileOptionType, out bool hasSafeOutputMode) || !hasSafeOutputMode;
+
+                case "refs":
+                    switch (args.Length > 2 ? args[2] : null)
+                    {
+                        case "list":
+                        case "exists":
+                        case "verify":
+                        case "optimize":
+                        case "create":
+                        case "delete":
+                        case "update":
+                        case "rename":
+                            return false;
+                    }
+
+                    return true;
 
                 case "worktree":
                     return WorktreeCommandParser.GetSubcommand(args) != "list";
@@ -89,13 +174,220 @@ namespace GVFS.Hooks
                 return false;
             }
 
-            if (!KnownGitCommands.Contains(gitCommand) &&
-                IsAlias(gitCommand))
+            return true;
+        }
+
+        private static bool HasOnlySafeOptions(string[] args, Func<string, CommandOptionType> getOptionType, out bool hasSafeOutputMode)
+        {
+            hasSafeOutputMode = false;
+            int end = args.Length;
+
+            // Only the appended hook metadata is excluded. User arguments with these names remain unknown options.
+            if (args[0] == "post-command")
+            {
+                if (end <= 2 || !args[end - 1].StartsWith("--exit_code=", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                --end;
+            }
+
+            if (end <= 2 || !args[end - 1].StartsWith(GitPidArg, StringComparison.Ordinal))
             {
                 return false;
             }
 
+            --end;
+            for (int i = 2; i < end; ++i)
+            {
+                string argument = args[i];
+                if (argument == "--")
+                {
+                    return true;
+                }
+
+                if (!argument.StartsWith("-", StringComparison.Ordinal) || argument == "-")
+                {
+                    continue;
+                }
+
+                if (argument.StartsWith("--", StringComparison.Ordinal))
+                {
+                    int equals = argument.IndexOf('=');
+                    string option = equals < 0 ? argument : argument.Substring(0, equals);
+                    CommandOptionType type = getOptionType(option);
+                    if (type == CommandOptionType.Unknown ||
+                        (equals >= 0 && type != CommandOptionType.Value && type != CommandOptionType.OptionalValue))
+                    {
+                        return false;
+                    }
+
+                    hasSafeOutputMode |= type == CommandOptionType.SafeOutputMode;
+                    if (type == CommandOptionType.Value && equals < 0 && ++i >= end)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    for (int j = 1; j < argument.Length; ++j)
+                    {
+                        CommandOptionType type = getOptionType("-" + argument[j]);
+                        if (type == CommandOptionType.Unknown)
+                        {
+                            return false;
+                        }
+
+                        hasSafeOutputMode |= type == CommandOptionType.SafeOutputMode;
+                        if (type == CommandOptionType.Value)
+                        {
+                            if (j == argument.Length - 1 && ++i >= end)
+                            {
+                                return false;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+
             return true;
+        }
+
+        private static CommandOptionType GetDescribeOptionType(string option)
+        {
+            switch (option)
+            {
+                case "--contains":
+                case "--debug":
+                case "--all":
+                case "--tags":
+                case "--long":
+                case "--first-parent":
+                case "--exact-match":
+                case "--always":
+                    return CommandOptionType.Flag;
+
+                case "--candidates":
+                case "--match":
+                case "--exclude":
+                    return CommandOptionType.Value;
+
+                case "--abbrev":
+                    return CommandOptionType.OptionalValue;
+            }
+
+            return CommandOptionType.Unknown;
+        }
+
+        private static CommandOptionType GetGrepOptionType(string option)
+        {
+            switch (option)
+            {
+                case "-v":
+                case "-i":
+                case "-w":
+                case "-a":
+                case "-I":
+                case "-r":
+                case "-E":
+                case "-G":
+                case "-F":
+                case "-P":
+                case "-n":
+                case "-h":
+                case "-H":
+                case "-l":
+                case "-L":
+                case "-z":
+                case "-o":
+                case "-c":
+                case "-p":
+                case "-W":
+                case "-q":
+                case "--cached":
+                case "--no-index":
+                case "--untracked":
+                case "--exclude-standard":
+                case "--recurse-submodules":
+                case "--invert-match":
+                case "--ignore-case":
+                case "--word-regexp":
+                case "--text":
+                case "--textconv":
+                case "--recursive":
+                case "--extended-regexp":
+                case "--basic-regexp":
+                case "--fixed-strings":
+                case "--perl-regexp":
+                case "--line-number":
+                case "--column":
+                case "--full-name":
+                case "--files-with-matches":
+                case "--name-only":
+                case "--files-without-match":
+                case "--null":
+                case "--only-matching":
+                case "--count":
+                case "--break":
+                case "--heading":
+                case "--show-function":
+                case "--function-context":
+                case "--and":
+                case "--or":
+                case "--not":
+                case "--quiet":
+                case "--all-match":
+                    return CommandOptionType.Flag;
+
+                case "-e":
+                case "-f":
+                case "-A":
+                case "-B":
+                case "-C":
+                case "-m":
+                case "--max-depth":
+                case "--context":
+                case "--before-context":
+                case "--after-context":
+                case "--threads":
+                case "--max-count":
+                    return CommandOptionType.Value;
+
+                case "--color":
+                    return CommandOptionType.OptionalValue;
+            }
+
+            return CommandOptionType.Unknown;
+        }
+
+        private static CommandOptionType GetMergeFileOptionType(string option)
+        {
+            switch (option)
+            {
+                case "-p":
+                case "--stdout":
+                case "--object-id":
+                    return CommandOptionType.SafeOutputMode;
+
+                case "-q":
+                case "--quiet":
+                case "--diff3":
+                case "--zdiff3":
+                case "--ours":
+                case "--theirs":
+                case "--union":
+                    return CommandOptionType.Flag;
+
+                case "-L":
+                case "--diff-algorithm":
+                case "--marker-size":
+                    return CommandOptionType.Value;
+            }
+
+            return CommandOptionType.Unknown;
         }
 
         private static string GetGitCommand(string[] args)
@@ -109,11 +401,13 @@ namespace GVFS.Hooks
             return command;
         }
 
-        private static bool IsAlias(string command)
+        private enum CommandOptionType
         {
-            ProcessResult result = ProcessHelper.Run("git", "config --get alias." + command);
-
-            return !string.IsNullOrEmpty(result.Output);
+            Unknown,
+            Flag,
+            Value,
+            OptionalValue,
+            SafeOutputMode,
         }
     }
 }

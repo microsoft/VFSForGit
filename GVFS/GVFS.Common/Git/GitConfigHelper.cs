@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace GVFS.Common.Git
 {
     /// <summary>
-    /// Helper methods for git config-style file reading and parsing.
+    /// Helper methods for reading Git config files and parsing config values.
     /// </summary>
     public static class GitConfigHelper
     {
@@ -28,6 +28,34 @@ namespace GVFS.Common.Git
             sanitizedLine = sanitizedLine.Trim();
 
             return !string.IsNullOrWhiteSpace(sanitizedLine);
+        }
+
+        /// <summary>
+        /// Parses an integer setting. A null or blank value selects <paramref name="defaultValue"/>.
+        /// </summary>
+        public static bool TryParseIntSetting(string configName, string valueString, int defaultValue, int minValue, out int value, out string error)
+        {
+            value = defaultValue;
+            error = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(valueString))
+            {
+                return true;
+            }
+
+            if (!int.TryParse(valueString, out value))
+            {
+                error = string.Format("Misconfigured config setting {0}, could not parse value `{1}` as an int", configName, valueString);
+                return false;
+            }
+
+            if (value < minValue)
+            {
+                error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, configName, minValue);
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>

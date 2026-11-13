@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization;
 using GVFS.Virtualization.BlobSize;
@@ -11,13 +12,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.Platform.Windows
 {
-    public class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
+    public partial class WindowsFileSystemVirtualizer : FileSystemVirtualizer, IRequiredCallbacks
     {
         /// <summary>
         /// GVFS uses the first byte of the providerId field of placeholders to version
@@ -32,6 +34,12 @@ namespace GVFS.Platform.Windows
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
+        private readonly int placeholderLockWaitMs;
+        private PlaceholderCreationWaitQueue placeholderWaitQueue;
+        private long placeholderWaitStarted;
+        private long placeholderWaitTimedOut;
+        private long placeholderWaitQueueFull;
+        private long placeholderWaitSucceeded;
 
         // ProjFS does not always deliver EndDirectoryEnumeration for a StartDirectoryEnumeration
         // (for example when an enumeration is cancelled), which leaks the corresponding
@@ -75,7 +83,8 @@ namespace GVFS.Platform.Windows
                   gitObjects,
                   virtualizationInstance: null,
                   numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads,
-                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context))
+                  maxActiveEnumerations: ReadMaxActiveEnumerationsFromConfig(context),
+                  placeholderLockWaitMs: ReadPlaceholderLockWaitMs(context.Tracer, context.Enlistment.WorkingDirectoryRoot))
         {
         }
 
@@ -84,9 +93,15 @@ namespace GVFS.Platform.Windows
             GVFSGitObjects gitObjects,
             IVirtualizationInstance virtualizationInstance,
             int numWorkerThreads,
-            int maxActiveEnumerations = 0)
+            int maxActiveEnumerations = 0,
+            int placeholderLockWaitMs = GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault)
             : base(context, gitObjects, numWorkerThreads)
         {
+            if (placeholderLockWaitMs < 0 || placeholderLockWaitMs > GVFSConstants.GitConfig.PlaceholderLockWaitMsMaximum)
+            {
+                throw new ArgumentOutOfRangeException(nameof(placeholderLockWaitMs), placeholderLockWaitMs, "Placeholder lock wait must be between 0 and 60000 milliseconds.");
+            }
+
             List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
             {
                 new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
@@ -112,6 +127,7 @@ namespace GVFS.Platform.Windows
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
 
             this.maxActiveEnumerations = maxActiveEnumerations;
+            this.placeholderLockWaitMs = placeholderLockWaitMs;
         }
 
         protected override string EtwArea => ClassName;
@@ -123,6 +139,71 @@ namespace GVFS.Platform.Windows
             // can be observed in the field before enabling eviction anywhere.
             metadata.Add("ActiveEnumerationCount", this.activeEnumerations.Count);
             metadata.Add("ActiveCommandCount", this.activeCommands.Count);
+            metadata.Add("PlaceholderLockWaitMs", this.placeholderLockWaitMs);
+            if (this.placeholderLockWaitMs > 0)
+            {
+                metadata.Add("PlaceholderLockWaitEnabled", true);
+                metadata.Add("PlaceholderLockWaitStarted", Interlocked.Exchange(ref this.placeholderWaitStarted, 0));
+                metadata.Add("PlaceholderLockWaitTimedOut", Interlocked.Exchange(ref this.placeholderWaitTimedOut, 0));
+                metadata.Add("PlaceholderLockWaitQueueFull", Interlocked.Exchange(ref this.placeholderWaitQueueFull, 0));
+                metadata.Add("PlaceholderLockWaitSucceeded", Interlocked.Exchange(ref this.placeholderWaitSucceeded, 0));
+            }
+        }
+
+        internal Func<uint, NamedPipeMessages.LockData, long?, bool?> IsRequestDescendant { private get; set; }
+
+        internal static int ReadPlaceholderLockWaitMs(ITracer tracer, string repoPath)
+        {
+            return ReadPlaceholderLockWaitMs(tracer, () =>
+            {
+                using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath))
+                {
+                    string value = repo.GetConfigString(GVFSConstants.GitConfig.PlaceholderLockWaitMs);
+                    // String lookup cannot distinguish an unset key from a valueless key.
+                    return value ?? (repo.GetConfigBool(GVFSConstants.GitConfig.PlaceholderLockWaitMs).HasValue ? string.Empty : null);
+                }
+            });
+        }
+
+        internal static int ReadPlaceholderLockWaitMs(ITracer tracer, Func<string> readConfig)
+        {
+            string rawValue;
+            try
+            {
+                rawValue = readConfig();
+            }
+            catch (Exception e) when (e is InvalidDataException || e is LibGit2Exception)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata
+                    {
+                        { "Area", ClassName },
+                        { "ConfigName", GVFSConstants.GitConfig.PlaceholderLockWaitMs },
+                        { "Exception", e.ToString() },
+                    },
+                    "Cannot read the placeholder lock wait config. Placeholder lock waits remain disabled.");
+                return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
+            }
+
+            if (rawValue == null)
+            {
+                return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
+            }
+
+            if (int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) &&
+                value >= 0 && value <= GVFSConstants.GitConfig.PlaceholderLockWaitMsMaximum)
+            {
+                return value;
+            }
+
+            tracer.RelatedWarning(
+                new EventMetadata
+                {
+                    { "Area", ClassName },
+                    { "ConfigName", GVFSConstants.GitConfig.PlaceholderLockWaitMs },
+                },
+                "Invalid placeholder lock wait config. Use an integer from 0 to 60000 milliseconds. Placeholder lock waits remain disabled.");
+            return GVFSConstants.GitConfig.PlaceholderLockWaitMsDefault;
         }
 
         /// <summary>
@@ -315,6 +396,18 @@ namespace GVFS.Platform.Windows
         public override void Stop()
         {
             this.virtualizationInstance.StopVirtualizing();
+        }
+
+        public override void PrepareToStop()
+        {
+            this.placeholderWaitQueue?.Stop();
+            base.PrepareToStop();
+        }
+
+        public override void Dispose()
+        {
+            this.placeholderWaitQueue?.Dispose();
+            base.Dispose();
         }
 
         public override FileSystemResult ClearNegativePathCache(out uint totalEntryCount)
@@ -637,6 +730,11 @@ namespace GVFS.Platform.Windows
         {
             try
             {
+                if (this.placeholderLockWaitMs > 0)
+                {
+                    return this.DeferPlaceholderCreation(commandId, virtualPath, triggeringProcessId, triggeringProcessImageFileName);
+                }
+
                 bool isFolder;
                 string fileName;
                 if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
@@ -812,6 +910,12 @@ namespace GVFS.Platform.Windows
         public override bool TryStart(out string error)
         {
             error = string.Empty;
+
+            if (this.placeholderLockWaitMs > 0)
+            {
+                this.IsRequestDescendant ??= new PlaceholderRequestProcessTree(this.Context.Tracer).IsDescendant;
+                this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);
+            }
 
             this.InitializeEnumerationPatternMatcher();
 
@@ -1097,6 +1201,7 @@ namespace GVFS.Platform.Windows
                 EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
                 metadata.Add("commandId", commandId);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.StartDirectoryEnumerationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.StartDirectoryEnumerationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Exception e)
@@ -1156,23 +1261,25 @@ namespace GVFS.Platform.Windows
             return HResult.Ok;
         }
 
-        private void GetPlaceholderInformationAsyncHandler(
+        private bool GetPlaceholderInformationAsyncHandler(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
             string virtualPath,
             uint triggeringProcessId,
-            string triggeringProcessImageFileName)
+            string triggeringProcessImageFileName,
+            PlaceholderCreationWaitQueue.Request deferredRequest = null)
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                return;
+                return true;
             }
 
             HResult result = HResult.Ok;
 
             try
             {
+                long generation = deferredRequest == null ? 0 : this.FileSystemCallbacks.GitIndexProjection.ProjectionGeneration;
                 ProjectedFileInfo fileInfo;
                 string parentFolderPath;
                 try
@@ -1180,8 +1287,26 @@ namespace GVFS.Platform.Windows
                     fileInfo = this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo(cancellationToken, blobSizesConnection, virtualPath, out parentFolderPath);
                     if (fileInfo == null)
                     {
+                        if (deferredRequest != null && cancellationToken.IsCancellationRequested)
+                        {
+                            return true;
+                        }
+
+                        if (deferredRequest != null &&
+                            (!this.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete() ||
+                             generation != this.FileSystemCallbacks.GitIndexProjection.ProjectionGeneration))
+                        {
+                            deferredRequest.BlockingReason = "ProjectionChangedOrUnavailable";
+                            return false;
+                        }
+
+                        if (deferredRequest != null)
+                        {
+                            deferredRequest.Result = HResult.FileNotFound;
+                        }
+
                         this.TryCompleteCommand(commandId, HResult.FileNotFound);
-                        return;
+                        return true;
                     }
                 }
                 catch (OperationCanceledException)
@@ -1192,7 +1317,13 @@ namespace GVFS.Platform.Windows
                         EventLevel.Informational,
                         $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled",
                         metadata);
-                    return;
+                    if (deferredRequest != null && !cancellationToken.IsCancellationRequested)
+                    {
+                        deferredRequest.Result = (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
+                        this.TryCompleteCommand(commandId, deferredRequest.Result.Value);
+                    }
+
+                    return true;
                 }
 
                 // The file name case in the virtualPath parameter might be different than the file name case in the repo.
@@ -1200,41 +1331,61 @@ namespace GVFS.Platform.Windows
                 // with proper case.
                 string gitCaseVirtualPath = Path.Combine(parentFolderPath, fileInfo.Name);
 
-                string sha;
-                FileSystemResult fileSystemResult;
-                if (fileInfo.IsFolder)
+                string sha = fileInfo.IsFolder ? string.Empty : fileInfo.Sha.ToString();
+                Action create = () =>
                 {
-                    sha = string.Empty;
-                    fileSystemResult = this.WritePlaceholderDirectory(gitCaseVirtualPath);
-                }
-                else
-                {
-                    sha = fileInfo.Sha.ToString();
-                    fileSystemResult = this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
-                }
+                    if (deferredRequest != null && cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
 
-                result = (HResult)fileSystemResult.RawResult;
-                if (result != HResult.Ok)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add("FileName", fileInfo.Name);
-                    metadata.Add("IsFolder", fileInfo.IsFolder);
-                    metadata.Add(nameof(sha), sha);
-                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInfo)} failed");
-                }
-                else
-                {
-                    if (fileInfo.IsFolder)
+                    FileSystemResult fileSystemResult = fileInfo.IsFolder
+                        ? this.WritePlaceholderDirectory(gitCaseVirtualPath)
+                        : this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
+                    result = (HResult)fileSystemResult.RawResult;
+                    if (result != HResult.Ok)
+                    {
+                        EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                        metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
+                        metadata.Add("triggeringProcessId", triggeringProcessId);
+                        metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                        metadata.Add("FileName", fileInfo.Name);
+                        metadata.Add("IsFolder", fileInfo.IsFolder);
+                        metadata.Add(nameof(sha), sha);
+                        metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                        this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInfo)} failed");
+                    }
+                    else if (fileInfo.IsFolder)
                     {
                         this.FileSystemCallbacks.OnPlaceholderFolderCreated(gitCaseVirtualPath, triggeringProcessImageFileName);
                     }
                     else
                     {
                         this.FileSystemCallbacks.OnPlaceholderFileCreated(gitCaseVirtualPath, sha, triggeringProcessImageFileName);
+                    }
+                };
+
+                if (deferredRequest == null)
+                {
+                    create();
+                }
+                else
+                {
+                    if (!this.Context.Repository.GVFSLock.TryAcquirePlaceholderCreation(
+                        CanCreatePlaceholderForCommand, out IDisposable lease, out string blockingCommand))
+                    {
+                        deferredRequest.BlockingReason = "GitCommand";
+                        deferredRequest.BlockingCommand = blockingCommand;
+                        return false;
+                    }
+
+                    using (lease)
+                    {
+                        if (!this.FileSystemCallbacks.GitIndexProjection.TryCreatePlaceholder(generation, create))
+                        {
+                            deferredRequest.BlockingReason = "ProjectionChangedOrUnavailable";
+                            return false;
+                        }
                     }
                 }
             }
@@ -1247,6 +1398,7 @@ namespace GVFS.Platform.Windows
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.SetTelemetryAggregation(nameof(this.GetPlaceholderInformationAsyncHandler), TelemetryFailureCategory.SizesUnavailable, "Failed");
                 this.Context.Tracer.RelatedError(metadata, nameof(this.GetPlaceholderInformationAsyncHandler) + ": caught SizesUnavailableException");
             }
             catch (Win32Exception e)
@@ -1270,7 +1422,18 @@ namespace GVFS.Platform.Windows
                 this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInformationAsyncHandler), metadata);
             }
 
+            if (deferredRequest != null)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return true;
+                }
+
+                deferredRequest.Result = result;
+            }
+
             this.TryCompleteCommand(commandId, result);
+            return true;
         }
 
         private void GetFileStreamHandlerAsyncHandler(
@@ -1357,9 +1520,15 @@ namespace GVFS.Platform.Windows
                             }
                         }
                     },
-                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory))
+                    out GVFSGitObjects.BlobHydrationFailureCategory failureCategory,
+                    failureMetadata: requestMetadata))
                 {
                     requestMetadata.Add(nameof(GVFSGitObjects.BlobHydrationFailureCategory), failureCategory.ToString());
+                    if (requestMetadata.TelemetryAggregation != null)
+                    {
+                        requestMetadata.SetTelemetryAggregation(nameof(this.GetFileStreamHandlerAsyncHandler), requestMetadata.TelemetryAggregation.FailureCategory, "Failed");
+                    }
+
                     this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);

@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Diagnostics;
@@ -16,34 +17,34 @@ namespace GVFS.Common
         public int TotalFileCount { get; private set; }
         public int TotalFolderCount { get; private set; }
         public Exception Error { get; private set; } = null;
+        public HydrationSummaryDiagnostics Diagnostics { get; private set; }
 
-        public int HydratedFileCount => PlaceholderFileCount + ModifiedFileCount;
-        public int HydratedFolderCount => PlaceholderFolderCount + ModifiedFolderCount;
+        public long HydratedFileCount => (long)this.PlaceholderFileCount + this.ModifiedFileCount;
+        public long HydratedFolderCount => (long)this.PlaceholderFolderCount + this.ModifiedFolderCount;
 
-
-        public bool IsValid
-        {
-            get
-            {
-                return PlaceholderFileCount >= 0
-                && PlaceholderFolderCount >= 0
-                && ModifiedFileCount >= 0
-                && ModifiedFolderCount >= 0
-                && TotalFileCount >= HydratedFileCount
-                && TotalFolderCount >= HydratedFolderCount;
-            }
-        }
+        public bool IsValid => this.Diagnostics?.CountsComplete == true && this.ToResponse().IsValid;
 
         public string ToMessage()
         {
-            if (!IsValid)
+            if (!this.IsValid)
             {
                 return "Error calculating hydration summary. Run 'gvfs health' at the repository root for hydration status details.";
             }
 
-            int fileHydrationPercent = TotalFileCount == 0 ? 0 : (int)((100L * HydratedFileCount) / TotalFileCount);
-            int folderHydrationPercent = TotalFolderCount == 0 ? 0 : (int)((100L * HydratedFolderCount) / TotalFolderCount);
-            return $"{fileHydrationPercent}% of files and {folderHydrationPercent}% of folders hydrated. Run 'gvfs health' at the repository root for details.";
+            return this.ToResponse().ToDisplayMessage();
+        }
+
+        public NamedPipeMessages.HydrationStatus.Response ToResponse()
+        {
+            return new NamedPipeMessages.HydrationStatus.Response
+            {
+                PlaceholderFileCount = this.PlaceholderFileCount,
+                PlaceholderFolderCount = this.PlaceholderFolderCount,
+                ModifiedFileCount = this.ModifiedFileCount,
+                ModifiedFolderCount = this.ModifiedFolderCount,
+                TotalFileCount = this.TotalFileCount,
+                TotalFolderCount = this.TotalFolderCount,
+            };
         }
 
         public static EnlistmentHydrationSummary CreateSummary(
@@ -51,163 +52,172 @@ namespace GVFS.Common
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             Func<int> projectedFolderCountProvider,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            HydrationSummaryDiagnostics diagnostics = null)
         {
-            Stopwatch totalStopwatch = Stopwatch.StartNew();
-            Stopwatch phaseStopwatch = new Stopwatch();
+            return CreateSummary(enlistment, fileSystem, tracer, projectedFolderCountProvider, new EnlistmentPathData(), cancellationToken, diagnostics);
+        }
 
+        internal static EnlistmentHydrationSummary CreateSummary(
+            GVFSEnlistment enlistment,
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            Func<int> projectedFolderCountProvider,
+            EnlistmentPathData pathData,
+            CancellationToken cancellationToken = default,
+            HydrationSummaryDiagnostics diagnostics = null)
+        {
+            diagnostics = diagnostics ?? new HydrationSummaryDiagnostics();
+            EnlistmentHydrationSummary summary = new EnlistmentHydrationSummary { Diagnostics = diagnostics };
+            Stopwatch totalStopwatch = Stopwatch.StartNew();
             try
             {
-                /* Getting all the file paths from git index is slow and we only need the total count,
-                 * so we read the index file header instead of calling GetPathsFromGitIndex */
-                phaseStopwatch.Restart();
-                int totalFileCount = GetIndexFileCount(enlistment, fileSystem);
-                long indexReadMs = phaseStopwatch.ElapsedMilliseconds;
+                diagnostics.StartPhase(HydrationSummaryPhase.IndexRead);
+                summary.TotalFileCount = GetIndexFileCount(enlistment, fileSystem, diagnostics);
+                diagnostics.TotalFileCount = summary.TotalFileCount >= 0 ? summary.TotalFileCount : null;
+                diagnostics.FinishPhase(summary.TotalFileCount >= 0 ? HydrationDataState.Complete : HydrationDataState.Failed);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                EnlistmentPathData pathData = new EnlistmentPathData();
-
-                /* FUTURE: These could be optimized to only deal with counts instead of full path lists */
-                phaseStopwatch.Restart();
-                pathData.LoadPlaceholdersFromDatabase(enlistment);
-                long placeholderLoadMs = phaseStopwatch.ElapsedMilliseconds;
+                diagnostics.StartPhase(HydrationSummaryPhase.Placeholders);
+                pathData.LoadPlaceholdersFromDatabase(enlistment, diagnostics);
+                summary.PlaceholderFileCount = pathData.PlaceholderFilePaths.Count;
+                summary.PlaceholderFolderCount = pathData.PlaceholderFolderPaths.Count;
+                diagnostics.PlaceholderFileCount = summary.PlaceholderFileCount;
+                diagnostics.PlaceholderFolderCount = summary.PlaceholderFolderCount;
+                diagnostics.FinishPhase(HydrationDataState.Complete);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                phaseStopwatch.Restart();
-                pathData.LoadModifiedPaths(enlistment, tracer);
-                long modifiedPathsLoadMs = phaseStopwatch.ElapsedMilliseconds;
+                diagnostics.StartPhase(HydrationSummaryPhase.ModifiedPaths);
+                pathData.LoadModifiedPaths(enlistment, tracer, diagnostics);
+                summary.ModifiedFileCount = pathData.ModifiedFilePaths.Count;
+                summary.ModifiedFolderCount = pathData.ModifiedFolderPaths.Count;
+                diagnostics.ModifiedFileCount = diagnostics.ModifiedPathsState == HydrationDataState.Failed ? null : summary.ModifiedFileCount;
+                diagnostics.ModifiedFolderCount = diagnostics.ModifiedPathsState == HydrationDataState.Failed ? null : summary.ModifiedFolderCount;
+                diagnostics.FinishPhase(diagnostics.ModifiedPathsState == HydrationDataState.NotStarted ? HydrationDataState.Complete : diagnostics.ModifiedPathsState);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                int placeholderFileCount = pathData.PlaceholderFilePaths.Count;
-                int placeholderFolderCount = pathData.PlaceholderFolderPaths.Count;
-                int modifiedFileCount = pathData.ModifiedFilePaths.Count;
-                int modifiedFolderCount = pathData.ModifiedFolderPaths.Count;
-
-                /* Getting the head tree count (used for TotalFolderCount) is potentially slower than the other parts
-                 * of the operation, so we do it last and check that the other parts would succeed before running it.
-                 */
-                var soFar = new EnlistmentHydrationSummary()
+                if (summary.TotalFileCount < 0)
                 {
-                    PlaceholderFileCount = placeholderFileCount,
-                    PlaceholderFolderCount = placeholderFolderCount,
-                    ModifiedFileCount = modifiedFileCount,
-                    ModifiedFolderCount = modifiedFolderCount,
-                    TotalFileCount = totalFileCount,
-                    TotalFolderCount = placeholderFolderCount + modifiedFolderCount + 1, // Not calculated yet, use a dummy valid value.
-                };
-
-                if (!soFar.IsValid)
-                {
-                    soFar.TotalFolderCount = 0; // Set to default invalid value to avoid confusion with the dummy value above.
-                    tracer.RelatedWarning(
-                        $"Hydration summary early exit: data invalid before tree count. " +
-                        $"TotalFileCount={totalFileCount}, PlaceholderFileCount={placeholderFileCount}, " +
-                        $"ModifiedFileCount={modifiedFileCount}, PlaceholderFolderCount={placeholderFolderCount}, " +
-                        $"ModifiedFolderCount={modifiedFolderCount}");
-                    EmitDurationTelemetry(tracer, totalStopwatch.ElapsedMilliseconds, indexReadMs, placeholderLoadMs, modifiedPathsLoadMs, treeCountMs: 0, earlyExit: true);
-                    return soFar;
+                    diagnostics.EarlyExit = true;
+                    diagnostics.Outcome = HydrationSummaryOutcome.IncompleteData;
+                    return summary;
                 }
 
-                /* Get the total folder count from the caller-provided function.
-                 * In the mount process, this comes from the in-memory projection (essentially free).
-                 * In gvfs health --status fallback, this parses the git index via GitIndexProjection. */
                 cancellationToken.ThrowIfCancellationRequested();
-                phaseStopwatch.Restart();
-                int totalFolderCount = projectedFolderCountProvider();
-                long treeCountMs = phaseStopwatch.ElapsedMilliseconds;
-
-                EmitDurationTelemetry(tracer, totalStopwatch.ElapsedMilliseconds, indexReadMs, placeholderLoadMs, modifiedPathsLoadMs, treeCountMs, earlyExit: false);
-
-                return new EnlistmentHydrationSummary()
-                {
-                    PlaceholderFileCount = placeholderFileCount,
-                    PlaceholderFolderCount = placeholderFolderCount,
-                    ModifiedFileCount = modifiedFileCount,
-                    ModifiedFolderCount = modifiedFolderCount,
-                    TotalFileCount = totalFileCount,
-                    TotalFolderCount = totalFolderCount,
-                };
+                diagnostics.StartPhase(HydrationSummaryPhase.FolderCount);
+                summary.TotalFolderCount = projectedFolderCountProvider();
+                diagnostics.TotalFolderCount = summary.TotalFolderCount;
+                diagnostics.FinishPhase(HydrationDataState.Complete);
+                diagnostics.Outcome = !diagnostics.CountsComplete ? HydrationSummaryOutcome.IncompleteData
+                    : summary.IsValid ? HydrationSummaryOutcome.Success : HydrationSummaryOutcome.InvalidCounts;
+                return summary;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException e)
             {
-                tracer.RelatedInfo($"Hydration summary cancelled after {totalStopwatch.ElapsedMilliseconds}ms");
-                return new EnlistmentHydrationSummary()
-                {
-                    PlaceholderFileCount = -1,
-                    PlaceholderFolderCount = -1,
-                    ModifiedFileCount = -1,
-                    ModifiedFolderCount = -1,
-                    TotalFileCount = -1,
-                    TotalFolderCount = -1,
-                };
+                diagnostics.Outcome = HydrationSummaryOutcome.Cancelled;
+                diagnostics.CancellationRequested = cancellationToken.IsCancellationRequested;
+                diagnostics.ExceptionType = e.GetType().FullName;
+                diagnostics.ExceptionHResult = e.HResult;
+                diagnostics.FinishPhase(HydrationDataState.Cancelled);
+                CapturePartialCounts(pathData, diagnostics);
+                summary.InvalidateCounts();
+                return summary;
             }
             catch (Exception e)
             {
-                tracer.RelatedError($"Hydration summary failed with exception after {totalStopwatch.ElapsedMilliseconds}ms: {e.Message}");
-                return new EnlistmentHydrationSummary()
-                {
-                    PlaceholderFileCount = -1,
-                    PlaceholderFolderCount = -1,
-                    ModifiedFileCount = -1,
-                    ModifiedFolderCount = -1,
-                    TotalFileCount = -1,
-                    TotalFolderCount = -1,
-                    Error = e,
-                };
+                diagnostics.Outcome = HydrationSummaryOutcome.Failed;
+                diagnostics.ExceptionType = e.GetType().FullName;
+                diagnostics.ExceptionHResult = e.HResult;
+                diagnostics.FinishPhase(HydrationDataState.Failed);
+                CapturePartialCounts(pathData, diagnostics);
+
+                tracer.RelatedWarning(new EventMetadata { ["Exception"] = e.ToString() }, "Hydration summary calculation failed.", Keywords.None);
+                summary.Error = e;
+                summary.InvalidateCounts();
+                return summary;
+            }
+            finally
+            {
+                diagnostics.TotalMs = totalStopwatch.ElapsedMilliseconds;
+                diagnostics.IsValid = summary.IsValid;
+                tracer.RelatedEvent(
+                    diagnostics.Outcome == HydrationSummaryOutcome.Success || diagnostics.Outcome == HydrationSummaryOutcome.Cancelled
+                        ? EventLevel.Informational : EventLevel.Warning,
+                    "HydrationSummaryDuration",
+                    diagnostics.GetMetadata(),
+                    Keywords.Telemetry);
             }
         }
 
-        private static void EmitDurationTelemetry(
-            ITracer tracer,
-            long totalMs,
-            long indexReadMs,
-            long placeholderLoadMs,
-            long modifiedPathsLoadMs,
-            long treeCountMs,
-            bool earlyExit)
+        private static void CapturePartialCounts(EnlistmentPathData pathData, HydrationSummaryDiagnostics diagnostics)
         {
-            EventMetadata metadata = new EventMetadata();
-            metadata["TotalMs"] = totalMs;
-            metadata["IndexReadMs"] = indexReadMs;
-            metadata["PlaceholderLoadMs"] = placeholderLoadMs;
-            metadata["ModifiedPathsLoadMs"] = modifiedPathsLoadMs;
-            metadata["TreeCountMs"] = treeCountMs;
-            metadata["EarlyExit"] = earlyExit;
-            tracer.RelatedEvent(
-                EventLevel.Informational,
-                "HydrationSummaryDuration",
-                metadata,
-                Keywords.Telemetry);
+            if (diagnostics.Phase == HydrationSummaryPhase.Placeholders
+                && (pathData.PlaceholderFilePaths.Count > 0 || pathData.PlaceholderFolderPaths.Count > 0))
+            {
+                diagnostics.PlaceholderFileCount = pathData.PlaceholderFilePaths.Count;
+                diagnostics.PlaceholderFolderCount = pathData.PlaceholderFolderPaths.Count;
+                if (diagnostics.PlaceholderState == HydrationDataState.Failed)
+                {
+                    diagnostics.PlaceholderState = HydrationDataState.Partial;
+                }
+            }
+
+            if (diagnostics.Phase == HydrationSummaryPhase.ModifiedPaths
+                && (pathData.ModifiedFilePaths.Count > 0 || pathData.ModifiedFolderPaths.Count > 0))
+            {
+                diagnostics.ModifiedFileCount = pathData.ModifiedFilePaths.Count;
+                diagnostics.ModifiedFolderCount = pathData.ModifiedFolderPaths.Count;
+                if (diagnostics.ModifiedPathsState == HydrationDataState.Failed)
+                {
+                    diagnostics.ModifiedPathsState = HydrationDataState.Partial;
+                }
+            }
         }
 
         /// <summary>
         /// Get the total number of files in the index.
         /// </summary>
-        internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
+        internal static int GetIndexFileCount(GVFSEnlistment enlistment, PhysicalFileSystem fileSystem, HydrationSummaryDiagnostics diagnostics = null)
         {
             string indexPath = enlistment.GitIndexPath;
             using (var indexFile = fileSystem.OpenFileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, callFlushFileBuffers: false))
             {
+                if (diagnostics != null)
+                {
+                    diagnostics.IndexLength = indexFile.Length;
+                }
+
                 if (indexFile.Length < 12)
                 {
+                    if (diagnostics != null)
+                    {
+                        diagnostics.IndexReadReason = "ShortIndex";
+                    }
+
                     return -1;
                 }
-                /* The number of files in the index is a big-endian integer from
-                 * the 4 bytes at offsets 8-11 of the index file. */
-                indexFile.Position = 8;
-                var bytes = new byte[4];
-                indexFile.ReadExactly(
-                    bytes, // Destination buffer
-                    offset: 0, // Offset in destination buffer, not in indexFile
-                    count: 4);
-                if (BitConverter.IsLittleEndian)
+                byte[] header = new byte[12];
+                indexFile.ReadExactly(header, 0, header.Length);
+                int count = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(8, 4));
+                if (diagnostics != null)
                 {
-                    Array.Reverse(bytes);
+                    diagnostics.IndexVersion = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(4, 4));
+                    diagnostics.IndexSignatureValid = header[0] == 'D' && header[1] == 'I' && header[2] == 'R' && header[3] == 'C';
+                    diagnostics.IndexReadReason = count < 0 ? "NegativeEntryCount" : "Success";
                 }
-                int count = BitConverter.ToInt32(bytes, 0);
+
                 return count;
             }
         }
 
+        private void InvalidateCounts()
+        {
+            this.PlaceholderFileCount = -1;
+            this.PlaceholderFolderCount = -1;
+            this.ModifiedFileCount = -1;
+            this.ModifiedFolderCount = -1;
+            this.TotalFileCount = -1;
+            this.TotalFolderCount = -1;
+        }
     }
 }

@@ -2,6 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.BlobSize;
+using GVFS.Virtualization.FileSystem;
 using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Concurrent;
@@ -25,8 +26,14 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         private ManualResetEvent waitForGetProjectedFileInfo;
 
         private AutoResetEvent placeholderCreated;
+        private int fileInfoRequests;
 
-        public MockGitIndexProjection(IEnumerable<string> projectedFiles)
+        public MockGitIndexProjection(
+            IEnumerable<string> projectedFiles,
+            GVFSContext context = null,
+            FileSystemVirtualizer fileSystemVirtualizer = null,
+            BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner = null)
+            : base(context, fileSystemVirtualizer, backgroundFileSystemTaskRunner)
         {
             this.projectedFiles = new ConcurrentHashSet<string>();
             foreach (string entry in projectedFiles)
@@ -62,8 +69,32 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         public ConcurrentHashSet<string> SparseEntries { get; }
 
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
+        public bool ThrowSizesUnavailableExceptionOnProjectionRequest { get; set; }
 
         public bool ProjectionParseComplete { get; set; }
+        public int FileInfoRequests => Volatile.Read(ref this.fileInfoRequests);
+        public bool ProjectedPathIsFolder { get; set; }
+
+        public void RemoveProjectedFile(string path)
+        {
+            this.projectedFiles.TryRemove(path);
+        }
+        public long Generation { get; set; }
+        public int CreationAttempts { get; private set; }
+
+        public override long ProjectionGeneration => this.Generation;
+
+        public override bool TryCreatePlaceholder(long generation, Action create)
+        {
+            ++this.CreationAttempts;
+            if (!this.ProjectionParseComplete || generation != this.Generation)
+            {
+                return false;
+            }
+
+            create();
+            return true;
+        }
 
         public PathSparseState GetFolderPathSparseStateValue { get; set; } = PathSparseState.Included;
         public bool TryAddSparseFolderReturnValue { get; set; } = true;
@@ -203,6 +234,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         {
             this.waitForGetProjectedItems.Set();
 
+            if (this.ThrowSizesUnavailableExceptionOnProjectionRequest)
+            {
+                throw new SizesUnavailableException("Synthetic missing size");
+            }
+
             if (this.ThrowOperationCanceledExceptionOnProjectionRequest)
             {
                 throw new OperationCanceledException();
@@ -219,7 +255,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
             if (this.projectedFiles.Contains(virtualPath))
             {
-                isFolder = false;
+                isFolder = this.ProjectedPathIsFolder;
                 string parentKey;
                 this.GetChildNameAndParentKey(virtualPath, out fileName, out parentKey);
                 return true;
@@ -236,7 +272,13 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             string virtualPath,
             out string parentFolderPath)
         {
+            Interlocked.Increment(ref this.fileInfoRequests);
             this.waitForGetProjectedFileInfo.Set();
+
+            if (this.ThrowSizesUnavailableExceptionOnProjectionRequest)
+            {
+                throw new SizesUnavailableException("Synthetic missing size");
+            }
 
             if (this.ThrowOperationCanceledExceptionOnProjectionRequest)
             {
@@ -251,7 +293,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
                 string parentKey;
                 this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
                 parentFolderPath = parentKey;
-                return new ProjectedFileInfo(childName, size: 0, isFolder: false, sha: new Sha1Id(1, 1, 1));
+                return new ProjectedFileInfo(childName, size: 0, isFolder: this.ProjectedPathIsFolder, sha: new Sha1Id(1, 1, 1));
             }
 
             parentFolderPath = null;
@@ -264,6 +306,12 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         }
 
         public override void OnPlaceholderFileCreated(string virtualPath, string sha)
+        {
+            this.PlaceholdersCreated.Add(virtualPath);
+            this.placeholderCreated.Set();
+        }
+
+        public override void OnPlaceholderFolderCreated(string virtualPath)
         {
             this.PlaceholdersCreated.Add(virtualPath);
             this.placeholderCreated.Set();

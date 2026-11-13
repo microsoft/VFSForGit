@@ -41,7 +41,14 @@ namespace GVFS.Mount
         // reliably trigger a commit pack download.
         private const int TrackedTreeCapacity = MissingTreeThresholdForDownloadingCommitPack * 20;
 
+        private const int StatusCacheDeleteAttempts = 5;
+        private const int StatusCacheDeleteRetryDelayMs = 100;
+
         private readonly bool showDebugWindow;
+        private readonly string mountId;
+
+        // Set only for a linked worktree mount
+        private readonly string primaryEnlistmentId;
 
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSDatabase gvfsDatabase;
@@ -71,15 +78,18 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
+
         private readonly MissingTreeTracker missingTreeTracker;
 
         // True if InProcessMount is calling git reset as part of processing
         // a folder dehydrate request
         private volatile bool resetForDehydrateInProgress;
 
-        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, GitStatusCacheConfig gitStatusCacheConfig, bool showDebugWindow)
+        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, string mountId, string primaryEnlistmentId, CacheServerInfo cacheServer, RetryConfig retryConfig, GitStatusCacheConfig gitStatusCacheConfig, bool showDebugWindow)
         {
             this.tracer = tracer;
+            this.mountId = mountId;
+            this.primaryEnlistmentId = primaryEnlistmentId;
             this.retryConfig = retryConfig;
             this.gitStatusCacheConfig = gitStatusCacheConfig;
             this.cacheServer = cacheServer;
@@ -294,9 +304,9 @@ namespace GVFS.Mount
 
                     this.tracer.RelatedInfo("ParallelMount: Local validations completed in {0}ms", sw.ElapsedMilliseconds);
 
-                    if (!this.TrySetRequiredGitConfigSettings())
+                    if (!RequiredGitConfig.TrySetRequiredSettings(this.enlistment, this.tracer, out string configError))
                     {
-                        this.FailMountAndExit("Unable to configure git repo");
+                        this.FailMountAndExit("Unable to configure git repo: " + configError);
                     }
 
                     this.LogEnlistmentInfoAndSetConfigValues();
@@ -500,7 +510,8 @@ namespace GVFS.Mount
                 this.tracer,
                 this.enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.BackgroundCacheAuth,
-                GVFSConstants.GitConfig.BackgroundCacheAuthDefault);
+                GVFSConstants.GitConfig.BackgroundCacheAuthDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void ValidateMountPoints()
@@ -533,7 +544,8 @@ namespace GVFS.Mount
 
         /// <summary>
         /// For worktree mounts, create the .gvfs metadata directory and
-        /// bootstrap RepoMetadata with cache paths from the primary enlistment.
+        /// bootstrap RepoMetadata with cache paths from the primary enlistment
+        /// and with the enlistment ID of the worktree.
         /// </summary>
         private void InitializeWorktreeMetadata()
         {
@@ -588,12 +600,25 @@ namespace GVFS.Mount
                 RepoMetadata.Shutdown();
             }
 
-            // Initialize cache paths on the enlistment so SaveCloneMetadata
+            // Initialize cache paths on the enlistment so SaveWorktreeMetadata
             // can persist them into the worktree's metadata
             this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
-            // Initialize the worktree's own metadata with cache paths,
-            // disk layout version, and a new enlistment ID
+            string worktreeEnlistmentId = null;
+            if (string.IsNullOrWhiteSpace(this.primaryEnlistmentId))
+            {
+                this.tracer.RelatedWarning(
+                    new EventMetadata(),
+                    "The primary enlistment ID is not available. The worktree keeps its stored enlistment ID.",
+                    Keywords.Telemetry);
+            }
+            else
+            {
+                worktreeEnlistmentId = GVFSEnlistment.CreateWorktreeEnlistmentId(this.primaryEnlistmentId, this.enlistment.Worktree.Name);
+            }
+
+            // Initialize the worktree's own metadata with cache paths, the disk
+            // layout version, and the enlistment ID of the worktree.
             if (!RepoMetadata.TryInitialize(this.tracer, dotGVFSRoot, out error))
             {
                 this.FailMountAndExit("Failed to initialize worktree metadata: " + error);
@@ -601,7 +626,7 @@ namespace GVFS.Mount
 
             try
             {
-                RepoMetadata.Instance.SaveCloneMetadata(this.tracer, this.enlistment);
+                RepoMetadata.Instance.SaveWorktreeMetadata(this.tracer, this.enlistment, worktreeEnlistmentId);
             }
             finally
             {
@@ -624,28 +649,59 @@ namespace GVFS.Mount
 
         private bool ShouldReportMountProgress()
         {
-            // Read via a transient LibGit2Repo rather than the context's shared
-            // LibGit2RepoInvoker: the invoker isn't created until CreateContext (after the
-            // pipe starts), and its constructor force-loads the object store, which we must
-            // not do on the pre-pipe critical path. A raw LibGit2Repo opens only the repo
-            // handle + config (no object store) and gives native git-bool parsing.
-            try
-            {
-                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
-                {
-                    return repo.GetConfigBool(GVFSConstants.GitConfig.MountProgress) ?? GVFSConstants.GitConfig.MountProgressDefault;
-                }
-            }
-            catch (Exception e)
-            {
-                this.tracer.RelatedWarning($"Failed to read {GVFSConstants.GitConfig.MountProgress} config, using default: {e.Message}");
-                return GVFSConstants.GitConfig.MountProgressDefault;
-            }
+            // Do not use the context's shared LibGit2RepoInvoker: the invoker isn't created
+            // until CreateContext (after the pipe starts), and its constructor force-loads the
+            // object store, which we must not do on the pre-pipe critical path. The static
+            // helper opens only the repo handle + config (no object store), or runs git config
+            // when the environment changes git config.
+            return LibGit2Repo.GetConfigBoolOrDefault(
+                this.tracer,
+                this.enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.MountProgress,
+                GVFSConstants.GitConfig.MountProgressDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void FailMountAndExit(string error, params object[] args)
         {
             this.FailMountAndExit(ReturnCode.GenericError, error, args);
+        }
+
+        /// <summary>
+        /// Deletes the status cache file of this enlistment. Without a GitStatusCache,
+        /// nothing updates or deletes that file, but git still reads it when
+        /// status.deserializePath names it. For example, an attended mount of a linked
+        /// worktree writes the path of the primary to the shared config.
+        /// </summary>
+        private void DeleteStatusCacheFileOrExit()
+        {
+            string statusCachePath = this.context.Enlistment.GitStatusCachePath;
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    if (this.context.FileSystem.FileExists(statusCachePath))
+                    {
+                        this.context.FileSystem.DeleteFile(statusCachePath);
+                    }
+
+                    return;
+                }
+                catch (IOException e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+                {
+                    return;
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    if (attempt == StatusCacheDeleteAttempts)
+                    {
+                        this.FailMountAndExit("Failed to delete the unused git status cache file {0}: {1}", statusCachePath, e.Message);
+                        return;
+                    }
+
+                    Thread.Sleep(StatusCacheDeleteRetryDelayMs);
+                }
+            }
         }
 
         private void FailMountAndExit(ReturnCode returnCode, string error, params object[] args)
@@ -822,7 +878,8 @@ namespace GVFS.Mount
 
         private void HandleGetHydrationStatusRequest(NamedPipeServer.Connection connection)
         {
-            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary();
+            NamedPipeMessages.HydrationStatus.CacheInfo info = new NamedPipeMessages.HydrationStatus.CacheInfo();
+            EnlistmentHydrationSummary summary = this.fileSystemCallbacks?.GetCachedHydrationSummary(out info);
             if (summary == null || !summary.IsValid)
             {
                 this.tracer.RelatedInfo(
@@ -830,22 +887,14 @@ namespace GVFS.Mount
                     (summary == null ? "No cached hydration summary available yet" : "Cached hydration summary is invalid"));
 
                 connection.TrySendResponse(
-                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, null));
+                    new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.NotAvailableResult, info.ToBody()));
                 return;
             }
 
-            NamedPipeMessages.HydrationStatus.Response response = new NamedPipeMessages.HydrationStatus.Response
-            {
-                PlaceholderFileCount = summary.PlaceholderFileCount,
-                PlaceholderFolderCount = summary.PlaceholderFolderCount,
-                ModifiedFileCount = summary.ModifiedFileCount,
-                ModifiedFolderCount = summary.ModifiedFolderCount,
-                TotalFileCount = summary.TotalFileCount,
-                TotalFolderCount = summary.TotalFolderCount,
-            };
+            NamedPipeMessages.HydrationStatus.Response response = summary.ToResponse();
 
             connection.TrySendResponse(
-                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody()));
+                new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody(info)));
         }
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
@@ -1571,6 +1620,7 @@ namespace GVFS.Mount
             else
             {
                 this.tracer.RelatedInfo("Git status cache is not enabled");
+                this.DeleteStatusCacheFileOrExit();
             }
 
             this.gvfsDatabase = this.CreateOrReportAndExit(() => new GVFSDatabase(this.context.FileSystem, this.context.Enlistment.DotGVFSRoot, new SqliteDatabase()), "Failed to create database connection");
@@ -1956,68 +2006,86 @@ namespace GVFS.Mount
             return true;
         }
 
-        private bool TrySetRequiredGitConfigSettings()
-        {
-            Dictionary<string, string> requiredSettings = RequiredGitConfig.GetRequiredSettings(this.enlistment);
-
-            GitProcess git = new GitProcess(this.enlistment);
-
-            Dictionary<string, GitConfigSetting> existingConfigSettings;
-            if (!git.TryGetAllConfig(localOnly: true, configSettings: out existingConfigSettings))
-            {
-                return false;
-            }
-
-            foreach (KeyValuePair<string, string> setting in requiredSettings)
-            {
-                GitConfigSetting existingSetting;
-                if (setting.Value != null)
-                {
-                    if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
-                        !existingSetting.HasValue(setting.Value))
-                    {
-                        GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                        if (setConfigResult.ExitCodeIsFailure)
-                        {
-                            return false;
-                        }
-                    }
-                }
-                else
-                {
-                    if (existingConfigSettings.TryGetValue(setting.Key, out existingSetting))
-                    {
-                        git.DeleteFromLocalConfig(setting.Key);
-                    }
-                }
-            }
-
-            return true;
-        }
-
         private void LogEnlistmentInfoAndSetConfigValues()
         {
-            string mountId = Guid.NewGuid().ToString("N");
             EventMetadata metadata = new EventMetadata();
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
-            metadata.Add(nameof(mountId), mountId);
+            if (this.enlistment.IsWorktree)
+            {
+                metadata.Add("PrimaryEnlistmentId", this.primaryEnlistmentId);
+            }
+
+            metadata.Add("mountId", this.mountId);
             metadata.Add("Enlistment", this.enlistment);
             metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(this.enlistment.WorkingDirectoryRoot, sizeStatsOnly: false));
             this.tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
 
-            GitProcess git = new GitProcess(this.enlistment);
-            GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
+            GitProcess git = this.enlistment.CreateGitProcess(this.tracer);
+            GitProcess.Result configResult;
+            if (this.enlistment.IsWorktree)
+            {
+                // See RequiredGitConfig.TrySetRequiredSettings for why a worktree does not write to the shared config.
+                configResult = git.SetInFileConfig(this.enlistment.WorktreeConfigPath, GVFSConstants.GitConfig.MountId, this.mountId, replaceAll: true);
+                if (configResult.ExitCodeIsFailure)
+                {
+                    this.tracer.RelatedWarning(
+                        new EventMetadata { { "Error", configResult.Errors } },
+                        "Could not update worktree config with mount id",
+                        Keywords.Telemetry);
+                }
+
+                this.RestoreSharedEnlistmentIdOfPrimary(git);
+                return;
+            }
+
+            configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
             if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with enlistment id, error: " + configResult.Errors;
                 this.tracer.RelatedWarning(error);
             }
 
-            configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.MountId, mountId, replaceAll: true);
+            configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.MountId, this.mountId, replaceAll: true);
             if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with mount id, error: " + configResult.Errors;
                 this.tracer.RelatedWarning(error);
+            }
+        }
+
+        /// <summary>
+        /// Keeps the shared enlistment ID equal to the enlistment ID of the primary.
+        /// A worktree mount writes it only when the shared value differs.
+        /// </summary>
+        private void RestoreSharedEnlistmentIdOfPrimary(GitProcess git)
+        {
+            if (string.IsNullOrWhiteSpace(this.primaryEnlistmentId))
+            {
+                return;
+            }
+
+            GitProcess.ConfigResult sharedResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
+            if (!sharedResult.TryParseAsString(out string sharedEnlistmentId, out string readError))
+            {
+                this.tracer.RelatedWarning(
+                    new EventMetadata { { "Error", readError } },
+                    "Could not read the shared enlistment ID",
+                    Keywords.Telemetry);
+                return;
+            }
+
+            if (string.Equals(sharedEnlistmentId?.Trim(), this.primaryEnlistmentId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, this.primaryEnlistmentId, replaceAll: true);
+            if (configResult.ExitCodeIsFailure)
+            {
+                this.tracer.RelatedWarning(
+                    new EventMetadata { { "Error", configResult.Errors } },
+                    "Could not restore the shared enlistment ID of the primary",
+                    Keywords.Telemetry);
             }
         }
 

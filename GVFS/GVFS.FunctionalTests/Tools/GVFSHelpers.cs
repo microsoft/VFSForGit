@@ -30,6 +30,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string GitObjectsRootKey = "GitObjectsRoot";
         private const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
         private const string BlobSizesRootKey = "BlobSizesRoot";
+        private const string EnlistmentIdKey = "EnlistmentId";
 
         private const string PrjFSLibPath = "libPrjFSLib.dylib";
         private const int PrjFSResultSuccess = 1;
@@ -48,6 +49,11 @@ namespace GVFS.FunctionalTests.Tools
         {
             SavePersistedValue(dotGVFSRoot, DiskLayoutMajorVersionKey, majorVersion);
             SavePersistedValue(dotGVFSRoot, DiskLayoutMinorVersionKey, minorVersion);
+        }
+
+        public static void DeletePersistedDiskLayoutMajorVersion(string dotGVFSRoot)
+        {
+            DeletePersistedValue(dotGVFSRoot, DiskLayoutMajorVersionKey);
         }
 
         public static void GetPersistedDiskLayoutVersion(string dotGVFSRoot, out string majorVersion, out string minorVersion)
@@ -84,6 +90,16 @@ namespace GVFS.FunctionalTests.Tools
         public static string GetPersistedBlobSizesRoot(string dotGVFSRoot)
         {
             return GetPersistedValue(dotGVFSRoot, BlobSizesRootKey);
+        }
+
+        public static string GetPersistedEnlistmentId(string dotGVFSRoot)
+        {
+            return GetPersistedValue(dotGVFSRoot, EnlistmentIdKey);
+        }
+
+        public static void SaveEnlistmentId(string dotGVFSRoot, string value)
+        {
+            SavePersistedValue(dotGVFSRoot, EnlistmentIdKey, value);
         }
 
         public static void SQLiteBlobSizesDatabaseHasEntry(string blobSizesDbPath, string blobSha, long blobSize)
@@ -314,31 +330,29 @@ namespace GVFS.FunctionalTests.Tools
 
         private static string GetPersistedValue(string dotGVFSRoot, string key)
         {
-            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
-            string json;
-            using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            using (StreamReader reader = new StreamReader(fs))
-            {
-                while (!reader.EndOfStream)
-                {
-                    json = reader.ReadLine();
-                    json.Substring(0, 2).ShouldEqual("A ");
-
-                    KeyValuePair<string, string> kvp = GVFSJsonOptions.Deserialize<KeyValuePair<string, string>>(json.Substring(2));
-                    if (kvp.Key == key)
-                    {
-                        return kvp.Value;
-                    }
-                }
-            }
-
-            return null;
+            Dictionary<string, string> repoMetadata = ReadPersistedValues(dotGVFSRoot);
+            string value;
+            repoMetadata.TryGetValue(key, out value);
+            return value;
         }
 
         private static void SavePersistedValue(string dotGVFSRoot, string key, string value)
         {
-            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
+            Dictionary<string, string> repoMetadata = ReadPersistedValues(dotGVFSRoot);
+            repoMetadata[key] = value;
+            WritePersistedValues(dotGVFSRoot, repoMetadata);
+        }
 
+        private static void DeletePersistedValue(string dotGVFSRoot, string key)
+        {
+            Dictionary<string, string> repoMetadata = ReadPersistedValues(dotGVFSRoot);
+            repoMetadata.Remove(key);
+            WritePersistedValues(dotGVFSRoot, repoMetadata);
+        }
+
+        private static Dictionary<string, string> ReadPersistedValues(string dotGVFSRoot)
+        {
+            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
             Dictionary<string, string> repoMetadata = new Dictionary<string, string>();
             string json;
             using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
@@ -350,12 +364,16 @@ namespace GVFS.FunctionalTests.Tools
                     json.Substring(0, 2).ShouldEqual("A ");
 
                     KeyValuePair<string, string> kvp = GVFSJsonOptions.Deserialize<KeyValuePair<string, string>>(json.Substring(2));
-                    repoMetadata.Add(kvp.Key, kvp.Value);
+                    repoMetadata[kvp.Key] = kvp.Value;
                 }
             }
 
-            repoMetadata[key] = value;
+            return repoMetadata;
+        }
 
+        private static void WritePersistedValues(string dotGVFSRoot, Dictionary<string, string> repoMetadata)
+        {
+            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
             string newRepoMetadataContents = string.Empty;
 
             foreach (KeyValuePair<string, string> kvp in repoMetadata)

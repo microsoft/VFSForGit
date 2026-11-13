@@ -404,22 +404,12 @@ namespace GVFS.Common.Prefetch
         {
             sharedCheckerOwner = null;
 
-            bool usePackIdx = false;
-            try
-            {
-                GitProcess git = new GitProcess(this.Enlistment);
-                GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.PrefetchUseIdx);
-                if (!configResult.TryParseAsString(out string value, out string _) ||
-                    string.IsNullOrEmpty(value) ||
-                    !bool.TryParse(value, out usePackIdx))
-                {
-                    usePackIdx = GVFSConstants.GitConfig.PrefetchUseIdxDefault;
-                }
-            }
-            catch (Exception ex)
-            {
-                this.Tracer.RelatedWarning("Failed to read {0} config: {1}", GVFSConstants.GitConfig.PrefetchUseIdx, ex.Message);
-            }
+            bool usePackIdx = LibGit2Repo.GetConfigBoolOrDefault(
+                this.Tracer,
+                this.Enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.PrefetchUseIdx,
+                GVFSConstants.GitConfig.PrefetchUseIdxDefault,
+                this.Enlistment.CreateGitProcess(this.Tracer).TryGetBoolFromConfig);
 
             if (usePackIdx)
             {

@@ -562,7 +562,8 @@ begin
   // 4 = ReturnCode.FilterError
   if (ResultCode = 4) then
     begin
-      RaiseException('Fatal: Could not configure and start Windows Projected File System.');
+      Log('gvfs service --mount-all failed with FilterError: ' + MountOutput);
+      RaiseException('Fatal: Could not configure and start Windows Projected File System.' + #13#10 + MountOutput);
     end
   else if (ResultCode <> 0) then
     begin

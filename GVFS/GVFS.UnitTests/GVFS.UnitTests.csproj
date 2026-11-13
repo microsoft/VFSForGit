@@ -13,6 +13,7 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <ProjectReference Include="..\GVFS\GVFS.csproj" />
+    <ProjectReference Include="..\GVFS.Hooks\GVFS.Hooks.csproj" Aliases="Hooks" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\GVFS.Hooks\KnownGitCommands.cs">
-      <Link>Hooks\KnownGitCommands.cs</Link>
+    <Compile Include="..\GVFS.Hooks\GitCommandLock.cs">
+      <Link>Hooks\GitCommandLock.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Hooks\GitCommandResolver.cs">
+      <Link>Hooks\GitCommandResolver.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Hooks\Program.CommandLocking.cs">
       <Link>Hooks\Program.CommandLocking.cs</Link>

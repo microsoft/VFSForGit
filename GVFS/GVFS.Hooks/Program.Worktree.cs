@@ -91,12 +91,14 @@ namespace GVFS.Hooks
 
         /// <summary>
         /// Attempts to mount GVFS for a worktree, retrying on transient failures.
-        /// The first attempt shows output to the console; retries are quiet.
+        /// The first attempt shows output to the console; retries capture output
+        /// quietly and print it to stderr if all retries fail.
         /// Returns true if mount succeeded.
         /// </summary>
         private static bool TryMountWithRetry(string fullPath)
         {
             int[] retryDelaysMs = { 100, 250 };
+            ProcessResult[] failedRetries = new ProcessResult[retryDelaysMs.Length];
 
             ProcessResult result = ProcessHelper.Run("gvfs", $"mount \"{fullPath}\"", redirectOutput: false);
             if (result.ExitCode == 0)
@@ -111,6 +113,24 @@ namespace GVFS.Hooks
                 if (result.ExitCode == 0)
                 {
                     return true;
+                }
+
+                failedRetries[retry] = result;
+            }
+
+            for (int retry = 0; retry < failedRetries.Length; retry++)
+            {
+                result = failedRetries[retry];
+                Console.Error.WriteLine(
+                    $"warning: gvfs mount retry {retry + 1} for '{fullPath}' failed with exit code {result.ExitCode}.");
+                if (!string.IsNullOrWhiteSpace(result.Output))
+                {
+                    Console.Error.WriteLine($"  stdout: {result.Output.Trim()}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.Errors))
+                {
+                    Console.Error.WriteLine($"  stderr: {result.Errors.Trim()}");
                 }
             }
 
@@ -276,7 +296,7 @@ namespace GVFS.Hooks
                 }
 
                 // Check for uncommitted changes while ProjFS is still mounted.
-                ProcessResult statusResult = ProcessHelper.Run(
+                ProcessResult statusResult = ProcessHelper.RunGit(
                     "git",
                     $"-C \"{fullPath}\" status --porcelain",
                     redirectOutput: true);
@@ -413,7 +433,7 @@ namespace GVFS.Hooks
                     File.WriteAllText(emptyVfsHook, "#!/bin/sh\nprintf \".gitattributes\\n\"\n");
                     string emptyVfsHookGitPath = emptyVfsHook.Replace('\\', '/');
 
-                    ProcessResult checkoutResult = ProcessHelper.Run(
+                    ProcessResult checkoutResult = ProcessHelper.RunGit(
                         "git",
                         $"-C \"{fullPath}\" -c core.virtualfilesystem=\"'{emptyVfsHookGitPath}'\" -c core.hookspath= checkout -f HEAD",
                         redirectOutput: false);

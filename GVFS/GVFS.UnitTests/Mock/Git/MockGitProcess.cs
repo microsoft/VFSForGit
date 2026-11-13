@@ -20,6 +20,11 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
+        internal MockGitProcess(ITracer tracer, Action<TimeSpan> configReadDelay)
+            : base(new MockGVFSEnlistment(), tracer, configReadDelay)
+        {
+        }
+
         public MockGitProcess(Enlistment enlistment)
             : base(enlistment)
         {
@@ -107,6 +112,11 @@ namespace GVFS.UnitTests.Mock.Git
             return base.TryDeleteCredential(tracer, repoUrl, username, password, out error);
         }
 
+        protected override EventMetadata GetAuthenticationConfiguration(string repoUrl, Dictionary<string, string> credentialFillEnvironment, ITracer tracer)
+        {
+            return new EventMetadata { { "Status", "mock" } };
+        }
+
         protected override Result InvokeGitImpl(
             string command,
             string workingDirectory,
@@ -121,7 +131,7 @@ namespace GVFS.UnitTests.Mock.Git
             bool? hasVisibleConsoleWindow = null)
         {
             this.CommandsRun.Add(command);
-            this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow));
+            this.InvocationsRun.Add(new GitInvocation(command, dotGitDirectory, mayRequireAuth, hasVisibleConsoleWindow, timeoutMs));
 
             if (this.ShouldFail)
             {
@@ -162,12 +172,13 @@ namespace GVFS.UnitTests.Mock.Git
 
         public class GitInvocation
         {
-            public GitInvocation(string command, string dotGitDirectory, bool mayRequireAuth, bool? hasVisibleConsoleWindow)
+            public GitInvocation(string command, string dotGitDirectory, bool mayRequireAuth, bool? hasVisibleConsoleWindow, int timeoutMs)
             {
                 this.Command = command;
                 this.DotGitDirectory = dotGitDirectory;
                 this.MayRequireAuth = mayRequireAuth;
                 this.HasVisibleConsoleWindow = hasVisibleConsoleWindow;
+                this.TimeoutMs = timeoutMs;
             }
 
             public string Command { get; }
@@ -176,6 +187,7 @@ namespace GVFS.UnitTests.Mock.Git
             public string DotGitDirectory { get; }
             public bool MayRequireAuth { get; }
             public bool? HasVisibleConsoleWindow { get; }
+            public int TimeoutMs { get; }
         }
 
         public class Credential
