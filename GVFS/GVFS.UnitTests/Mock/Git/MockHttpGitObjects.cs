@@ -39,8 +39,9 @@ namespace GVFS.UnitTests.Mock.Git
             }
         }
 
-        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
         {
+            error = null;
             return objectIds.Select(oid => new GitObjectSize(oid, this.QueryForFileSize(oid))).ToList();
         }
 
