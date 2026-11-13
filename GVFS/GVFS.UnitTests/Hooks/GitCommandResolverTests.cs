@@ -382,5 +382,55 @@ namespace GVFS.UnitTests.Hooks
             query.StandardOutputEncoding.WebName.ShouldEqual("utf-8");
             query.Environment["COMMAND_HOOK_LOCK"].ShouldEqual("true");
         }
+
+        [TestCase(null)]
+        [TestCase("fr_FR.UTF-8")]
+        [NonParallelizable]
+        public void AliasKeyQueryUsesCLocaleWithoutChangingParentEnvironment(string inheritedLocale)
+        {
+            string originalLocale = Environment.GetEnvironmentVariable("LC_ALL");
+            string originalLanguage = Environment.GetEnvironmentVariable("LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", inheritedLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", "de");
+                ProcessStartInfo inherited = new ProcessStartInfo();
+                ProcessStartInfo query = GitCommandResolver.CreateAliasKeyQuery(@"mock:\git.exe");
+
+                query.Environment["LC_ALL"].ShouldEqual("C");
+                foreach (KeyValuePair<string, string> variable in inherited.Environment)
+                {
+                    if (!string.Equals(variable.Key, "LC_ALL", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(variable.Key, "COMMAND_HOOK_LOCK", StringComparison.OrdinalIgnoreCase))
+                    {
+                        query.Environment[variable.Key].ShouldEqual(variable.Value, variable.Key);
+                    }
+                }
+
+                Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(inheritedLocale);
+                Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", originalLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", originalLanguage);
+            }
+        }
+
+        [TestCase]
+        public void ConfigBoolQueryUsesTheParentGit()
+        {
+            const string ParentGit = @"mock:\custom git\bin\git.exe";
+            ProcessStartInfo query = GitCommandResolver.CreateConfigBoolQuery(ParentGit, "gvfs.show-hydration-status");
+
+            query.FileName.ShouldEqual(ParentGit);
+            query.UseShellExecute.ShouldBeFalse();
+            query.RedirectStandardInput.ShouldBeTrue();
+            query.RedirectStandardOutput.ShouldBeTrue();
+            query.RedirectStandardError.ShouldBeTrue();
+            query.ArgumentList.ShouldMatchInOrder("config", "--type=bool", "gvfs.show-hydration-status");
+            query.Environment["COMMAND_HOOK_LOCK"].ShouldEqual("true");
+            query.Environment["LC_ALL"].ShouldEqual("C");
+        }
     }
 }

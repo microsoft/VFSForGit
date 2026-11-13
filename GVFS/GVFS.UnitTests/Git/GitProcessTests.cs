@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -148,6 +149,93 @@ namespace GVFS.UnitTests.Git
             process.InvocationsRun[0].DotGitDirectory.ShouldBeNull();
         }
 
+        [TestCase(null)]
+        [TestCase("fr_FR.UTF-8")]
+        [NonParallelizable]
+        public void GitChildUsesCLocaleWithoutChangingParentEnvironment(string inheritedLocale)
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            string originalLocale = Environment.GetEnvironmentVariable("LC_ALL");
+            string originalLanguage = Environment.GetEnvironmentVariable("LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", inheritedLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", "de");
+                GitProcess git = new GitProcess(gitPath, workingDirectoryRoot: null);
+                using (Process child = git.GetGitProcess(
+                    "-c alias.gvfs-locale-test=\"!echo $LC_ALL/$LANGUAGE\" gvfs-locale-test",
+                    Environment.SystemDirectory,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    gitObjectsDirectory: null,
+                    usePreCommandHook: false))
+                {
+                    child.StartInfo.Environment["LC_ALL"].ShouldEqual("C");
+                    child.StartInfo.Environment["LANGUAGE"].ShouldEqual("de");
+                    child.Start();
+                    child.StandardInput.Close();
+                    string output = child.StandardOutput.ReadToEnd();
+                    string errors = child.StandardError.ReadToEnd();
+                    child.WaitForExit();
+
+                    child.ExitCode.ShouldEqual(0, errors);
+                    output.Trim().ShouldEqual("C/de");
+                }
+
+                Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(inheritedLocale);
+                Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", originalLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", originalLanguage);
+            }
+        }
+
+        [TestCase(true, true)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(false, false)]
+        [NonParallelizable]
+        public void ProcessHelperPreservesLocalePolicyAndOutputRedirection(bool gitSpecific, bool redirectOutput)
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            const string InheritedLocale = "fr_FR.UTF-8";
+            string originalLocale = Environment.GetEnvironmentVariable("LC_ALL");
+            string originalLanguage = Environment.GetEnvironmentVariable("LANGUAGE");
+            try
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", InheritedLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", "de");
+                string expectedLocale = gitSpecific ? "C" : InheritedLocale;
+                string command = $"-c alias.gvfs-locale-test=\"!test $LC_ALL/$LANGUAGE = {expectedLocale}/de && echo locale-output && echo locale-error >&2\" gvfs-locale-test";
+                ProcessResult result = gitSpecific ?
+                    ProcessHelper.RunGit(gitPath, command, redirectOutput) :
+                    ProcessHelper.Run(gitPath, command, redirectOutput);
+
+                result.ExitCode.ShouldEqual(0, result.Errors);
+                result.Output.Trim().ShouldEqual(redirectOutput ? "locale-output" : string.Empty);
+                result.Errors.Trim().ShouldEqual(redirectOutput ? "locale-error" : string.Empty);
+                Environment.GetEnvironmentVariable("LC_ALL").ShouldEqual(InheritedLocale);
+                Environment.GetEnvironmentVariable("LANGUAGE").ShouldEqual("de");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("LC_ALL", originalLocale);
+                Environment.SetEnvironmentVariable("LANGUAGE", originalLanguage);
+            }
+        }
+
         [TestCase]
         public void ResultHasNoErrors()
         {
@@ -252,6 +340,33 @@ namespace GVFS.UnitTests.Git
             result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
             value.ShouldEqual("configured-value");
             getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void TryGetBoolFromConfigRunsGitConfigWithTypeBool()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --type=bool gvfs.test",
+                "false\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldBeTrue(error);
+
+            value.ShouldEqual(false);
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase(1, "", true, null)]
+        [TestCase(128, "fatal: bad boolean config value 'of' for 'gvfs.test'", false, null)]
+        public void TryGetBoolFromConfigReportsUnsetAndInvalidValues(int exitCode, string errors, bool expectedSuccess, bool? expectedValue)
+        {
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => { });
+            process.SetExpectedCommandResult("config --type=bool gvfs.test", () => new GitProcess.Result(string.Empty, errors, exitCode));
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldEqual(expectedSuccess);
+
+            value.ShouldEqual(expectedValue);
+            (error == null).ShouldEqual(expectedSuccess);
         }
 
         [TestCase]

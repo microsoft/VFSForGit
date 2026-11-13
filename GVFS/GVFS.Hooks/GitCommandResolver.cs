@@ -117,7 +117,22 @@ namespace GVFS.Hooks
 
         public static ProcessStartInfo CreateAliasKeyQuery(string gitPath)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(gitPath);
+            return CreateConfigQuery(gitPath, "--name-only", "--get-regexp", @"^alias\.");
+        }
+
+        public static ProcessStartInfo CreateConfigBoolQuery(string gitPath, string key)
+        {
+            return CreateConfigQuery(gitPath, "--type=bool", key);
+        }
+
+        public static uint GetFileAttributes(string path)
+        {
+            return NativeMethods.GetFileAttributesW(path);
+        }
+
+        private static ProcessStartInfo CreateConfigQuery(string gitPath, params string[] arguments)
+        {
+            ProcessStartInfo processInfo = ProcessHelper.CreateGitStartInfo(gitPath);
             processInfo.UseShellExecute = false;
 
             // The query reads no input. Do not give it the hook's standard input.
@@ -129,16 +144,13 @@ namespace GVFS.Hooks
             processInfo.StandardOutputEncoding = Encoding.UTF8;
             processInfo.StandardErrorEncoding = Encoding.UTF8;
             processInfo.ArgumentList.Add("config");
-            processInfo.ArgumentList.Add("--name-only");
-            processInfo.ArgumentList.Add("--get-regexp");
-            processInfo.ArgumentList.Add(@"^alias\.");
+            foreach (string argument in arguments)
+            {
+                processInfo.ArgumentList.Add(argument);
+            }
+
             processInfo.Environment["COMMAND_HOOK_LOCK"] = "true";
             return processInfo;
-        }
-
-        public static uint GetFileAttributes(string path)
-        {
-            return NativeMethods.GetFileAttributesW(path);
         }
 
         /// <summary>

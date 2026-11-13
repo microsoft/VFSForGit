@@ -33,7 +33,8 @@ namespace GVFS.Common.Git
 
             this.libgit2RepoInvoker = new LibGit2RepoInvoker(
                 tracer,
-                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot)));
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot)),
+                this.TryReadConfigBoolWithGit);
         }
 
         // For Unit Testing
@@ -222,6 +223,11 @@ namespace GVFS.Common.Git
                 this.libgit2RepoInvoker.Dispose();
                 this.libgit2RepoInvoker = null;
             }
+        }
+
+        private bool TryReadConfigBoolWithGit(string key, out bool? value, out string error)
+        {
+            return this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig(key, out value, out error);
         }
 
         private static bool ReadLooseObjectHeader(Stream input, out long size)

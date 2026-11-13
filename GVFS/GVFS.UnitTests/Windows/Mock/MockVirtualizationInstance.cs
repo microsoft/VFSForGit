@@ -4,6 +4,7 @@ using Microsoft.Windows.ProjFS;
 using System;
 using System.IO;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace GVFS.UnitTests.Windows.Mock
 {
@@ -30,6 +31,7 @@ namespace GVFS.UnitTests.Windows.Mock
         }
 
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
+        public ConcurrentQueue<(int CommandId, HResult Result)> CommandCompletions { get; } = new ConcurrentQueue<(int, HResult)>();
 
         public Guid VirtualizationInstanceId { get; set; }
 
@@ -160,7 +162,10 @@ namespace GVFS.UnitTests.Windows.Mock
 
         public HResult WaitForCompletionStatus()
         {
-            this.commandCompleted.WaitOne();
+            if (!this.commandCompleted.WaitOne(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("The virtualizer did not complete the command.");
+            }
             return this.completionResult;
         }
 
@@ -207,6 +212,7 @@ namespace GVFS.UnitTests.Windows.Mock
             }
 
             this.completionResult = completionResult;
+            this.CommandCompletions.Enqueue((commandId, completionResult));
             this.commandCompleted.Set();
             return HResult.Ok;
         }
