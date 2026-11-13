@@ -306,6 +306,9 @@ jobs:
     - name: Build VFS for Git
       if: steps.skip.outputs.result != 'true'
       shell: cmd
+      env:
+        # The instrumentation tool targets net8.0 but supports newer runtimes.
+        DOTNET_ROLL_FORWARD: LatestMajor
       run: src\scripts\Build.bat ${{ matrix.configuration }} 0.2.173.2 minimal ${{ matrix.architecture }}
 
     - name: Test coverage scripts
