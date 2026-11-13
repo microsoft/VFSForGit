@@ -1020,6 +1020,7 @@ namespace GVFS.UnitTests.Git
                     response.HasErrors.ShouldEqual(true, "The rejected anonymous attempt should report its error");
                     response.ShouldRetry.ShouldEqual(true, "The rejected anonymous attempt should retry with credentials");
                     response.ShouldRecordFailure.ShouldEqual(false, "An expected authentication challenge must not count against the circuit breaker");
+                    Assert.That(response.IsAuthenticationFailure, Is.False);
                     response.Error.Message.ShouldEqual("Anonymous request was rejected with a " + (int)statusCode);
                     response.Error.Message.Contains(responseBody, StringComparison.Ordinal).ShouldEqual(false);
                 }
@@ -1075,6 +1076,99 @@ namespace GVFS.UnitTests.Git
             handler.AuthorizationHeaders[0].ShouldEqual(null, "The first request should be anonymous");
             handler.AuthorizationHeaders[1].StartsWith("Basic ", StringComparison.Ordinal)
                 .ShouldEqual(true, "Promotion must affect the next request without prior initialization");
+        }
+
+        [TestCase(HttpStatusCode.BadRequest, HttpRequestor.CacheServerAuthRequiredBadRequestMessage, true)]
+        [TestCase(HttpStatusCode.Unauthorized, "Authentication failed", true)]
+        [TestCase(HttpStatusCode.BadRequest, "Invalid object id", false)]
+        public void AuthenticatedServerRejectionCarriesItsClassification(HttpStatusCode status, string body, bool authFailure)
+        {
+            MockTracer tracer = new MockTracer();
+            GitAuthentication authentication = new GitAuthentication(this.GetGitProcess(), "mock://repoUrl");
+            authentication.TryInitializeAndRequireAuth(tracer, out _).ShouldEqual(true);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(authentication);
+            TestHttpMessageHandler handler = new TestHttpMessageHandler();
+            handler.EnqueueResponse(status, body);
+            using (TestHttpRequestor requestor = new TestHttpRequestor(tracer, new RetryConfig(), enlistment, handler))
+            using (GitEndPointResponseData response = requestor.SendRequest(new Uri("https://mock.invalid/gvfs/sizes"), forceAnonymous: false))
+            {
+                Assert.That(response.IsAuthenticationFailure, Is.EqualTo(authFailure));
+                Assert.That(response.ShouldRetry, Is.EqualTo(status == HttpStatusCode.Unauthorized));
+                Assert.That(response.ShouldRecordFailure, Is.EqualTo(status == HttpStatusCode.Unauthorized));
+            }
+        }
+
+        [TestCase(HttpStatusCode.BadRequest, HttpRequestor.CacheServerAuthRequiredBadRequestMessage)]
+        [TestCase(HttpStatusCode.Unauthorized, "Authentication failed")]
+        public void SizesCooldownRecoversAfterTheCredentialChanges(HttpStatusCode status, string body)
+        {
+            RetryCircuitBreaker.Reset();
+            try
+            {
+                MockTracer tracer = new MockTracer();
+                GitAuthentication authentication = new GitAuthentication(this.GetGitProcess(), "mock://repoUrl");
+                authentication.TryInitializeAndRequireAuth(tracer, out _).ShouldEqual(true);
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment(authentication);
+                TestHttpMessageHandler handler = new TestHttpMessageHandler();
+                GVFS.UnitTests.Tracing.TelemetryAggregatorTests.TestClock clock = new GVFS.UnitTests.Tracing.TelemetryAggregatorTests.TestClock();
+                handler.EnqueueResponse(status, body);
+                using (GitObjectsHttpRequestor requestor = new GitObjectsHttpRequestor(
+                    tracer, enlistment, new CacheServerInfo("https://mock.invalid", "cache"), new RetryConfig(maxRetries: 0), clock, handler))
+                {
+                    requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                    requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                    Assert.That(handler.AuthorizationHeaders.Count, Is.EqualTo(1));
+                    clock.Advance(TimeSpan.FromSeconds(31));
+                    handler.EnqueueResponse(HttpStatusCode.OK, "[{\"id\":\"abc\",\"size\":12}]");
+                    List<GitObjectsHttpRequestor.GitObjectSize> sizes = requestor.QueryForFileSizes(
+                        new[] { "abc" }, CancellationToken.None, out Exception error);
+                    Assert.That(error, Is.Null);
+                    Assert.That(sizes.Single().Size, Is.EqualTo(12));
+                    Assert.That(handler.AuthorizationHeaders.Count, Is.EqualTo(2));
+                    Assert.That(handler.AuthorizationHeaders[1], Is.Not.EqualTo(handler.AuthorizationHeaders[0]));
+                    Assert.That(tracer.RelatedEventNames, Does.Contain("SizesAuthFailureRecovered"));
+                }
+            }
+            finally
+            {
+                RetryCircuitBreaker.Reset();
+            }
+        }
+
+        [TestCase]
+        public void SizesCooldownRetainsServerRejectionWhenCredentialRefreshFails()
+        {
+            RetryCircuitBreaker.Reset();
+            try
+            {
+                MockTracer tracer = new MockTracer();
+                MockGitProcess gitProcess = this.GetGitProcess();
+                GitAuthentication authentication = new GitAuthentication(gitProcess, "mock://repoUrl");
+                authentication.TryInitializeAndRequireAuth(tracer, out _).ShouldEqual(true);
+                TestHttpMessageHandler handler = new TestHttpMessageHandler();
+                handler.EnqueueResponse(HttpStatusCode.Unauthorized, "Server rejected authentication");
+                using (GitObjectsHttpRequestor requestor = new GitObjectsHttpRequestor(
+                    tracer,
+                    new MockGVFSEnlistment(authentication),
+                    new CacheServerInfo("https://mock.invalid", "cache"),
+                    new RetryConfig(maxRetries: 1),
+                    TimeProvider.System,
+                    handler))
+                {
+                    gitProcess.ShouldFail = true;
+                    requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                    requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError);
+
+                    Assert.That(error.Message, Does.Contain("Server rejected authentication"));
+                    Assert.That(cachedError, Is.SameAs(error));
+                    Assert.That(handler.AuthorizationHeaders.Count, Is.EqualTo(1));
+                    Assert.That(tracer.RelatedEventNames, Does.Contain("SizesAuthFailureCooldown"));
+                }
+            }
+            finally
+            {
+                RetryCircuitBreaker.Reset();
+            }
         }
 
         private MockGitProcess GetGitProcess()

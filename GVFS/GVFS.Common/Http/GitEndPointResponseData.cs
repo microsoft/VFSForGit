@@ -22,12 +22,16 @@ namespace GVFS.Common.Http
             bool shouldRetry,
             HttpResponseMessage message,
             Action onResponseDisposed,
-            bool shouldRecordFailure = true)
+            bool shouldRecordFailure = true,
+            bool isAuthenticationFailure = false,
+            bool isCredentialFailure = false)
         {
             this.StatusCode = statusCode;
             this.Error = error;
             this.ShouldRetry = shouldRetry;
             this.ShouldRecordFailure = shouldRetry && shouldRecordFailure;
+            this.IsAuthenticationFailure = isAuthenticationFailure;
+            this.IsCredentialFailure = isCredentialFailure;
             this.message = message;
             this.onResponseDisposed = onResponseDisposed;
         }
@@ -52,6 +56,11 @@ namespace GVFS.Common.Http
         public bool ShouldRetry { get; }
 
         public bool ShouldRecordFailure { get; }
+
+        // Only authenticated server rejections qualify, not anonymous challenges or local credential-fetch failures.
+        public bool IsAuthenticationFailure { get; }
+
+        internal bool IsCredentialFailure { get; }
 
         public HttpStatusCode StatusCode { get; }
 

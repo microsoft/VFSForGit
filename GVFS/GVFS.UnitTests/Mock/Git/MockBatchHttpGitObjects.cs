@@ -22,7 +22,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.objectResolver = objectResolver;
         }
 
-        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
         {
             throw new NotImplementedException();
         }
