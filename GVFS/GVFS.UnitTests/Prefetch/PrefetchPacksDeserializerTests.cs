@@ -19,6 +19,25 @@ namespace GVFS.UnitTests.Prefetch
             };
 
         [TestCase]
+        public void PackCountIsReportedBeforeAnyPackHeaderOrData()
+        {
+            using MemoryStream stream = new MemoryStream();
+            this.WriteToSpecs(stream, new long[] { 1, 2 }, withIndexes: true);
+            stream.Position = 0;
+            int reportedCount = -1;
+            using IEnumerator<PrefetchPacksDeserializer.PackAndIndex> packs =
+                new PrefetchPacksDeserializer(stream).EnumeratePacks(count =>
+                {
+                    Assert.That(stream.Position, Is.EqualTo(8));
+                    reportedCount = count;
+                }).GetEnumerator();
+
+            Assert.That(packs.MoveNext(), Is.True);
+            Assert.That(reportedCount, Is.EqualTo(2));
+            Assert.That(packs.Current.PackStream.Length, Is.EqualTo(100));
+        }
+
+        [TestCase]
         public void PrefetchPacksDeserializer_No_Packs_Succeeds()
         {
             this.RunPrefetchPacksDeserializerTest(0, false);

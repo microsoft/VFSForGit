@@ -325,6 +325,9 @@ namespace GVFS.Common.NamedPipes
         public static class PrefetchCommits
         {
             public const string Request = "PrefetchCommits";
+            public const string ReportProgress = "ReportProgress";
+            public const string StartedResult = "PrefetchCommitsStarted";
+            public const string ProgressResult = "PrefetchCommitsProgress";
             public const string CompleteResult = "PrefetchCommitsComplete";
             public const string MountNotReadyResult = "MountNotReady";
 

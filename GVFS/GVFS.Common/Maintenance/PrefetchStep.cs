@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -55,7 +56,7 @@ namespace GVFS.Common.Maintenance
             return null;
         }
 
-        public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
+        public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null, PrefetchProgress progress = null)
         {
             if (gitProcess == null)
             {
@@ -72,6 +73,7 @@ namespace GVFS.Common.Maintenance
                 Path.Combine(this.Context.Enlistment.GitPackRoot, PrefetchCommitsAndTreesLock)))
             {
                 WaitUntilLockIsAcquired(this.Context.Tracer, prefetchLock);
+                progress?.SetPhase("Checking cached packs");
                 long maxGoodTimeStamp;
 
                 this.GitObjects.DeleteStaleTempPrefetchPackAndIdxs();
@@ -84,15 +86,18 @@ namespace GVFS.Common.Maintenance
 
                 var trustPackIndexes = this.Context.Repository.LibGit2RepoInvoker.GetConfigBoolOrDefault(GVFSConstants.GitConfig.TrustPackIndexes, GVFSConstants.GitConfig.TrustPackIndexesDefault);
 
-                if (!this.GitObjects.TryDownloadPrefetchPacks(gitProcess, maxGoodTimeStamp, trustPackIndexes, out packIndexes))
+                progress?.SetPhase("Requesting prefetch packs");
+                if (!this.GitObjects.TryDownloadPrefetchPacks(gitProcess, maxGoodTimeStamp, trustPackIndexes, out packIndexes, progress))
                 {
                     error = "Failed to download prefetch packs";
                     return false;
                 }
 
+                progress?.SetPhase("Finalizing prefetch packs");
                 this.UpdateKeepPacks();
             }
 
+            progress?.SetPhase("Scheduling post-fetch maintenance");
             this.SchedulePostFetchJob(packIndexes);
 
             return true;

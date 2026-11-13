@@ -844,7 +844,7 @@ namespace GVFS.Mount
                         break;
 
                     case NamedPipeMessages.PrefetchCommits.Request:
-                        this.HandlePrefetchCommitsRequest(connection);
+                        this.HandlePrefetchCommitsRequest(message, connection);
                         break;
 
                     case NamedPipeMessages.PrefetchBlobs.RequestHeader:
@@ -1351,7 +1351,7 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
-        private void HandlePrefetchCommitsRequest(NamedPipeServer.Connection connection)
+        private void HandlePrefetchCommitsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
             this.tracer.RelatedInfo("Received prefetch commits request");
 
@@ -1365,25 +1365,56 @@ namespace GVFS.Mount
             NamedPipeMessages.PrefetchCommits.Response response;
             try
             {
-                // Use a callback to enqueue the post-fetch step directly on the
-                // maintenance scheduler, avoiding a re-entrant named pipe call.
-                PrefetchStep prefetchStep = new PrefetchStep(
-                    this.context,
-                    this.gitObjects,
-                    requireCacheLock: false,
-                    postFetchCallback: packIndexes =>
-                    {
-                        this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
-                    });
-
-                string error;
-                bool success = prefetchStep.TryPrefetchCommitsAndTrees(out error);
-
-                response = new NamedPipeMessages.PrefetchCommits.Response
+                PrefetchProgress progress = message.Body == NamedPipeMessages.PrefetchCommits.ReportProgress
+                    ? new PrefetchProgress(this.tracer)
+                    : null;
+                Func<NamedPipeMessages.PrefetchCommits.Response> prefetch = () =>
                 {
-                    Success = success,
-                    Error = error,
+                    // Enqueue directly to avoid a re-entrant named pipe call.
+                    PrefetchStep prefetchStep = new PrefetchStep(
+                        this.context,
+                        this.gitObjects,
+                        requireCacheLock: false,
+                        postFetchCallback: packIndexes =>
+                        {
+                            this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
+                        });
+                    bool success = prefetchStep.TryPrefetchCommitsAndTrees(out string error, progress: progress);
+                    return new NamedPipeMessages.PrefetchCommits.Response { Success = success, Error = error };
                 };
+
+                if (progress == null)
+                {
+                    response = prefetch();
+                }
+                else
+                {
+                    if (!connection.TrySendResponse(new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.StartedResult, null)))
+                    {
+                        this.tracer.RelatedInfo("Prefetch progress client disconnected before prefetch started");
+                        return;
+                    }
+
+                    // Keep pipe writes off the download and git stderr-reader threads.
+                    Task<NamedPipeMessages.PrefetchCommits.Response> operation = Task.Factory.StartNew(
+                        prefetch, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                    try
+                    {
+                        while (!operation.Wait(500))
+                        {
+                            if (!connection.TrySendResponse(new NamedPipeMessages.Message(
+                                NamedPipeMessages.PrefetchCommits.ProgressResult, progress.GetMessage())))
+                            {
+                                this.tracer.RelatedInfo("Prefetch progress client disconnected; prefetch is not canceled");
+                                break;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        response = operation.GetAwaiter().GetResult();
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -1395,7 +1426,10 @@ namespace GVFS.Mount
                 };
             }
 
-            connection.TrySendResponse(response.CreateMessage());
+            if (!connection.TrySendResponse(response.CreateMessage()))
+            {
+                this.tracer.RelatedInfo("Failed to send the prefetch completion response");
+            }
         }
 
         private void HandlePrefetchBlobsRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)

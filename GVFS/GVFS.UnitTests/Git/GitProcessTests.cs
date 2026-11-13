@@ -8,6 +8,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -666,6 +668,62 @@ this is an error",
             GitProcess.QuoteGitPath(input).ShouldEqual(expected);
         }
 
+        [TestCase]
+        public void IndexPackVerboseProgressReachesTheCallbackAndRetainsErrors()
+        {
+            string gitPath = GitTestHelper.FindGitOnPath();
+            if (gitPath == null)
+            {
+                Assert.Ignore("Git was not found on PATH.");
+            }
+
+            string directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "GVFSIndexProgress-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                string packPath = Path.Combine(directory, "test.pack");
+                string indexPath = Path.Combine(directory, "test.idx");
+                using (MemoryStream pack = new MemoryStream())
+                {
+                    pack.Write(new byte[] { 80, 65, 67, 75, 0, 0, 0, 2, 0, 0, 0, 1, 0x35 });
+                    using (ZLibStream compressed = new ZLibStream(pack, CompressionLevel.Optimal, leaveOpen: true))
+                    {
+                        compressed.Write(new byte[] { 104, 101, 108, 108, 111 });
+                    }
+
+                    pack.Write(SHA1.HashData(pack.ToArray()));
+                    File.WriteAllBytes(packPath, pack.ToArray());
+                }
+
+                GitProcess process = new GitProcess(gitPath, workingDirectoryRoot: null);
+                List<string> progress = new List<string>();
+                GitProcess.Result result = process.IndexPack(packPath, indexPath, progress.Add);
+                Assert.That(result.ExitCode, Is.Zero, result.Errors);
+                Assert.That(File.Exists(indexPath), Is.True);
+                Assert.That(progress, Has.Some.Contains("Indexing objects:"));
+                Assert.That(result.Errors, Does.Not.Contain("Indexing objects:"));
+
+                byte[] corruptPack = File.ReadAllBytes(packPath);
+                corruptPack[corruptPack.Length - 1] ^= 1;
+                File.WriteAllBytes(packPath, corruptPack);
+                progress.Clear();
+                result = process.IndexPack(packPath, indexPath, progress.Add);
+                Assert.That(result.ExitCodeIsFailure, Is.True);
+                Assert.That(result.Errors, Does.Contain("fatal:"));
+                Assert.That(result.Errors, Does.Not.Contain("Indexing objects:"));
+                Assert.That(progress, Has.Some.Contains("Indexing objects:"));
+            }
+            finally
+            {
+                foreach (string path in Directory.EnumerateFiles(directory))
+                {
+                    File.SetAttributes(path, FileAttributes.Normal);
+                }
+
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
         [TestCase(30000)]
         [TestCase(Timeout.Infinite)]
         public void GitCommandWaitsForOutputCallbacks(int timeoutMs)
@@ -703,6 +761,20 @@ this is an error",
                 command.Result.ExitCode.ShouldEqual(0);
                 callbackCompleted.ShouldBeTrue();
             }
+        }
+
+        [TestCase("Indexing objects: 100% (1/1), done.", true)]
+        [TestCase("Resolving deltas:  42% (42/100)", true)]
+        [TestCase("Objekte indizieren: 80% (8/10)", true)]
+        [TestCase("fatal: 100% (1/1)", false)]
+        [TestCase("warning: 100% (1/1)", false)]
+        [TestCase("fatal: pack checksum mismatch", false)]
+        [TestCase("Indexing objects: 101% (1/1)", false)]
+        [TestCase("Indexing objects: 1% (-1/10)", false)]
+        [TestCase("Indexing objects: 1% (invalid)", false)]
+        public void IndexProgressClassificationPreservesDiagnostics(string line, bool expected)
+        {
+            Assert.That(GitProcess.IsIndexPackProgress(line), Is.EqualTo(expected));
         }
 
         [TestCase]

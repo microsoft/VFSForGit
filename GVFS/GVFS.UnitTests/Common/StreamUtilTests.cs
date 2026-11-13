@@ -12,6 +12,25 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class StreamUtilTests
     {
+        [TestCase]
+        public void CopyProgressCountsOnlySuccessfullyWrittenBytes()
+        {
+            using MemoryStream source = new MemoryStream(new byte[] { 1, 2, 3, 4, 5 });
+            using MemoryStream destination = new MemoryStream();
+            long reportedBytes = 0;
+            int callbacks = 0;
+            StreamUtil.CopyToWithBuffer(source, destination, new byte[2], count =>
+            {
+                reportedBytes += count;
+                ++callbacks;
+                Assert.That(reportedBytes, Is.EqualTo(destination.Length));
+            });
+
+            Assert.That(reportedBytes, Is.EqualTo(5));
+            Assert.That(callbacks, Is.EqualTo(3));
+            Assert.That(destination.ToArray(), Is.EqualTo(source.ToArray()));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         [Category(CategoryConstants.ExceptionExpected)]

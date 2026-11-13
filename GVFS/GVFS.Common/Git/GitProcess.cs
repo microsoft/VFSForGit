@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -946,19 +947,51 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: true);
         }
 
-        public Result IndexPack(string packfilePath, string idxOutputPath)
+        public Result IndexPack(string packfilePath, string idxOutputPath, Action<string> onProgress = null)
         {
             /* Git's default thread count is Environment.ProcessorCount / 2, with a maximum of 20.
              * Testing shows that we can get a 5% decrease in gvfs clone time for large repositories by using more threads, but
              * we won't go over ProcessorCount or 20. */
             var threadCount = Math.Min(Environment.ProcessorCount, 20);
-            string command = $"index-pack --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
+            string command = $"index-pack{(onProgress == null ? string.Empty : " -v")} --threads={threadCount} -o \"{idxOutputPath}\" \"{packfilePath}\"";
 
             // If index-pack is invoked within an enlistment, then it reads all the other objects and pack indexes available
             // in the enlistment in order to verify references from within this pack file, even if --verify or similar
             // options are not passed.
             // Since we aren't verifying, we invoke index-pack outside the enlistment for performance.
-            return this.InvokeGitOutsideEnlistment(command);
+            return this.InvokeGitOutsideEnlistment(
+                command, null, null,
+                onStdErrLine: onProgress == null ? null : line =>
+                {
+                    if (!IsIndexPackProgress(line))
+                    {
+                        return false;
+                    }
+
+                    onProgress(line);
+                    return true;
+                });
+        }
+
+        internal static bool IsIndexPackProgress(string line)
+        {
+            if (line.StartsWith("fatal:", StringComparison.Ordinal) ||
+                line.StartsWith("error:", StringComparison.Ordinal) ||
+                line.StartsWith("warning:", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            // The title can be translated; percentage and object-count framing are fixed by Git.
+            int percent = line.IndexOf("% (", StringComparison.Ordinal);
+            int separator = percent < 0 ? -1 : line.LastIndexOf(": ", percent, StringComparison.Ordinal);
+            int slash = percent < 0 ? -1 : line.IndexOf('/', percent + 3);
+            int end = slash < 0 ? -1 : line.IndexOf(')', slash + 1);
+            return separator >= 0 && slash >= 0 && end >= 0 &&
+                int.TryParse(line.AsSpan(separator + 2, percent - separator - 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) &&
+                value >= 0 && value <= 100 &&
+                ulong.TryParse(line.AsSpan(percent + 3, slash - percent - 3), NumberStyles.None, CultureInfo.InvariantCulture, out ulong _) &&
+                ulong.TryParse(line.AsSpan(slash + 1, end - slash - 1), NumberStyles.None, CultureInfo.InvariantCulture, out ulong _);
         }
 
         /// <summary>
@@ -1168,7 +1201,8 @@ namespace GVFS.Common.Git
             string gitObjectsDirectory = null,
             bool usePreCommandHook = true,
             bool mayRequireAuth = false,
-            bool? hasVisibleConsoleWindow = null)
+            bool? hasVisibleConsoleWindow = null,
+            Func<string, bool> onStdErrLine = null)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -1195,7 +1229,10 @@ namespace GVFS.Common.Git
                     {
                         if (args.Data != null)
                         {
-                            errors.AppendLine(args.Data);
+                            if (onStdErrLine == null || !onStdErrLine(args.Data))
+                            {
+                                errors.AppendLine(args.Data);
+                            }
                         }
                     };
                     this.executingProcess.OutputDataReceived += (sender, args) =>
@@ -1588,7 +1625,8 @@ namespace GVFS.Common.Git
             string command,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
-            int timeout = -1)
+            int timeout = -1,
+            Func<string, bool> onStdErrLine = null)
         {
             return this.InvokeGitImpl(
                 command,
@@ -1597,7 +1635,8 @@ namespace GVFS.Common.Git
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
-                timeoutMs: timeout);
+                timeoutMs: timeout,
+                onStdErrLine: onStdErrLine);
         }
 
         /// <summary>

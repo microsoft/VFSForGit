@@ -23,7 +23,8 @@ namespace GVFS.Common
         /// <param name="buffer">
         /// Shared buffer to use. If null, we allocate one with the same size .NET would otherwise use.
         /// </param>
-        public static void CopyToWithBuffer(Stream source, Stream destination, byte[] buffer = null)
+        /// <param name="onBytesCopied">Called after each successful write with that write's byte count.</param>
+        public static void CopyToWithBuffer(Stream source, Stream destination, byte[] buffer = null, Action<long> onBytesCopied = null)
         {
             buffer = buffer ?? new byte[DefaultCopyBufferSize];
             int read;
@@ -45,6 +46,7 @@ namespace GVFS.Common
                 }
 
                 destination.Write(buffer, 0, read);
+                onBytesCopied?.Invoke(read);
             }
         }
 

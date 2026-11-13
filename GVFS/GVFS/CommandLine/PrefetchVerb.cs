@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -362,7 +363,7 @@ namespace GVFS.CommandLine
         /// handled the request (success or failure); returns false if offload
         /// is unavailable and the caller should fall back to direct auth.
         /// </summary>
-        private bool TryPrefetchCommitsViaMountProcess(ITracer tracer, GVFSEnlistment enlistment)
+        internal bool TryPrefetchCommitsViaMountProcess(ITracer tracer, GVFSEnlistment enlistment)
         {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
@@ -372,7 +373,8 @@ namespace GVFS.CommandLine
                     return false;
                 }
 
-                NamedPipeMessages.Message request = new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.Request, null);
+                NamedPipeMessages.Message request = new NamedPipeMessages.Message(
+                    NamedPipeMessages.PrefetchCommits.Request, NamedPipeMessages.PrefetchCommits.ReportProgress);
                 if (!pipeClient.TrySendRequest(request))
                 {
                     tracer.RelatedWarning("TryPrefetchCommitsViaMountProcess: Failed to send request, falling back to direct prefetch");
@@ -386,11 +388,73 @@ namespace GVFS.CommandLine
                     return false;
                 }
 
+                NamedPipeMessages.PrefetchCommits.Response prefetchResponse = null;
+                if (response.Header == NamedPipeMessages.PrefetchCommits.StartedResult)
+                {
+                    string currentProgress = null;
+                    string progressError = null;
+                    bool receivedCompletion = false;
+                    Func<bool> readProgress = () =>
+                    {
+                        while (pipeClient.TryReadResponse(out response))
+                        {
+                            if (response.Header == NamedPipeMessages.PrefetchCommits.ProgressResult)
+                            {
+                                System.Threading.Volatile.Write(ref currentProgress, response.Body);
+                            }
+                            else if (response.Header == NamedPipeMessages.PrefetchCommits.CompleteResult)
+                            {
+                                prefetchResponse = NamedPipeMessages.PrefetchCommits.Response.FromMessage(response);
+                                if (prefetchResponse == null)
+                                {
+                                    progressError = "The mount returned an empty prefetch response.";
+                                    tracer.RelatedWarning(progressError);
+                                    return false;
+                                }
+
+                                receivedCompletion = true;
+                                return prefetchResponse.Success;
+                            }
+                            else
+                            {
+                                tracer.RelatedWarning("Unexpected response after prefetch started: {0}", response.Header);
+                                progressError = $"Unexpected prefetch progress response from the mount: {response.Header}.";
+                                return false;
+                            }
+                        }
+
+                        tracer.RelatedWarning("Connection closed before the mount completed prefetch");
+                        progressError = "The mount closed the prefetch progress connection.";
+                        return false;
+                    };
+
+                    if (this.Verbose)
+                    {
+                        readProgress();
+                    }
+                    else
+                    {
+                        this.ShowStatusWhileRunning(
+                            readProgress,
+                            getMessage: this.GetConsoleProgress(
+                                () => System.Threading.Volatile.Read(ref currentProgress), "Fetching commits and trees", tracer),
+                            message: "Fetching commits and trees",
+                            gvfsLogEnlistmentRoot: enlistment.PrimaryEnlistmentRoot);
+                    }
+
+                    if (!receivedCompletion)
+                    {
+                        this.ReportErrorAndExit(
+                            tracer, "{0} The mount can still run prefetch. {1}",
+                            progressError, ConsoleHelper.GetGVFSLogMessage(enlistment.PrimaryEnlistmentRoot));
+                        return true;
+                    }
+                }
+
                 switch (response.Header)
                 {
                     case NamedPipeMessages.PrefetchCommits.CompleteResult:
-                        NamedPipeMessages.PrefetchCommits.Response prefetchResponse =
-                            NamedPipeMessages.PrefetchCommits.Response.FromMessage(response);
+                        prefetchResponse ??= NamedPipeMessages.PrefetchCommits.Response.FromMessage(response);
 
                         if (prefetchResponse.Success)
                         {
@@ -495,22 +559,93 @@ namespace GVFS.CommandLine
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
+            PrefetchProgress progress = new PrefetchProgress(tracer);
 
             if (this.Verbose)
             {
-                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error);
+                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error, progress: progress);
             }
             else
             {
+                string message = "Fetching commits and trees";
+                if (this.Unattended || this.Output != Console.Out || Console.IsOutputRedirected)
+                {
+                    message += " " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl);
+                }
+
                 success = this.ShowStatusWhileRunning(
-                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error),
-                "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
+                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error, progress: progress),
+                    getMessage: this.GetConsoleProgress(progress.GetMessage, message, tracer),
+                    message: message,
+                    gvfsLogEnlistmentRoot: enlistment.PrimaryEnlistmentRoot);
             }
 
             if (!success)
             {
                 this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);
             }
+        }
+
+        internal static string FormatConsoleProgress(string status, string message, int windowWidth)
+        {
+            // Reserve the status delimiters, spinner suffix, and a column before terminal wrapping.
+            int available = Math.Max(0, windowWidth - message.Length - 8);
+            if (string.IsNullOrEmpty(status) || available < 4)
+            {
+                return null;
+            }
+
+            int columns = 0;
+            foreach (Rune rune in status.EnumerateRunes())
+            {
+                columns += rune.IsAscii ? 1 : 2;
+            }
+
+            if (columns <= available)
+            {
+                return status;
+            }
+
+            StringBuilder result = new StringBuilder();
+            columns = 0;
+            foreach (Rune rune in status.EnumerateRunes())
+            {
+                int runeColumns = rune.IsAscii ? 1 : 2;
+                if (columns + runeColumns > available - 3)
+                {
+                    break;
+                }
+
+                result.Append(rune.ToString());
+                columns += runeColumns;
+            }
+
+            return result.Append("...").ToString();
+        }
+
+        private Func<string> GetConsoleProgress(Func<string> getProgress, string message, ITracer tracer)
+        {
+            int width = 80;
+            bool readWidth = true;
+            return () =>
+            {
+                if (readWidth)
+                {
+                    try
+                    {
+                        width = Console.WindowWidth;
+                    }
+                    catch (Exception e) when (e is IOException || e is PlatformNotSupportedException)
+                    {
+                        readWidth = false;
+                        tracer.RelatedWarning(
+                            new EventMetadata { { "Exception", e.ToString() } },
+                            "Unable to read terminal width for prefetch progress; using 80 columns");
+                    }
+                }
+
+                return FormatConsoleProgress(getProgress(), message, width);
+            };
         }
 
         private void LoadBlobPrefetchArgs(
