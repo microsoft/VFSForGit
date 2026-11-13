@@ -482,6 +482,18 @@ namespace GVFS.Common.NamedPipes
 
             public string EnlistmentRoot { get; set; }
 
+            /// <summary>
+            /// The value of gvfs.auto-allow-devdrive-filter as resolved by the client against the
+            /// enlistment (system, global, and local git config). Null when the client did not
+            /// resolve a value, including requests from a client that predates this field.
+            /// </summary>
+            /// <remarks>
+            /// The service also reads the system config of its selected Git installation.
+            /// A false system value vetoes the write regardless of this client value.
+            /// See GVFSConstants.GitConfig.AutoAllowDevDriveFilter for the configuration contract.
+            /// </remarks>
+            public bool? AutoAllowDevDriveFilter { get; set; }
+
             public static EnableAndAttachProjFSRequest FromMessage(Message message)
             {
                 return GVFSJsonOptions.Deserialize<EnableAndAttachProjFSRequest>(message.Body);
