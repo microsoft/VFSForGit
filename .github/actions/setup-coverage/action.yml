@@ -1,0 +1,12 @@
+name: Set up coverage collector
+description: Locate the Visual Studio collector with cross-account service support.
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      run: |
+        $collectors = @(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -latest -find Common7\IDE\Extensions\Microsoft\CodeCoverage.Console\Microsoft.CodeCoverage.Console.exe)
+        if ($LASTEXITCODE -ne 0 -or $collectors.Count -ne 1) { throw 'Expected one Visual Studio coverage collector.' }
+        Split-Path -Parent $collectors[0] >> $env:GITHUB_PATH
+        & $collectors[0] --version
+        if ($LASTEXITCODE -ne 0) { throw 'Visual Studio coverage collector cannot start.' }
