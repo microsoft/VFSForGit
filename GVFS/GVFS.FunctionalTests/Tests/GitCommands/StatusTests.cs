@@ -7,6 +7,7 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -90,15 +91,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.RepositoryIgnoreTestSetup();
 
-            // Add ignore pattern to existing exclude file
-            this.EditFile("*.ign", repositoryExcludeFile);
+            this.WaitForStatusCacheToBeRegenerated(() =>
+            {
+                this.EditFile("*.ign", repositoryExcludeFile);
 
-            // The exclude file has been modified, verify this status
-            // excludes the "test.ign" file as expected.
-            this.ValidateGitCommand("status");
-
-            // Wait for status cache
-            this.WaitForStatusCacheToBeGenerated();
+                // Verify that status excludes "test.ign" after the exclude file changes.
+                this.ValidateGitCommand("status");
+            });
 
             // Delete repository exclude file
             this.DeleteFile(repositoryExcludeFile);
@@ -133,26 +132,32 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("status");
 
-            this.WaitForStatusCacheToBeGenerated(waitForNewFile: false);
-
-            this.ValidateGitCommand("branch other_branch");
-
             this.WaitForStatusCacheToBeGenerated();
+
+            this.WaitForStatusCacheToBeRegenerated(() => this.ValidateGitCommand("branch other_branch"));
             this.ValidateGitCommand("status");
 
             this.ValidateGitCommand("symbolic-ref HEAD refs/heads/other_branch");
         }
 
-        [TestCase]
-        public void ModifyingHeadRefInvalidatesCache()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ModifyingHeadRefInvalidatesCache(bool waitForRegenerationBeforeReturn)
         {
             this.ValidateGitCommand("status");
 
-            this.WaitForStatusCacheToBeGenerated(waitForNewFile: false);
-
-            this.ValidateGitCommand("update-ref HEAD HEAD~1");
-
             this.WaitForStatusCacheToBeGenerated();
+
+            this.WaitForStatusCacheToBeRegenerated(() =>
+            {
+                this.ValidateGitCommand("update-ref HEAD HEAD~1");
+
+                if (waitForRegenerationBeforeReturn)
+                {
+                    // Force regeneration before the caller checks that the old cache was deleted.
+                    this.WaitForStatusCacheToBeGenerated();
+                }
+            });
             this.ValidateGitCommand("status");
         }
 
@@ -160,13 +165,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.WaitForUpToDateStatusCache();
 
-            string statusCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "GitStatusCache", "GitStatusCache.dat");
-            File.Delete(statusCachePath);
-
-            // Create a new file with an extension that will be ignored later in the test.
-            this.CreateFile("file to be ignored", "test.ign");
-
-            this.WaitForStatusCacheToBeGenerated();
+            this.WaitForStatusCacheToBeRegenerated(() => this.CreateFile("file to be ignored", "test.ign"));
 
             // Verify that status from the status cache includes the "test.ign" entry
             this.ValidateGitCommand("status");
@@ -181,17 +180,32 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // Wait for a new status cache to be generated.
-            this.WaitForStatusCacheToBeGenerated(waitForNewFile: false);
+            this.WaitForStatusCacheToBeGenerated();
         }
 
-        private void WaitForStatusCacheToBeGenerated(bool waitForNewFile = true)
+        private void WaitForStatusCacheToBeRegenerated(Action invalidateCache)
         {
             string statusCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "GitStatusCache", "GitStatusCache.dat");
 
-            if (waitForNewFile)
+            TaskCompletionSource<bool> cacheDeleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using (FileSystemWatcher watcher = new FileSystemWatcher(Path.GetDirectoryName(statusCachePath), Path.GetFileName(statusCachePath)))
             {
-                File.Exists(statusCachePath).ShouldEqual(false, "Status cache file should not exist at this point - it should have been deleted by previous status command.");
+                // Observe deletion before the command starts; regeneration can finish before the command returns.
+                watcher.NotifyFilter = NotifyFilters.FileName;
+                watcher.Deleted += (sender, args) => cacheDeleted.TrySetResult(true);
+                watcher.Error += (sender, args) => cacheDeleted.TrySetException(args.GetException());
+                watcher.EnableRaisingEvents = true;
+
+                invalidateCache();
+
+                cacheDeleted.Task.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("The command did not delete the old status cache file.");
+                this.WaitForStatusCacheToBeGenerated();
             }
+        }
+
+        private void WaitForStatusCacheToBeGenerated()
+        {
+            string statusCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "GitStatusCache", "GitStatusCache.dat");
 
             // Wait for the status cache file to be regenerated
             for (int i = 0; i < 10; i++)
