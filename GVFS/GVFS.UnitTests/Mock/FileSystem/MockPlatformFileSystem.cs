@@ -6,7 +6,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 {
     public class MockPlatformFileSystem : IPlatformFileSystem
     {
-        public bool SupportsFileMode { get; } = true;
+        public bool SupportsFileMode { get; set; } = true;
 
         public void FlushFileBuffers(string path)
         {
