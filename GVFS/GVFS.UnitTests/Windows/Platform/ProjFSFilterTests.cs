@@ -62,6 +62,63 @@ namespace GVFS.UnitTests.Windows.Platform
             ProjFSFilter.IsNativeLibInstalled(this.mockTracer, this.mockFileSystem.Object).ShouldBeFalse();
         }
 
+        [TestCase(0u, false, true, true, "NTFS", true, false)]
+        [TestCase(0x80070005u, false, true, true, "NTFS", true, false)]
+        [TestCase(0x80070005u, false, true, true, "ReFS", false, false)]
+        [TestCase(0x80070005u, false, true, false, null, false, false)]
+        [TestCase(0x80070005u, true, true, true, "NTFS", false, false)]
+        [TestCase(0x80070005u, false, false, true, "NTFS", false, false)]
+        [TestCase(0x800701DEu, true, true, true, "ReFS", false, true)]
+        public void AttachmentDecisionPreservesNtfsAndRequiresServiceVerificationForRefs(
+            uint result,
+            bool elevated,
+            bool running,
+            bool formatReadable,
+            string volumeFormat,
+            bool expected,
+            bool rejected)
+        {
+            int attachCalls = 0;
+            ProjFSFilter.TryAttachToVolume(
+                @"mock:\src",
+                this.mockTracer,
+                (string path, out string error, out uint nativeResult, out string root) =>
+                {
+                    ++attachCalls;
+                    path.ShouldEqual(@"mock:\src");
+                    nativeResult = result;
+                    error = result == 0 ? null : "native failure";
+                    root = @"mock:\volume\";
+                    return result == 0;
+                },
+                () => elevated,
+                () => running,
+                (string root, out string format) =>
+                {
+                    root.ShouldEqual(@"mock:\volume\");
+                    format = volumeFormat;
+                    return formatReadable;
+                },
+                out string attachError,
+                out bool devDriveRejected,
+                out string volumeRoot).ShouldEqual(expected);
+            attachCalls.ShouldEqual(1);
+            devDriveRejected.ShouldEqual(rejected);
+            volumeRoot.ShouldEqual(@"mock:\volume\");
+            if (expected)
+            {
+                attachError.ShouldBeNull();
+            }
+            else if (result == 0x80070005u && !elevated && running)
+            {
+                attachError.ShouldContain("GVFS.Service");
+            }
+            else
+            {
+                attachError.ShouldEqual("native failure");
+            }
+        }
+
         [TestCase]
         public void TryGetDisabledStartTypeError_ReturnsActionableMessageForDisabledService()
         {

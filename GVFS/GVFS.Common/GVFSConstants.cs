@@ -89,6 +89,14 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
+            /* Permits GVFS.Service to allow PrjFlt on the enlistment's Dev Drive after attachment
+             * is rejected. Default on to repair that failure without a separate elevated command.
+             * The service reads its Git installation's system config (including includes) for each
+             * request. Either that value or the client's resolved value can veto a write.
+             * Disabling the flag does not remove a persisted allowance. */
+            public const string AutoAllowDevDriveFilter = GVFSPrefix + "auto-allow-devdrive-filter";
+            public const bool AutoAllowDevDriveFilterDefault = true;
         }
 
         public static class LocalGVFSConfig

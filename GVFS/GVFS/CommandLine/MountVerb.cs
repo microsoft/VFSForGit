@@ -198,7 +198,7 @@ namespace GVFS.CommandLine
                         });
 
                     if (!this.ShowStatusWhileRunning(
-                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.WorkingDirectoryRoot, out errorMessage); },
+                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.WorkingDirectoryRoot, out errorMessage, tracer); },
                         $"Attaching ProjFS to volume"))
                     {
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
