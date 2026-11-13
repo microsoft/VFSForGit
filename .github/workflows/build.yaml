@@ -25,7 +25,7 @@ permissions:
 
 env:
   GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.56.1.vfs.0.1' }}
-  AotMsCodeCoverageInstrumentation: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+  AotMsCodeCoverageInstrumentation: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
