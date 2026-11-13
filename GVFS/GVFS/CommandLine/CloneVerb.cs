@@ -310,7 +310,8 @@ namespace GVFS.CommandLine
                             tracer,
                             enlistment.WorkingDirectoryBackingRoot,
                             GVFSConstants.GitConfig.TrustPackIndexes,
-                            GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                            GVFSConstants.GitConfig.TrustPackIndexesDefault,
+                            enlistment.CreateGitProcess(tracer).TryGetBoolFromConfig);
 
                         if (!this.NoPrefetch && !trustPackIndexes)
                         {

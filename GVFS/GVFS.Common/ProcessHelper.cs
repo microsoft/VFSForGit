@@ -200,6 +200,13 @@ namespace GVFS.Common
         {
             executingProcess.Start();
 
+            // No caller writes to stdin. Close it so that a child that reads stdin, such as
+            // git with GIT_CONFIG=-, gets end-of-file instead of waiting forever.
+            if (executingProcess.StartInfo.RedirectStandardInput)
+            {
+                executingProcess.StandardInput.Close();
+            }
+
             if (executingProcess.StartInfo.RedirectStandardError)
             {
                 executingProcess.BeginErrorReadLine();

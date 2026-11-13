@@ -706,7 +706,8 @@ namespace GVFS.CommandLine
                 tracer,
                 enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.PrefetchOffload,
-                GVFSConstants.GitConfig.PrefetchOffloadDefault);
+                GVFSConstants.GitConfig.PrefetchOffloadDefault,
+                enlistment.CreateGitProcess(tracer).TryGetBoolFromConfig);
         }
 
         /// <summary>

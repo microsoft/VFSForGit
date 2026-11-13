@@ -63,6 +63,12 @@ namespace GVFS.Common.Git
 
         public delegate void MultiVarConfigCallback(string value);
 
+        /// <summary>
+        /// Reads a boolean config value with git.exe. <paramref name="value"/> is null when the key
+        /// is unset. Returns false and sets <paramref name="error"/> when the read fails.
+        /// </summary>
+        public delegate bool TryReadConfigBoolWithGit(string key, out bool? value, out string error);
+
         public LibGit2Repo(ITracer tracer, string repoPath)
             : this(tracer, repoPath, GitConfigReadRetry.Delay, GitConfigReadRetry.MaxAttempts)
         {
@@ -625,17 +631,43 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
-        /// Reads a single boolean config value from the repo at <paramref name="repoPath"/>,
-        /// opening and disposing a transient <see cref="LibGit2Repo"/> for the lookup. Prefer
-        /// this over <see cref="LibGit2RepoInvoker"/> for one-off config reads:
+        /// Reads a single boolean config value for the repo at <paramref name="repoPath"/>. Falls back
+        /// to <paramref name="defaultValue"/> if the key is unset or the read fails for any reason.
+        /// When <see cref="EnvironmentChangesGitConfig()"/> is true, reads the key with
+        /// <paramref name="readBoolWithGit"/>, because libgit2 ignores that environment. Otherwise,
+        /// opens and disposes a transient <see cref="LibGit2Repo"/> at <paramref name="repoPath"/>.
+        /// Prefer this over <see cref="LibGit2RepoInvoker"/> for one-off config reads:
         /// LibGit2RepoInvoker.InitializeSharedRepo forces the object store to load, which is
-        /// wasted work when all that's needed is a single config value. Falls back to
-        /// <paramref name="defaultValue"/> if the repo can't be opened or the read fails for any
-        /// reason. <paramref name="configReadMaxAttempts"/> bounds the transient-failure retries
+        /// wasted work when all that's needed is a single config value.
+        /// <paramref name="configReadMaxAttempts"/> bounds the libgit2 transient-failure retries
         /// for latency-sensitive callers.
         /// </summary>
-        public static bool GetConfigBoolOrDefault(ITracer tracer, string repoPath, string key, bool defaultValue, int configReadMaxAttempts = GitConfigReadRetry.MaxAttempts)
+        /// <param name="readBoolWithGit">Reads the key with git.exe.</param>
+        public static bool GetConfigBoolOrDefault(
+            ITracer tracer,
+            string repoPath,
+            string key,
+            bool defaultValue,
+            TryReadConfigBoolWithGit readBoolWithGit,
+            int configReadMaxAttempts = GitConfigReadRetry.MaxAttempts)
         {
+            return GetConfigBoolOrDefault(tracer, repoPath, key, defaultValue, readBoolWithGit, Environment.GetEnvironmentVariables(), configReadMaxAttempts);
+        }
+
+        internal static bool GetConfigBoolOrDefault(
+            ITracer tracer,
+            string repoPath,
+            string key,
+            bool defaultValue,
+            TryReadConfigBoolWithGit readBoolWithGit,
+            IDictionary environment,
+            int configReadMaxAttempts = GitConfigReadRetry.MaxAttempts)
+        {
+            if (EnvironmentChangesGitConfig(environment))
+            {
+                return GetConfigBoolWithGitOrDefault(tracer, key, defaultValue, readBoolWithGit);
+            }
+
             try
             {
                 using (LibGit2Repo repo = new LibGit2Repo(tracer, repoPath, GitConfigReadRetry.Delay, configReadMaxAttempts))
@@ -654,6 +686,64 @@ namespace GVFS.Common.Git
                 tracer.RelatedWarning($"Failed to read {key} config, using default: {e.Message}");
                 return defaultValue;
             }
+        }
+
+        /// <summary>
+        /// Reads a boolean config value with git.exe through <paramref name="readBoolWithGit"/>.
+        /// Falls back to <paramref name="defaultValue"/> if the key is unset or the read fails.
+        /// </summary>
+        internal static bool GetConfigBoolWithGitOrDefault(ITracer tracer, string key, bool defaultValue, TryReadConfigBoolWithGit readBoolWithGit)
+        {
+            tracer = tracer ?? NullTracer.Instance;
+
+            try
+            {
+                if (readBoolWithGit(key, out bool? value, out string error))
+                {
+                    return value ?? defaultValue;
+                }
+
+                tracer.RelatedWarning($"Failed to read {key} config, using default: {error}");
+            }
+            catch (Exception e)
+            {
+                tracer.RelatedWarning($"Failed to read {key} config, using default: {e}");
+            }
+
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// The git.exe arguments that read <paramref name="key"/> for <see cref="TryParseConfigBoolOutput"/>.
+        /// </summary>
+        internal static string GetConfigBoolArguments(string key)
+        {
+            return "config --type=bool " + key;
+        }
+
+        /// <summary>
+        /// Parses the result of <c>git config --type=bool</c>. Git normalizes a boolean to "true" or
+        /// "false", exits with 1 when the key is unset, and fails when the value is not a boolean.
+        /// </summary>
+        internal static bool TryParseConfigBoolOutput(string key, int exitCode, string output, string errors, out bool? value, out string error)
+        {
+            value = null;
+            error = null;
+
+            if (exitCode == 1 && string.IsNullOrWhiteSpace(errors))
+            {
+                return true;
+            }
+
+            string trimmedOutput = output?.Trim();
+            if (exitCode != 0 || !bool.TryParse(trimmedOutput, out bool parsed))
+            {
+                error = $"Error while reading '{key}' from config: exit code {exitCode}, output '{trimmedOutput}', errors '{errors?.Trim()}'";
+                return false;
+            }
+
+            value = parsed;
+            return true;
         }
 
         /// <summary>
