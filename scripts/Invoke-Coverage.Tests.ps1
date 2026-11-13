@@ -207,4 +207,14 @@ Describe 'Coverage lifecycle producer output' {
                 Get-Content -LiteralPath $env:GITHUB_OUTPUT | Should -Contain 'repository=MICROSOFT/vfsforgit'
                 Get-Content -LiteralPath $env:GITHUB_OUTPUT | Should -Contain "source_commit=$sourceCommit"
             }
+
+            It 'Leaves collection disabled for a manifest-free <Workflow> drop' -ForEach @(
+                @{ Workflow = 'functional-tests.yaml'; InstallerDirectory = 'gvfs' },
+                @{ Workflow = 'upgrade-tests.yaml'; InstallerDirectory = 'gvfs-new' }
+            ) {
+                $manifestPath = Join-Path $TestDrive "$InstallerDirectory\coverage-build.json"
+                if (Test-Path -LiteralPath $manifestPath) { Remove-Item -LiteralPath $manifestPath }
+                & (Get-ManifestBootstrap $Workflow)
+                @(Get-Content -LiteralPath $env:GITHUB_OUTPUT | Where-Object { $_ }) | Should -Be @('enabled=false')
+            }
         }

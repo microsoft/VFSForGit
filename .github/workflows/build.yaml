@@ -25,6 +25,7 @@ permissions:
 
 env:
   GIT_VERSION: ${{ github.event.inputs.git_version || 'v2.56.0.vfs.0.4' }}
+  AotMsCodeCoverageInstrumentation: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
 
 jobs:
   validate:
@@ -32,6 +33,7 @@ jobs:
     name: Validation
     outputs:
       skip: ${{ steps.check.outputs.result }}
+      coverage: ${{ env.AotMsCodeCoverageInstrumentation }}
 
     steps:
     - name: Look for prior successful runs
@@ -67,6 +69,8 @@ jobs:
             const workflow_id = run.workflow_id;
             const head_sha = run.head_sha;
             const tree_id = run.head_commit.tree_id;
+            const coverageEnabled = process.env.AotMsCodeCoverageInstrumentation === 'true';
+            const matchesCoverageMode = (run) => (run.event === 'pull_request') === coverageEnabled;
 
             /*
              * If the given workflow run was itself a "skip" run that references another
@@ -90,8 +94,8 @@ jobs:
                   })
                   const validationJob = jobsData.jobs.find((j) => j.name === 'Validation')
                   if (!validationJob) {
-                    console.log(`No 'Validation' job found on ${currentRunUrl}; treating as the real run`)
-                    return currentRunUrl
+                    console.log(`No 'Validation' job found on ${currentRunUrl}; cannot verify reuse`)
+                    return ''
                   }
 
                   const { data: annotations } = await github.rest.checks.listAnnotations({
@@ -107,9 +111,8 @@ jobs:
                     }
                   }
                 } catch (e) {
-                  // If we cannot inspect this run, fall back to the URL we already have
-                  console.log(`Failed to inspect ${currentRunUrl}: ${e.message}; stopping chain resolution`)
-                  return currentRunUrl
+                  console.log(`Failed to inspect ${currentRunUrl}: ${e.message}; cannot verify reuse`)
+                  return ''
                 }
 
                 if (!referencedUrl) {
@@ -122,7 +125,7 @@ jobs:
                 const idMatch = referencedUrl.match(RUN_URL_RE)
                 if (!idMatch) {
                   console.log(`Could not parse a run ID from ${referencedUrl}; stopping chain resolution`)
-                  return referencedUrl
+                  return ''
                 }
 
                 const referencedId = Number(idMatch[1])
@@ -136,19 +139,23 @@ jobs:
                   referencedRun = response.data
                 } catch (e) {
                   console.log(`Could not fetch referenced run ${referencedUrl}: ${e.message}; stopping chain resolution`)
-                  return currentRunUrl
+                  return ''
                 }
 
                 if (referencedRun.status !== 'completed' || referencedRun.conclusion !== 'success') {
                   console.log(`Referenced run ${referencedUrl} is no longer usable (status=${referencedRun.status}, conclusion=${referencedRun.conclusion}); stopping chain resolution`)
-                  return currentRunUrl
+                  return ''
+                }
+                if (!matchesCoverageMode(referencedRun) || referencedRun.event === 'workflow_dispatch') {
+                  console.log(`Referenced run ${referencedUrl} has incompatible build settings; cannot reuse it`)
+                  return ''
                 }
 
                 currentRunId = referencedRun.id
                 currentRunUrl = referencedRun.html_url
               }
               console.log(`Reached MAX_CHAIN_LENGTH (${MAX_CHAIN_LENGTH}); stopping at ${currentRunUrl}`)
-              return currentRunUrl
+              return ''
             }
 
             // See whether there is a successful run for that commit or tree
@@ -165,6 +172,7 @@ jobs:
               if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
               if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
               if (run.event === 'workflow_dispatch') continue // skip runs that were started manually: they can override the Git version
+              if (!matchesCoverageMode(run)) continue
 
               if (run.status === 'in_progress') {
                 // poll until the run is done
@@ -187,6 +195,7 @@ jobs:
               if (run.status === 'completed' && run.conclusion === 'success') {
                 console.log(`Found previous successful run at ${run.html_url} (head_sha=${run.head_sha}, tree_id=${run.head_commit?.tree_id})`)
                 const resolvedUrl = await resolveSkipChain(run.id, run.html_url)
+                if (!resolvedUrl) continue
                 core.notice(`Skipping: There already is a successful run: ${resolvedUrl}`)
                 return resolvedUrl
               }
@@ -259,7 +268,6 @@ jobs:
     name: Build and Unit Test
     needs: validate
     env:
-      AotMsCodeCoverageInstrumentation: 'true'
       MsCodeCoverageSessionId: gvfs-ci-${{ github.run_id }}
 
     strategy:
@@ -290,7 +298,7 @@ jobs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         global-json-file: src/global.json
-        dotnet-version: 8.0.x
+        dotnet-version: ${{ env.AotMsCodeCoverageInstrumentation == 'true' && '8.0.x' || '' }}
 
     - name: Add MSBuild to PATH
       if: steps.skip.outputs.result != 'true'
@@ -307,14 +315,14 @@ jobs:
       run: |
         Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -ErrorAction Stop
         Import-Module Pester -RequiredVersion 5.7.1 -ErrorAction Stop
-        Invoke-Pester -Path src\scripts\Merge-Coverage.Tests.ps1,src\scripts\Invoke-Coverage.Tests.ps1,src\scripts\Assert-AotCoverage.Tests.ps1 -CI
+        Invoke-Pester -Path src\scripts\Merge-Coverage.Tests.ps1,src\scripts\Invoke-Coverage.Tests.ps1,src\scripts\Assert-AotCoverage.Tests.ps1,src\scripts\CoverageWorkflow.Tests.ps1 -CI
 
     - name: Locate coverage collector
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && env.AotMsCodeCoverageInstrumentation == 'true'
       uses: ./src/.github/actions/setup-coverage
 
     - name: Record compiled coverage manifest
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && env.AotMsCodeCoverageInstrumentation == 'true'
       shell: pwsh
       env:
         COVERAGE_ARCH: ${{ matrix.architecture }}
@@ -322,7 +330,7 @@ jobs:
 
     - name: Start unit coverage
       id: unit_coverage
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && env.AotMsCodeCoverageInstrumentation == 'true'
       shell: pwsh
       run: src\scripts\Invoke-Coverage.ps1 -Action Start -Directory unit-coverage -BuildManifest coverage-build.json -Suite Unit
 
@@ -331,7 +339,11 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       shell: pwsh
       run: |
-        Microsoft.CodeCoverage.Console.exe connect $env:MsCodeCoverageSessionId cmd.exe /d /c src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
+        if ($env:AotMsCodeCoverageInstrumentation -eq 'true') {
+          Microsoft.CodeCoverage.Console.exe connect $env:MsCodeCoverageSessionId cmd.exe /d /c src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
+        } else {
+          cmd.exe /d /c src\scripts\RunUnitTests.bat ${{ matrix.configuration }} ${{ matrix.architecture }}
+        }
         exit $LASTEXITCODE
 
     - name: Stop unit coverage
@@ -353,7 +365,7 @@ jobs:
       run: src\scripts\CreateBuildArtifacts.bat ${{ matrix.configuration }} artifacts ${{ matrix.architecture }}
 
     - name: Include coverage manifest with installer
-      if: steps.skip.outputs.result != 'true'
+      if: steps.skip.outputs.result != 'true' && env.AotMsCodeCoverageInstrumentation == 'true'
       shell: pwsh
       run: Copy-Item coverage-build.json artifacts\GVFS.Installers\coverage-build.json
 
@@ -396,7 +408,7 @@ jobs:
     name: Managed Code Coverage
     runs-on: windows-2025
     needs: [validate, build, functional_tests, upgrade_tests]
-    if: always() && needs.validate.outputs.skip == ''
+    if: always() && needs.validate.outputs.skip == '' && needs.validate.outputs.coverage == 'true'
     steps:
     - name: Checkout tested source
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
