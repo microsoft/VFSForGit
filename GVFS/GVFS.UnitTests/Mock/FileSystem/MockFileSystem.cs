@@ -107,8 +107,31 @@ namespace GVFS.UnitTests.Mock.FileSystem
                 this.RootDirectory.RemoveFile(destinationPath);
             }
 
-            this.WriteAllText(destinationPath, this.ReadAllText(sourcePath));
+            this.RootDirectory.AddOrOverwriteFile(new MockFile(destinationPath, this.ReadAllBytes(sourcePath)), destinationPath);
             this.RootDirectory.RemoveFile(sourcePath);
+        }
+
+        public override bool TryCopyToTempFileAndRename(string sourcePath, string destinationPath, out Exception handledException)
+        {
+            handledException = null;
+            string tempFilePath = destinationPath + ".temp";
+
+            try
+            {
+                this.RootDirectory.AddOrOverwriteFile(new MockFile(tempFilePath, this.ReadAllBytes(sourcePath)), tempFilePath);
+                this.MoveAndOverwriteFile(tempFilePath, destinationPath);
+                return true;
+            }
+            catch (IOException e)
+            {
+                handledException = e;
+                return false;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                handledException = e;
+                return false;
+            }
         }
 
         public override bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
@@ -159,7 +182,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override string ReadAllText(string path)
         {
-            MockFile file = this.RootDirectory.FindFile(path);
+            MockFile file = this.FindExistingFile(path);
 
             using (StreamReader reader = new StreamReader(file.GetContentStream()))
             {
@@ -169,7 +192,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override byte[] ReadAllBytes(string path)
         {
-            MockFile file = this.RootDirectory.FindFile(path);
+            MockFile file = this.FindExistingFile(path);
 
             using (Stream s = file.GetContentStream())
             {
@@ -343,6 +366,17 @@ namespace GVFS.UnitTests.Mock.FileSystem
             file.ShouldNotBeNull();
 
             return this.OpenFileStream(path, FileMode.Open, (FileAccess)NativeMethods.FileAccess.FILE_GENERIC_READ, FileShare.Read, callFlushFileBuffers: false);
+        }
+
+        private MockFile FindExistingFile(string path)
+        {
+            MockFile file = this.RootDirectory.FindFile(path);
+            if (file == null)
+            {
+                throw new FileNotFoundException("Mock file not found", path);
+            }
+
+            return file;
         }
     }
 }
