@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -699,9 +700,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             try
             {
                 this.Enlistment.UnmountGVFS();
-                Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, "1");
-                this.Enlistment.MountGVFS();
+                this.Enlistment.MountGVFS(environmentVariables: new Dictionary<string, string>
+                {
+                    { GVFSConstants.UnattendedEnvironmentVariable, "1" },
+                });
 
+                Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable).ShouldEqual(unattendedValue);
                 File.Exists(statusCacheFile).ShouldBeFalse("The unattended mount kept a status cache that it does not update");
 
                 // The test writes the shared path again, as an attended worktree mount does,
@@ -714,7 +718,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
             finally
             {
-                Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, unattendedValue);
                 try { File.Delete(newFilePath); } catch { }
                 this.Enlistment.UnmountGVFS();
                 this.Enlistment.MountGVFS();
