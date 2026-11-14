@@ -4,6 +4,7 @@ using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -185,6 +186,83 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
+            /// <summary>
+            /// Builds the error message for an index that contains a sparse-directory entry.
+            /// </summary>
+            /// <param name="entryPath">Path of the sparse-directory entry, as stored in the index</param>
+            /// <param name="workingDirectoryRoot">Working directory of the mount, or null if it is not known</param>
+            /// <param name="projectionIndexBackupPath">Path of the persisted projection index, or null if it is not known</param>
+            private static string GetSparseDirectoryEntryErrorMessage(string entryPath, string workingDirectoryRoot, string projectionIndexBackupPath)
+            {
+                string workingDirectory = workingDirectoryRoot != null ? $"'{workingDirectoryRoot}'" : "the 'src' folder of the enlistment";
+                string projectionBackup = projectionIndexBackupPath != null
+                    ? $"'{projectionIndexBackupPath}'"
+                    : $"'{Path.Combine(GVFSPlatform.Instance.Constants.DotGVFSRoot, ProjectionIndexBackupName)}' in the enlistment root";
+
+                return
+                    $"The git index contains the sparse-directory entry '{EscapeForDisplay(entryPath)}'. " +
+                    "VFS for Git does not support a sparse index (git config index.sparse). " +
+                    "To expand the index to the full format, do these steps:" + Environment.NewLine +
+                    "1. If the enlistment is mounted, run 'gvfs unmount'." + Environment.NewLine +
+                    $"2. In {workingDirectory}, run 'git -c core.hookspath= config --worktree index.sparse false'." + Environment.NewLine +
+                    $"3. In {workingDirectory}, run 'git -c core.virtualfilesystem= -c core.hookspath= -c index.sparse=false update-index --force-write-index'." + Environment.NewLine +
+                    $"4. Delete {projectionBackup}." + Environment.NewLine +
+                    "5. Run 'gvfs mount'.";
+            }
+
+            /// <summary>
+            /// Replaces control and format characters with \uXXXX escapes, so that a path read from
+            /// the index cannot add lines or terminal escape sequences to a message.
+            /// </summary>
+            private static string EscapeForDisplay(string value)
+            {
+                StringBuilder escaped = null;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    char c = value[i];
+                    if (char.IsControl(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format)
+                    {
+                        if (escaped == null)
+                        {
+                            escaped = new StringBuilder(value, 0, i, value.Length + 16);
+                        }
+
+                        escaped.Append("\\u").Append(((int)c).ToString("X4"));
+                    }
+                    else
+                    {
+                        escaped?.Append(c);
+                    }
+                }
+
+                return escaped?.ToString() ?? value;
+            }
+
+            /// <summary>
+            /// Throws if <paramref name="data"/> is a sparse-directory entry from a sparse index
+            /// (git index.sparse). Such an entry has mode 040000, a tree id, the skip-worktree bit,
+            /// and a path that ends in '/'. It stands in for a collapsed subtree.
+            /// </summary>
+            /// <remarks>
+            /// ParseIndex calls this for every entry, before the entry callback. A callback that
+            /// received the entry would treat it as a file: the projection would omit every file in
+            /// the collapsed subtree and contain a folder with an empty name, and the placeholder scan
+            /// would treat every placeholder in the subtree as absent from the index. The check uses
+            /// the trailing '/' because ParseIndex reads the mode field only when SupportsFileMode is
+            /// true, and it is false on Windows.
+            /// </remarks>
+            private void FailIfSparseDirectoryEntry(GitIndexEntry data)
+            {
+                if (data.PathEndsInSlash || data.TypeAndMode.Type == FileType.Directory)
+                {
+                    string entryPath = Encoding.UTF8.GetString(data.PathBuffer, 0, data.PathLength);
+                    throw new SparseIndexNotSupportedException(GetSparseDirectoryEntryErrorMessage(
+                        entryPath,
+                        this.projection?.context.Enlistment.WorkingDirectoryRoot,
+                        this.projection?.projectionIndexBackupPath));
+                }
+            }
+
             private FileSystemTaskResult AddIndexEntryToProjection(GitIndexEntry data)
             {
                 // Never want to project the common ancestor even if the skip worktree bit is on
@@ -256,7 +334,8 @@ namespace GVFS.Virtualization.Projection
             /// <remarks>
             /// Only the AddToModifiedFiles method because it updates the modified paths file can result
             /// in TryIndexAction returning a FileSystemTaskResult other than Success.  All other actions result in success (or an exception in the
-            /// case of a corrupt index)
+            /// case of a corrupt index). ParseIndex throws SparseIndexNotSupportedException for a sparse
+            /// index, before any action receives a sparse-directory entry.
             /// </remarks>
             private FileSystemTaskResult ParseIndex(
                 ITracer tracer,
@@ -305,6 +384,7 @@ namespace GVFS.Virtualization.Projection
 
                         // 4-bit object type
                         //     valid values in binary are 1000(regular file), 1010(symbolic link) and 1110(gitlink)
+                        //     0100(directory) is a sparse-directory entry, which FailIfSparseDirectoryEntry rejects
                         // 3-bit unused
                         // 9-bit unix permission. Only 0755 and 0644 are valid for regular files. (Legacy repos can also contain 664)
                         //     Symbolic links and gitlinks have value 0 in this field.
@@ -329,6 +409,16 @@ namespace GVFS.Virtualization.Projection
                                 if (typeAndMode.Mode != 0)
                                 {
                                     throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for link file({typeAndMode.Type:X}) in index");
+                                }
+
+                                break;
+
+                            case FileType.Directory:
+                                // A sparse-directory entry. FailIfSparseDirectoryEntry rejects it
+                                // with an actionable message after the parser reads its path.
+                                if (typeAndMode.Mode != 0)
+                                {
+                                    throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for sparse directory in index");
                                 }
 
                                 break;
@@ -370,6 +460,8 @@ namespace GVFS.Virtualization.Projection
                     int bytesToRead = resuableParsedIndexEntry.PathLength - resuableParsedIndexEntry.ReplaceIndex + 1;
                     this.ReadPath(resuableParsedIndexEntry, resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
                     previousPathLength = resuableParsedIndexEntry.PathLength;
+
+                    this.FailIfSparseDirectoryEntry(resuableParsedIndexEntry);
 
                     result = entryAction.Invoke(resuableParsedIndexEntry);
                     if (result != FileSystemTaskResult.Success)

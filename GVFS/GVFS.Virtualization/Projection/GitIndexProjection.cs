@@ -135,6 +135,10 @@ namespace GVFS.Virtualization.Projection
             Regular,
             SymLink,
             GitLink,
+
+            // A sparse-directory entry in a sparse index (git index.sparse). It has mode 040000
+            // and stands in for a collapsed subtree.
+            Directory,
         }
 
         public enum PathSparseState
@@ -676,6 +680,16 @@ namespace GVFS.Virtualization.Projection
                         return result;
                     }
                 }
+            }
+            catch (SparseIndexNotSupportedException e)
+            {
+                // Make the next mount parse .git\index, so that it reports the recovery steps.
+                this.SetProjectionInvalid(true);
+
+                EventMetadata metadata = CreateEventMetadata(e);
+                this.context.Tracer.RelatedError(metadata, "Sparse index in " + nameof(this.AddMissingModifiedFiles) + " (FatalError)");
+
+                return FileSystemTaskResult.FatalError;
             }
             catch (IOException e)
             {

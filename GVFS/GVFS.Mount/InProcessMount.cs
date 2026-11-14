@@ -10,6 +10,7 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
+using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1758,6 +1759,11 @@ namespace GVFS.Mount
                 {
                     this.FailMountAndExit("Error: {0}. \r\nPlease confirm that gvfs clone completed without error.", error);
                 }
+            }
+            catch (SparseIndexNotSupportedException e)
+            {
+                // The message tells the user how to recover. GitIndexProjection already logged the stack trace.
+                this.FailMountAndExit("Error: {0}", e.Message);
             }
             catch (Exception e)
             {
