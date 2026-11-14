@@ -28,6 +28,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\GVFS.Hooks\ConeManagementHook.cs">
+      <Link>Hooks\ConeManagementHook.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Hooks\ConeRequestOutcome.cs">
+      <Link>Hooks\ConeRequestOutcome.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Hooks\GitCommandLock.cs">
       <Link>Hooks\GitCommandLock.cs</Link>
     </Compile>
