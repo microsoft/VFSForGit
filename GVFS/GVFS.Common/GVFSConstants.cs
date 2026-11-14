@@ -96,6 +96,11 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
+            /* Gates automatic sparse-index cone management. When true, the hooks ask the mount to
+             * widen the sparse-index cone for the paths that a git command names. Off by default. */
+            public const string AutoSparseIndex = GVFSPrefix + "auto-sparse-index";
+            public const bool AutoSparseIndexDefault = false;
         }
 
         public static class LocalGVFSConfig
