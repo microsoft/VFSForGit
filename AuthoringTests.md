@@ -92,6 +92,22 @@ Mac:
 
 ## How to Write a Functional Test
 
+### White-box Functional Tests
+
+White-box functional tests exercise product APIs with real operating-system dependencies, such as NTFS handles or a ProjFS provider.
+They belong in `GVFS.FunctionalTests`, not the unit-test project.
+Keep Windows-specific fixtures under `Windows\Tests\WhiteBox` in the `GVFS.FunctionalTests.Tests.WhiteBox` namespace.
+Mark each fixture with `[Category(Categories.WhiteBox)]` and document it as a white-box test in its class summary.
+
+Each fixture owns its temporary filesystem roots and releases its native resources.
+Do not mix white-box cases into black-box fixtures.
+Keep black-box tests independent of product-code APIs.
+
+For provider notifications, run client operations in a separate test process.
+The backup fixture uses a private test-runner mode and a live-file control to verify notification delivery.
+
+### Black-box Functional Tests
+
 Each piece of functionality that we add to VFS for Git should have corresponding functional tests that clone a repo, mount the filesystem, and use existing tools and filesystem
 APIs to interact with the virtual repo.
 

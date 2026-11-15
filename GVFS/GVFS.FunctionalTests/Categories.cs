@@ -5,5 +5,6 @@
         public const string FastFetch = "FastFetch";
         public const string GitCommands = "GitCommands";
         public const string SkipInCI = "SkipInCI";
+        public const string WhiteBox = "WhiteBox";
     }
 }
