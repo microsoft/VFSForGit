@@ -1,5 +1,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.FileSystem;
+using GVFS.UnitTests.Mock.Common;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using GVFS.FunctionalTests.Properties;
@@ -15,6 +17,8 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
     [TestFixture]
     public class WorktreeRequiredConfigTests
     {
+        private const string DerivedEnlistmentIdOfAgentWorktree = "c133def22e85af1a8e16432fc7684258";
+
         private string testRoot;
         private string primaryRoot;
         private string sharedGitDir;
@@ -273,6 +277,35 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             });
         }
 
+        [TestCase]
+        public void WorktreeEnlistmentIdIsEmptyWhenNothingIsPersisted()
+        {
+            IsolatedTestProcess.Run(() =>
+            {
+                this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = primaryenlistmentid\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+
+                enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
+                File.Exists(GetRepoMetadataPath(enlistment.DotGVFSRoot)).ShouldBeFalse("Reading the id must not create worktree repo metadata");
+                File.Exists(GetRepoMetadataPath(this.PrimaryDotGVFSRoot)).ShouldBeFalse("Reading the id must not create primary repo metadata");
+            });
+        }
+
+        [TestCase]
+        public void WorktreeEnlistmentIdIsDerivedFromPrimaryRepoMetadata()
+        {
+            IsolatedTestProcess.Run(() =>
+            {
+                this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = sharedconfigenlistmentid\n");
+                EditRepoMetadata(this.PrimaryDotGVFSRoot, metadata => metadata.SetEntry(RepoMetadata.Keys.EnlistmentId, "primaryenlistmentid"));
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+
+                enlistment.GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
+                this.CreateWorktreeEnlistment(GetGitBinPath()).GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
+                RepoMetadata.Instance.ShouldBeNull("Reading the id must not initialize RepoMetadata.Instance");
+            });
+        }
+
         private string PrimaryDotGVFSRoot => Path.Combine(this.primaryRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);
 
         private string PrimaryStatusCachePath => Path.Combine(this.PrimaryDotGVFSRoot, "gitStatusCache", "GitStatusCache.dat").Replace('\\', '/');
@@ -291,6 +324,25 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             ProcessResult result = GitProcess.InvokeProcess(this.worktreePath, $"config --file \"{configFile}\" --get-all {key}");
             (result.ExitCode == 0 || result.ExitCode == 1).ShouldBeTrue(result.Errors);
             return result.Output.Trim();
+        }
+
+        private static string GetRepoMetadataPath(string dotGVFSRoot)
+        {
+            return Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.Databases.RepoMetadata);
+        }
+
+        private static void EditRepoMetadata(string dotGVFSRoot, Action<RepoMetadata> action)
+        {
+            using MockTracer tracer = new MockTracer();
+            RepoMetadata.TryInitialize(tracer, new PhysicalFileSystem(), dotGVFSRoot, out string error).ShouldBeTrue(error);
+            try
+            {
+                action(RepoMetadata.Instance);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
         }
 
         private void AppendToSharedConfig(string text)

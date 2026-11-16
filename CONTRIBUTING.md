@@ -202,6 +202,11 @@ The design review process is as follows:
 
   Starting with a verb in the name improves readability and helps ensure consistency with the rest of the VFS4G codebase.
 
+- *Use `System.Threading.Lock` for dedicated synchronization gates*
+
+  Declare private gates as `private readonly Lock gate = new Lock();`, with `using System.Threading;`.
+  Keep the gate typed as `Lock`. Do not cast it to `object` or use `Monitor` operations on it.
+
 - *Aim to write self-commenting code.  When necessary, comments should give background needed to understand the code.*
 
   Helpful (good) comment:

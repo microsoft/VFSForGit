@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -143,6 +144,8 @@ namespace GVFS.UnitTests.Git
             process.InvocationsRun[0].DotGitDirectory.ShouldBeNull();
         }
 
+
+
         [TestCase]
         public void ResultHasNoErrors()
         {
@@ -247,6 +250,33 @@ namespace GVFS.UnitTests.Git
             result.TryParseAsString(out string value, out string error).ShouldBeTrue(error);
             value.ShouldEqual("configured-value");
             getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void TryGetBoolFromConfigRunsGitConfigWithTypeBool()
+        {
+            MockGitProcess process = this.CreateProcessWithTransientThenSuccess(
+                "config --type=bool gvfs.test",
+                "false\n",
+                out Func<int> getDelayCount);
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldBeTrue(error);
+
+            value.ShouldEqual(false);
+            getDelayCount().ShouldEqual(1);
+        }
+
+        [TestCase(1, "", true, null)]
+        [TestCase(128, "fatal: bad boolean config value 'of' for 'gvfs.test'", false, null)]
+        public void TryGetBoolFromConfigReportsUnsetAndInvalidValues(int exitCode, string errors, bool expectedSuccess, bool? expectedValue)
+        {
+            MockGitProcess process = new MockGitProcess(new MockTracer(), delay => { });
+            process.SetExpectedCommandResult("config --type=bool gvfs.test", () => new GitProcess.Result(string.Empty, errors, exitCode));
+
+            process.TryGetBoolFromConfig("gvfs.test", out bool? value, out string error).ShouldEqual(expectedSuccess);
+
+            value.ShouldEqual(expectedValue);
+            (error == null).ShouldEqual(expectedSuccess);
         }
 
         [TestCase]

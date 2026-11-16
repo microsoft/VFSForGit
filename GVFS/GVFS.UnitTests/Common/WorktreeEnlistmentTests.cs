@@ -191,28 +191,7 @@ namespace GVFS.UnitTests.Common
             enlistment.RepoUrl.ShouldEqual("https://mock/repo");
         }
 
-        [TestCase]
-        public void WorktreeEnlistmentIdIsEmptyWhenNothingIsPersisted()
-        {
-            this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = primaryenlistmentid\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
 
-            enlistment.GetEnlistmentId().ShouldEqual(string.Empty);
-            File.Exists(GetRepoMetadataPath(enlistment.DotGVFSRoot)).ShouldBeFalse("Reading the id must not create worktree repo metadata");
-            File.Exists(GetRepoMetadataPath(this.PrimaryDotGVFSRoot)).ShouldBeFalse("Reading the id must not create primary repo metadata");
-        }
-
-        [TestCase]
-        public void WorktreeEnlistmentIdIsDerivedFromPrimaryRepoMetadata()
-        {
-            this.AppendToSharedConfig("[gvfs]\n\tenlistment-id = sharedconfigenlistmentid\n");
-            EditRepoMetadata(this.PrimaryDotGVFSRoot, metadata => metadata.SetEntry(RepoMetadata.Keys.EnlistmentId, "primaryenlistmentid"));
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
-
-            enlistment.GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
-            this.CreateWorktreeEnlistment().GetEnlistmentId().ShouldEqual(DerivedEnlistmentIdOfAgentWorktree);
-            RepoMetadata.Instance.ShouldBeNull("Reading the id must not initialize RepoMetadata.Instance");
-        }
 
         [TestCase]
         public void WorktreeEnlistmentIdIgnoresCaseOfWorktreeName()
