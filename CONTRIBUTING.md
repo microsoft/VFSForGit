@@ -284,7 +284,9 @@ The design review process is as follows:
   Keeping the code separate helps ensure that bugs in the product code do not compromise the integrity of the functional tests.
 
   Local component tests in `GVFS.FunctionalTests.Tests.LocalComponents` can call product APIs to verify real Git, process, HTTP, and named-pipe behavior.
-  These tests use the existing functional runner and service lifecycle, but do not require a mounted enlistment or a remote repository.
+  These tests run with the other functional tests through the standard discovery and CI slices.
+  They use the existing functional runner and service lifecycle, but do not require a mounted enlistment or a remote repository.
+  The `LocalComponents` folder groups the fixtures by their dependencies. It does not define a separate test suite or CI step.
   Keep their dependencies local and isolate temporary files, configuration, and environment changes.
 
   Unit tests must not start external programs or use real network or named-pipe connections.
