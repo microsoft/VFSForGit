@@ -64,6 +64,19 @@ namespace GVFS.Virtualization.Projection
         private ReaderWriterLockSlim projectionReadWriteLock;
         private ManualResetEventSlim projectionParseComplete;
 
+        // Not null when gvfs.auto-sparse-index is true: the projection expands the sparse-directory
+        // entries of a sparse index. Null when it is false: the projection rejects a sparse index.
+        private SparseDirectoryExpander sparseDirectoryExpander;
+
+        // True when the last projection build expanded at least one sparse-directory entry
+        private volatile bool projectionHasExpandedSparseDirectories;
+
+        // Cancels tree downloads of the projection build when the mount stops
+        private CancellationTokenSource shutdownTokenSource = new CancellationTokenSource();
+
+        // True when a caller without a repository (gvfs repair) validates a sparse index
+        private bool acceptSparseDirectoriesWithoutExpansion;
+
         private volatile bool projectionInvalid;
         private long projectionGeneration;
 
@@ -117,6 +130,16 @@ namespace GVFS.Virtualization.Projection
             this.rootSparseFolder = new SparseFolderData();
             this.ClearProjectionCaches();
 
+            if (this.context.Repository != null &&
+                this.context.Repository.GetConfigBoolOrDefault(GVFSConstants.GitConfig.AutoSparseIndex, GVFSConstants.GitConfig.AutoSparseIndexDefault))
+            {
+                this.sparseDirectoryExpander = new SparseDirectoryExpander(
+                    this.context.Tracer,
+                    new ProjectionTreeReader(this.context.Repository, this.gitObjects, this.shutdownTokenSource.Token),
+                    this.rootSparseFolder,
+                    this.nonDefaultFileTypesAndModes);
+            }
+
             LocalGVFSConfig config = new LocalGVFSConfig();
             if (config.TryGetConfig(GVFSConstants.LocalGVFSConfig.USNJournalUpdates, out string value, out string error))
             {
@@ -155,11 +178,14 @@ namespace GVFS.Virtualization.Projection
             Excluded,
         }
 
-        public static void ReadIndex(ITracer tracer, string indexPath)
+        public static void ReadIndex(ITracer tracer, string indexPath, bool acceptSparseDirectories = false)
         {
             using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
-                GitIndexParser.ValidateIndex(tracer, indexStream);
+                GitIndexParser.ValidateIndex(
+                    tracer,
+                    indexStream,
+                    acceptSparseDirectories ? GitIndexParser.SparseDirectoryHandling.Accept : GitIndexParser.SparseDirectoryHandling.Reject);
             }
         }
 
@@ -190,6 +216,25 @@ namespace GVFS.Virtualization.Projection
             using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
                 this.indexParser.RebuildProjection(tracer, indexStream);
+            }
+        }
+
+        /// <summary>
+        /// Parses the index into a projection, as <see cref="BuildProjectionFromPath(ITracer, string)"/>
+        /// does. If <paramref name="acceptSparseDirectories"/> is true and sparse-index expansion is
+        /// off for this projection, the method validates each sparse-directory entry, but it does
+        /// not add the files under it. Use the result only to check that the index can be parsed.
+        /// </summary>
+        public void BuildProjectionFromPath(ITracer tracer, string indexPath, bool acceptSparseDirectories)
+        {
+            this.acceptSparseDirectoriesWithoutExpansion = acceptSparseDirectories;
+            try
+            {
+                this.BuildProjectionFromPath(tracer, indexPath);
+            }
+            finally
+            {
+                this.acceptSparseDirectoriesWithoutExpansion = false;
             }
         }
 
@@ -243,6 +288,7 @@ namespace GVFS.Virtualization.Projection
         public virtual void Shutdown()
         {
             this.isStopping = true;
+            this.shutdownTokenSource?.Cancel();
             this.wakeUpIndexParsingThread.Set();
             this.indexParsingThread.Wait();
         }
@@ -352,6 +398,30 @@ namespace GVFS.Virtualization.Projection
             try
             {
                 return this.rootFolderData.GetRecursiveFolderCount();
+            }
+            finally
+            {
+                this.projectionReadWriteLock.ExitReadLock();
+            }
+        }
+
+        /// <summary>
+        /// Get the number of files in the projection, if the projection expanded the
+        /// sparse-directory entries of a sparse index. A sparse index has one entry for each
+        /// collapsed folder, so its entry count is not the number of files.
+        /// </summary>
+        /// <returns>The number of files, or -1 if the projection came from a full index</returns>
+        public virtual int GetProjectedFileCountIfSparseIndex()
+        {
+            if (!this.projectionHasExpandedSparseDirectories)
+            {
+                return -1;
+            }
+
+            this.projectionReadWriteLock.EnterReadLock();
+            try
+            {
+                return this.projectionHasExpandedSparseDirectories ? this.rootFolderData.GetRecursiveFileCount() : -1;
             }
             finally
             {
@@ -787,6 +857,12 @@ namespace GVFS.Virtualization.Projection
                     // resources, so it is not disposed here.
                     this.indexParsingThread = null;
                 }
+
+                if (this.shutdownTokenSource != null)
+                {
+                    this.shutdownTokenSource.Dispose();
+                    this.shutdownTokenSource = null;
+                }
             }
         }
 
@@ -874,13 +950,68 @@ namespace GVFS.Virtualization.Projection
 
         private FileSystemTaskResult AddModifiedPath(string path)
         {
-            bool wasAdded = this.modifiedPaths.TryAdd(path, isFolder: false, isRetryable: out bool isRetryable);
+            return this.AddModifiedPath(path, isFolder: false);
+        }
+
+        private FileSystemTaskResult AddModifiedPath(string path, bool isFolder)
+        {
+            bool wasAdded = this.modifiedPaths.TryAdd(path, isFolder, isRetryable: out bool isRetryable);
             if (!wasAdded)
             {
                 return isRetryable ? FileSystemTaskResult.RetryableError : FileSystemTaskResult.FatalError;
             }
 
             return FileSystemTaskResult.Success;
+        }
+
+        /// <summary>
+        /// What the index parser does with a sparse-directory entry, for this projection.
+        /// </summary>
+        private GitIndexParser.SparseDirectoryHandling ProjectionSparseDirectoryHandling
+        {
+            get
+            {
+                return this.sparseDirectoryExpander != null || this.acceptSparseDirectoriesWithoutExpansion
+                    ? GitIndexParser.SparseDirectoryHandling.Accept
+                    : GitIndexParser.SparseDirectoryHandling.Reject;
+            }
+        }
+
+        /// <summary>
+        /// Enables the expansion of sparse-directory entries, with the given tree reader. For unit tests only.
+        /// </summary>
+        internal void EnableSparseIndexExpansionForTests(IProjectionTreeReader treeReader)
+        {
+            if (this.sparseDirectoryExpander == null)
+            {
+                this.sparseDirectoryExpander = new SparseDirectoryExpander(this.context.Tracer, treeReader, this.rootSparseFolder, this.nonDefaultFileTypesAndModes);
+            }
+            else
+            {
+                this.sparseDirectoryExpander.SetTreeReaderForTests(treeReader);
+            }
+        }
+
+        /// <summary>
+        /// Adds the files under a sparse-directory entry to the projection.
+        /// </summary>
+        private void AddSparseDirectoryEntry(GitIndexEntry indexEntry)
+        {
+            // The parse of the collapsed folder path does not use the same-parent state, and the
+            // next entry must not use the folder of this entry as its parent.
+            indexEntry.ClearLastParent();
+            if (this.sparseDirectoryExpander != null)
+            {
+                indexEntry.BuildingProjection_ParseSparseDirectoryPath();
+                this.sparseDirectoryExpander.Expand(this.rootFolderData, indexEntry);
+            }
+
+            indexEntry.ClearLastParent();
+        }
+
+        private IEnumerable<string> GetModifiedPathsForExpansion()
+        {
+            return this.modifiedPaths?.GetAllModifiedPaths();
         }
 
         private void ClearProjectionCaches()
@@ -1284,6 +1415,13 @@ namespace GVFS.Virtualization.Projection
                         return;
                     }
                 }
+            }
+            catch (SparseIndexExpansionException e) when (this.isStopping)
+            {
+                // A tree download that the shutdown canceled fails the build. BuildProjection
+                // already marked the projection invalid, so the next mount builds it again.
+                EventMetadata metadata = CreateEventMetadata(e);
+                this.context.Tracer.RelatedWarning(metadata, "ParseIndexThreadMain: Projection build stopped by shutdown");
             }
             catch (Exception e)
             {
@@ -1996,6 +2134,7 @@ namespace GVFS.Virtualization.Projection
                     catch (Exception e)
                     {
                         EventMetadata metadata = CreateEventMetadata(e);
+                        this.sparseDirectoryExpander?.AddMetadata(metadata);
                         this.context.Tracer.RelatedWarning(metadata, $"{nameof(this.BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
 
                         this.SetProjectionInvalid(true);
@@ -2011,6 +2150,7 @@ namespace GVFS.Virtualization.Projection
                 poolMetadata.Add($"{nameof(SortedFolderEntries)}_{nameof(SortedFolderEntries.FilePoolSize)}", SortedFolderEntries.FilePoolSize());
                 poolMetadata.Add($"{nameof(LazyUTF8String)}_{nameof(LazyUTF8String.StringPoolSize)}", LazyUTF8String.StringPoolSize());
                 poolMetadata.Add($"{nameof(LazyUTF8String)}_{nameof(LazyUTF8String.BytePoolSize)}", LazyUTF8String.BytePoolSize());
+                this.sparseDirectoryExpander?.AddMetadata(poolMetadata);
                 TimeSpan duration = tracer.Stop(poolMetadata);
                 this.context.Repository.GVFSLock.Stats.RecordParseGitIndex((long)duration.TotalMilliseconds);
             }

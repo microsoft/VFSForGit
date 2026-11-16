@@ -2,6 +2,7 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace GVFS.Virtualization.Projection
 {
@@ -140,6 +141,31 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 return this.InsertFolder(pathParts[partIndex], ~index, isIncluded: isIncluded);
+            }
+
+            /// <summary>
+            /// Returns the child folder with the given name, or adds it if no entry has the name.
+            /// Name matching is the same as <see cref="GetOrAddFolder(LazyUTF8String[], int, bool, SparseFolderData)"/>,
+            /// so two folder names that differ only in case share one folder on a case-insensitive
+            /// file system. The new folder gets <paramref name="isIncluded"/>. An existing folder
+            /// keeps its own inclusion state.
+            /// </summary>
+            /// <exception cref="InvalidDataException">A file has the name</exception>
+            public FolderData GetOrAddFolder(LazyUTF8String name, bool isIncluded)
+            {
+                int index = this.GetSortedEntriesIndexOfName(name);
+                if (index >= 0)
+                {
+                    FolderData existingFolder = this.sortedEntries[index] as FolderData;
+                    if (existingFolder == null)
+                    {
+                        throw new InvalidDataException($"Found a file where a folder was expected: {GitIndexParser.EscapeForDisplay(name.GetString())}");
+                    }
+
+                    return existingFolder;
+                }
+
+                return this.InsertFolder(name, ~index, isIncluded);
             }
 
             public bool TryGetValue(LazyUTF8String name, out FolderEntryData value)

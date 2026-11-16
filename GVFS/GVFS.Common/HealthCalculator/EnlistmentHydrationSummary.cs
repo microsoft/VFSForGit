@@ -65,7 +65,8 @@ namespace GVFS.Common
             Func<int> projectedFolderCountProvider,
             EnlistmentPathData pathData,
             CancellationToken cancellationToken = default,
-            HydrationSummaryDiagnostics diagnostics = null)
+            HydrationSummaryDiagnostics diagnostics = null,
+            Func<int> projectedFileCountProvider = null)
         {
             diagnostics = diagnostics ?? new HydrationSummaryDiagnostics();
             EnlistmentHydrationSummary summary = new EnlistmentHydrationSummary { Diagnostics = diagnostics };
@@ -74,6 +75,15 @@ namespace GVFS.Common
             {
                 diagnostics.StartPhase(HydrationSummaryPhase.IndexRead);
                 summary.TotalFileCount = GetIndexFileCount(enlistment, fileSystem, diagnostics);
+
+                // A sparse index has one entry for each collapsed folder. The projection then
+                // knows the file count, and the index header does not.
+                int projectedFileCount = summary.TotalFileCount >= 0 && projectedFileCountProvider != null ? projectedFileCountProvider() : -1;
+                if (projectedFileCount >= 0)
+                {
+                    summary.TotalFileCount = projectedFileCount;
+                }
+
                 diagnostics.TotalFileCount = summary.TotalFileCount >= 0 ? summary.TotalFileCount : null;
                 diagnostics.FinishPhase(summary.TotalFileCount >= 0 ? HydrationDataState.Complete : HydrationDataState.Failed);
                 cancellationToken.ThrowIfCancellationRequested();
