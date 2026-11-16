@@ -127,6 +127,14 @@ namespace GVFS.RepairJobs
                 {
                     index.BuildProjectionFromPath(this.Tracer, path);
                 }
+                catch (SparseIndexNotSupportedException ex)
+                {
+                    // The index is valid, so it must not be replaced with an index built from HEAD.
+                    // That would discard staged changes. The message tells the user how to expand it.
+                    messages.Add(ex.Message);
+                    this.Tracer.RelatedInfo(ex.ToString());
+                    return IssueType.CantFix;
+                }
                 catch (Exception ex)
                 {
                     messages.Add("Failed to parse index at " + path);
