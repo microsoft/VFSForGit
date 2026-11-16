@@ -29,6 +29,7 @@ namespace GVFS.FunctionalTests
             }
 
             NUnitRunner runner = new NUnitRunner(args);
+            GVFSTestConfig.IsIsolatedTestProcess = runner.HasCustomArg(IsolatedTestProcess.WorkerArgument);
             runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
             if (runner.HasCustomArg("--debug"))
@@ -133,6 +134,11 @@ namespace GVFS.FunctionalTests
 
         private static void RunBeforeAnyTests()
         {
+            if (GVFSTestConfig.IsIsolatedTestProcess)
+            {
+                return;
+            }
+
             Console.WriteLine("[CI-DEBUG] RunBeforeAnyTests: starting");
             Console.Out.Flush();
 

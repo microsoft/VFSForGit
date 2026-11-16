@@ -288,6 +288,8 @@ The design review process is as follows:
   They use the existing functional runner and service lifecycle, but do not require a mounted enlistment or a remote repository.
   The `LocalComponents` folder groups the fixtures by their dependencies. It does not define a separate test suite or CI step.
   Keep their dependencies local and isolate temporary files, configuration, and environment changes.
+  Configure child Git processes through per-process environment overrides, not changes to the functional runner's environment.
+  Run scenarios that require process-global environment or native-library state in isolated child test processes.
 
   Unit tests must not start external programs or use real network or named-pipe connections.
   Native hook executable tests are an exception.

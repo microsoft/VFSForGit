@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     [TestFixture]
-    [NonParallelizable]
     public class GitProcessTests
     {
         [TestCase(30000)]
@@ -20,7 +19,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             string gitPath = Settings.Default.PathToGit;
 
             using IsolatedGitEnvironment environment = new IsolatedGitEnvironment();
-            OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath);
+            OutputCallbackGitProcess gitProcess = new OutputCallbackGitProcess(gitPath, environment);
             using (ManualResetEventSlim callbackStarted = new ManualResetEventSlim())
             using (ManualResetEventSlim releaseCallback = new ManualResetEventSlim())
             {
@@ -74,6 +73,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                     RedirectStandardError = true,
                     CreateNoWindow = true,
                 };
+                environment.Apply(processInfo);
 
                 using (Process process = Process.Start(processInfo))
                 {
@@ -109,10 +109,10 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             }
         }
 
-        private sealed class OutputCallbackGitProcess : GitProcess
+        private sealed class OutputCallbackGitProcess : IsolatedGitProcess
         {
-            public OutputCallbackGitProcess(string gitPath)
-                : base(gitPath, workingDirectoryRoot: null)
+            public OutputCallbackGitProcess(string gitPath, IsolatedGitEnvironment environment)
+                : base(gitPath, workingDirectory: null, environment)
             {
             }
 

@@ -332,38 +332,41 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [TestCase]
         public async Task AuthenticationInitializationLoadsAllRetrySettings()
         {
-            using MockTracer tracer = new MockTracer();
-            using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
-            Task server = ServeCompleteResponses(listener, cancellation.Token,
-                (HttpStatusCode.OK, "{}", "application/json"));
-            try
+            await GVFS.FunctionalTests.Tools.IsolatedTestProcess.RunAsync(async () =>
             {
-                MockGitProcess git = CreateCredentialGitProcess(endpoint);
-                git.SetExpectedCommandResult("config gvfs.max-retries", () => new GitProcess.Result("0", string.Empty, 0));
-                git.SetExpectedCommandResult("config gvfs.timeout-seconds", () => new GitProcess.Result("2", string.Empty, 0));
-                git.SetExpectedCommandResult("config gvfs.read-timeout-seconds", () => new GitProcess.Result("1", string.Empty, 0));
-                GitAuthentication authentication = new GitAuthentication(git, endpoint);
-                MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
-                    "mock:\\repo", endpoint, "mock:\\git", git, authentication);
+                using MockTracer tracer = new MockTracer();
+                using CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+                listener.Start();
+                string endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+                Task server = ServeCompleteResponses(listener, cancellation.Token,
+                    (HttpStatusCode.OK, "{}", "application/json"));
+                try
+                {
+                    MockGitProcess git = CreateCredentialGitProcess(endpoint);
+                    git.SetExpectedCommandResult("config gvfs.max-retries", () => new GitProcess.Result("0", string.Empty, 0));
+                    git.SetExpectedCommandResult("config gvfs.timeout-seconds", () => new GitProcess.Result("2", string.Empty, 0));
+                    git.SetExpectedCommandResult("config gvfs.read-timeout-seconds", () => new GitProcess.Result("1", string.Empty, 0));
+                    GitAuthentication authentication = new GitAuthentication(git, endpoint);
+                    MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
+                        "mock:\\repo", endpoint, "mock:\\git", git, authentication);
 
-                // Both config readers must use the same isolated settings.
-                using IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config();
-                File.WriteAllText(machineConfig.GlobalConfigPath, "[gvfs]\n\tmax-retries = 0\n\ttimeout-seconds = 2\n\tread-timeout-seconds = 1\n");
-                authentication.TryInitialize(tracer, enlistment, out string error).ShouldEqual(true, error);
-                EventMetadata loaded = tracer.RelatedEventMetadata[tracer.RelatedEventNames.IndexOf("RetryConfig_LoadedRetryConfig")];
-                loaded["MaxRetries"].ShouldEqual(0);
-                loaded["Timeout"].ShouldEqual(TimeSpan.FromSeconds(2));
-                loaded["ReadTimeout"].ShouldEqual(TimeSpan.FromSeconds(1));
-            }
-            finally
-            {
-                cancellation.Cancel();
-                listener.Stop();
-                await ObserveServerCancellation(server, cancellation.Token);
-            }
+                    // Both config readers must use the same isolated settings.
+                    using IsolatedLibGit2Config machineConfig = new IsolatedLibGit2Config();
+                    File.WriteAllText(machineConfig.GlobalConfigPath, "[gvfs]\n\tmax-retries = 0\n\ttimeout-seconds = 2\n\tread-timeout-seconds = 1\n");
+                    authentication.TryInitialize(tracer, enlistment, out string error).ShouldEqual(true, error);
+                    EventMetadata loaded = tracer.RelatedEventMetadata[tracer.RelatedEventNames.IndexOf("RetryConfig_LoadedRetryConfig")];
+                    loaded["MaxRetries"].ShouldEqual(0);
+                    loaded["Timeout"].ShouldEqual(TimeSpan.FromSeconds(2));
+                    loaded["ReadTimeout"].ShouldEqual(TimeSpan.FromSeconds(1));
+                }
+                finally
+                {
+                    cancellation.Cancel();
+                    listener.Stop();
+                    await ObserveServerCancellation(server, cancellation.Token);
+                }
+            });
         }
 
         private static MockGitProcess CreateCredentialGitProcess(string endpoint)

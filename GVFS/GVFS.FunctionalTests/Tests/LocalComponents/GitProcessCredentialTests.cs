@@ -13,7 +13,6 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     [TestFixture]
-    [NonParallelizable]
     public class GitProcessCredentialTests
     {
         private const string SecretValue = "S3cretSentinelValueThatMustNotBeTraced";
@@ -34,7 +33,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             Directory.CreateDirectory(Path.Combine(dotGit, "refs", "heads"));
             File.WriteAllText(Path.Combine(dotGit, "HEAD"), "ref: refs/heads/main\n");
             File.WriteAllText(Path.Combine(dotGit, "config"), "[core]\n\trepositoryformatversion = 0\n\tbare = false\n");
-            LockedConfigGitProcess gitProcess = new LockedConfigGitProcess(gitPath, repoPath, releaseAfterFirstAttempt);
+            LockedConfigGitProcess gitProcess = new LockedConfigGitProcess(gitPath, repoPath, releaseAfterFirstAttempt, environment);
             using MockTracer tracer = new MockTracer();
 
             bool success = gitProcess.TryGetCredential(tracer, "mock://repoUrl", out string username, out string password, out string error, timeoutMs: timeoutMs);
@@ -83,13 +82,13 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             }
         }
 
-        private sealed class LockedConfigGitProcess : GitProcess
+        private sealed class LockedConfigGitProcess : IsolatedGitProcess
         {
             private readonly string configPath;
             private readonly bool releaseAfterFirstAttempt;
 
-            public LockedConfigGitProcess(string gitPath, string repoPath, bool releaseAfterFirstAttempt)
-                : base(gitPath, repoPath)
+            public LockedConfigGitProcess(string gitPath, string repoPath, bool releaseAfterFirstAttempt, IsolatedGitEnvironment environment)
+                : base(gitPath, repoPath, environment)
             {
                 this.configPath = Path.Combine(repoPath, ".git", "config");
                 this.releaseAfterFirstAttempt = releaseAfterFirstAttempt;

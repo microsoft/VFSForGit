@@ -18,6 +18,8 @@ namespace GVFS.FunctionalTests
 
         public static bool IsDevMode { get; set; }
 
+        public static bool IsIsolatedTestProcess { get; set; }
+
         public static string PathToGVFS
         {
             get

@@ -13,7 +13,6 @@ using ProcessResult = GVFS.FunctionalTests.Tools.ProcessResult;
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     [TestFixture]
-    [NonParallelizable]
     public class WorktreeRequiredConfigTests
     {
         private string testRoot;
@@ -22,11 +21,15 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         private string worktreePath;
         private string worktreeGitDir;
         private string unattendedValue;
-        private IsolatedGitEnvironment environment;
 
         [SetUp]
         public void SetUp()
         {
+            if (!GVFSTestConfig.IsIsolatedTestProcess)
+            {
+                return;
+            }
+
             // The required settings depend on GVFS_UNATTENDED, and git config file
             // arguments must handle a path with a space.
             this.testRoot = Path.Combine(Path.GetTempPath(), "GVFS WT Enl Tests_" + Path.GetRandomFileName());
@@ -61,7 +64,6 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             File.WriteAllText(
                 Path.Combine(this.worktreeGitDir, "gitdir"),
                 Path.Combine(this.worktreePath, ".git"));
-            this.environment = new IsolatedGitEnvironment();
             this.unattendedValue = Environment.GetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable);
             Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, null);
         }
@@ -69,17 +71,15 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [TearDown]
         public void TearDown()
         {
-            Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, this.unattendedValue);
-            try
+            if (!GVFSTestConfig.IsIsolatedTestProcess)
             {
-                if (Directory.Exists(this.testRoot))
-                {
-                    Directory.Delete(this.testRoot, recursive: true);
-                }
+                return;
             }
-            finally
+
+            Environment.SetEnvironmentVariable(GVFSConstants.UnattendedEnvironmentVariable, this.unattendedValue);
+            if (Directory.Exists(this.testRoot))
             {
-                this.environment.Dispose();
+                Directory.Delete(this.testRoot, recursive: true);
             }
         }
 
@@ -94,156 +94,183 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         [TestCase]
         public void RequiredSettingsEnableWorktreeConfigAndWritePerWorktreeValues()
         {
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                enlistment,
-                new Dictionary<string, string>
-                {
-                    { "status.deserializePath", "C:/worktree/status.dat" },
-                    { "core.autocrlf", "false" },
-                },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    enlistment,
+                    new Dictionary<string, string>
+                    {
+                        { "status.deserializePath", "C:/worktree/status.dat" },
+                        { "core.autocrlf", "false" },
+                    },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
-            this.GetConfigValues(this.SharedConfigPath, "core.autocrlf").ShouldEqual("false");
-            this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual(this.PrimaryStatusCachePath);
-            this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
+                this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
+                this.GetConfigValues(this.SharedConfigPath, "core.autocrlf").ShouldEqual("false");
+                this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual(this.PrimaryStatusCachePath);
+                this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
+            });
         }
 
         [TestCase]
         public void RequiredSettingsRepairCopiedWorktreeValueAndSharedValueOfPrimary()
         {
-            this.AppendToSharedConfig("[status]\n\tdeserializePath = C:/sibling/status.dat\n");
-            File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/sibling/status.dat\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                this.AppendToSharedConfig("[status]\n\tdeserializePath = C:/sibling/status.dat\n");
+                File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/sibling/status.dat\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                enlistment,
-                new Dictionary<string, string> { { "status.deserializePath", "C:/worktree/status.dat" } },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    enlistment,
+                    new Dictionary<string, string> { { "status.deserializePath", "C:/worktree/status.dat" } },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
-            this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual(this.PrimaryStatusCachePath);
+                this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
+                this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual(this.PrimaryStatusCachePath);
+            });
         }
 
         [TestCase]
         public void RequiredSettingsDisableNullPerWorktreeValueInWorktreeConfig()
         {
-            this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n[status]\n\tdeserializePath = C:/primary/status.dat\n");
-            File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/worktree/status.dat\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n[status]\n\tdeserializePath = C:/primary/status.dat\n");
+                File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/worktree/status.dat\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                enlistment,
-                new Dictionary<string, string> { { "status.deserializePath", null } },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    enlistment,
+                    new Dictionary<string, string> { { "status.deserializePath", null } },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual(string.Empty);
-            File.ReadAllText(this.WorktreeConfigPath).ShouldContain("deserializePath");
-            this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual("C:/primary/status.dat");
+                this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual(string.Empty);
+                File.ReadAllText(this.WorktreeConfigPath).ShouldContain("deserializePath");
+                this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual("C:/primary/status.dat");
+            });
         }
 
         [TestCase]
         public void RequiredSettingsRemoveRequiredOverridesFromWorktreeConfig()
         {
-            File.WriteAllText(this.WorktreeConfigPath, "[core]\n\tautocrlf = true\n[gvfs]\n\tmount-id = worktreemountid\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                File.WriteAllText(this.WorktreeConfigPath, "[core]\n\tautocrlf = true\n[gvfs]\n\tmount-id = worktreemountid\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                enlistment,
-                new Dictionary<string, string> { { "core.autocrlf", "false" } },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    enlistment,
+                    new Dictionary<string, string> { { "core.autocrlf", "false" } },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.WorktreeConfigPath, "core.autocrlf").ShouldEqual(string.Empty);
-            this.GetConfigValues(this.WorktreeConfigPath, "gvfs.mount-id").ShouldEqual("worktreemountid");
-            this.GetConfigValues(this.SharedConfigPath, "core.autocrlf").ShouldEqual("false");
+                this.GetConfigValues(this.WorktreeConfigPath, "core.autocrlf").ShouldEqual(string.Empty);
+                this.GetConfigValues(this.WorktreeConfigPath, "gvfs.mount-id").ShouldEqual("worktreemountid");
+                this.GetConfigValues(this.SharedConfigPath, "core.autocrlf").ShouldEqual("false");
+            });
         }
 
         [TestCase]
         public void RequiredSettingsReplaceDuplicateWorktreeConfigExtensionValues()
         {
-            this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n\tworktreeConfig = false\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                this.AppendToSharedConfig("[extensions]\n\tworktreeConfig = true\n\tworktreeConfig = false\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(enlistment, new Dictionary<string, string>(), out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(enlistment, new Dictionary<string, string>(), out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
+                this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
+            });
         }
 
         [TestCase]
         public void PrimaryRequiredSettingsEnableWorktreeConfigAndRemoveOverridesWhenLinkedWorktreeHasConfig()
         {
-            File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/worktree/status.dat\n");
-            string primaryWorktreeConfigPath = Path.Combine(this.sharedGitDir, "config.worktree");
-            File.WriteAllText(primaryWorktreeConfigPath, "[core]\n\tautocrlf = true\n");
-            GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
+            IsolatedTestProcess.Run(() =>
+            {
+                File.WriteAllText(this.WorktreeConfigPath, "[status]\n\tdeserializePath = C:/worktree/status.dat\n");
+                string primaryWorktreeConfigPath = Path.Combine(this.sharedGitDir, "config.worktree");
+                File.WriteAllText(primaryWorktreeConfigPath, "[core]\n\tautocrlf = true\n");
+                GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                primary,
-                new Dictionary<string, string> { { "core.autocrlf", "false" } },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    primary,
+                    new Dictionary<string, string> { { "core.autocrlf", "false" } },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
-            this.GetConfigValues(primaryWorktreeConfigPath, "core.autocrlf").ShouldEqual(string.Empty);
-            this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
+                this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual("true");
+                this.GetConfigValues(primaryWorktreeConfigPath, "core.autocrlf").ShouldEqual(string.Empty);
+                this.GetConfigValues(this.WorktreeConfigPath, "status.deserializePath").ShouldEqual("C:/worktree/status.dat");
+            });
         }
 
         [TestCase]
         public void PrimaryRequiredSettingsDoNotEnableWorktreeConfigWithoutLinkedWorktreeConfig()
         {
-            GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
+            IsolatedTestProcess.Run(() =>
+            {
+                GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                primary,
-                new Dictionary<string, string> { { "status.deserializePath", "C:/primary/status.dat" } },
-                out error).ShouldBeTrue(error);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    primary,
+                    new Dictionary<string, string> { { "status.deserializePath", "C:/primary/status.dat" } },
+                    out error).ShouldBeTrue(error);
 
-            this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual(string.Empty);
-            this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual("C:/primary/status.dat");
-            File.Exists(Path.Combine(this.sharedGitDir, "config.worktree")).ShouldBeFalse();
+                this.GetConfigValues(this.SharedConfigPath, "extensions.worktreeConfig").ShouldEqual(string.Empty);
+                this.GetConfigValues(this.SharedConfigPath, "status.deserializePath").ShouldEqual("C:/primary/status.dat");
+                File.Exists(Path.Combine(this.sharedGitDir, "config.worktree")).ShouldBeFalse();
+            });
         }
 
         [TestCase]
         public void RequiredSettingsWriteNothingWhenAppliedAgain()
         {
-            GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
-            GVFSEnlistment worktree = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                GVFSEnlistment primary = new GVFSEnlistment(this.primaryRoot, "https://mock/repo", GetGitBinPath(), authentication: null);
+                GVFSEnlistment worktree = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(primary, out error).ShouldBeTrue(error);
-            RequiredGitConfig.TrySetRequiredSettings(worktree, out error).ShouldBeTrue(error);
-            DateTime sharedConfigWriteTime = File.GetLastWriteTimeUtc(this.SharedConfigPath);
-            DateTime worktreeConfigWriteTime = File.GetLastWriteTimeUtc(this.WorktreeConfigPath);
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(primary, out error).ShouldBeTrue(error);
+                RequiredGitConfig.TrySetRequiredSettings(worktree, out error).ShouldBeTrue(error);
+                DateTime sharedConfigWriteTime = File.GetLastWriteTimeUtc(this.SharedConfigPath);
+                DateTime worktreeConfigWriteTime = File.GetLastWriteTimeUtc(this.WorktreeConfigPath);
 
-            RequiredGitConfig.TrySetRequiredSettings(primary, out error).ShouldBeTrue(error);
-            RequiredGitConfig.TrySetRequiredSettings(worktree, out error).ShouldBeTrue(error);
+                RequiredGitConfig.TrySetRequiredSettings(primary, out error).ShouldBeTrue(error);
+                RequiredGitConfig.TrySetRequiredSettings(worktree, out error).ShouldBeTrue(error);
 
-            File.GetLastWriteTimeUtc(this.SharedConfigPath).ShouldEqual(sharedConfigWriteTime, "A second application wrote the shared config");
-            File.GetLastWriteTimeUtc(this.WorktreeConfigPath).ShouldEqual(worktreeConfigWriteTime, "A second application wrote config.worktree");
-            this.GetConfigValues(this.SharedConfigPath, "credential.https://dev.azure.com.useHttpPath").ShouldEqual("true");
+                File.GetLastWriteTimeUtc(this.SharedConfigPath).ShouldEqual(sharedConfigWriteTime, "A second application wrote the shared config");
+                File.GetLastWriteTimeUtc(this.WorktreeConfigPath).ShouldEqual(worktreeConfigWriteTime, "A second application wrote config.worktree");
+                this.GetConfigValues(this.SharedConfigPath, "credential.https://dev.azure.com.useHttpPath").ShouldEqual("true");
+            });
         }
 
         [TestCase]
         public void RequiredSettingsFailWhenWorktreeConfigIsCorrupt()
         {
-            File.WriteAllText(this.WorktreeConfigPath, "[status\n");
-            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
+            IsolatedTestProcess.Run(() =>
+            {
+                File.WriteAllText(this.WorktreeConfigPath, "[status\n");
+                GVFSEnlistment enlistment = this.CreateWorktreeEnlistment(GetGitBinPath());
 
-            string error;
-            RequiredGitConfig.TrySetRequiredSettings(
-                enlistment,
-                new Dictionary<string, string> { { "status.deserializePath", "C:/worktree/status.dat" } },
-                out error).ShouldBeFalse();
+                string error;
+                RequiredGitConfig.TrySetRequiredSettings(
+                    enlistment,
+                    new Dictionary<string, string> { { "status.deserializePath", "C:/worktree/status.dat" } },
+                    out error).ShouldBeFalse();
 
-            error.ShouldContain("config.worktree");
+                error.ShouldContain("config.worktree");
+            });
         }
 
         private string PrimaryDotGVFSRoot => Path.Combine(this.primaryRoot, GVFSPlatform.Instance.Constants.DotGVFSRoot);

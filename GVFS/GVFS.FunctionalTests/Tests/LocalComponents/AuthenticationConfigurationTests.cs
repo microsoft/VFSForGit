@@ -16,7 +16,6 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     [TestFixture]
-    [NonParallelizable]
     public class AuthenticationConfigurationTests
     {
         private const string Secret = "SecretSentinelNotForTelemetry";
@@ -460,7 +459,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         {
             File.AppendAllText(Path.Combine(this.root, ".git", "config"),
                 "[credential]\nhelper =\ninteractive = never\n");
-            PlumbingGitProcess git = new PlumbingGitProcess(this.GetGitPath(), this.root);
+            PlumbingGitProcess git = new PlumbingGitProcess(this.GetGitPath(), this.root, this.environment);
             MockTracer tracer = new MockTracer();
             Assert.That(git.TryGetCredential(tracer, "https://dev.azure.com/org/repo", out _, out _, out _, timeoutMs: 5000), Is.False);
             Assert.That(git.CollectedEnvironment, Is.SameAs(git.ResultEnvironment));
@@ -490,7 +489,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 { "GIT_TERMINAL_PROMPT", "0" },
                 { "GCM_VALIDATE", "0" },
             };
-            PreCloneGitProcess git = new PreCloneGitProcess(this.GetGitPath(), workingDirectory, environment);
+            PreCloneGitProcess git = new PreCloneGitProcess(this.GetGitPath(), workingDirectory, environment, this.environment);
             MockTracer tracer = new MockTracer();
 
             Assert.That(git.TryGetCredential(tracer, "https://dev.azure.com/org/repo", out _, out _, out _), Is.False);
@@ -526,7 +525,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             Dictionary<string, string> credentialFillEnvironment = null,
             ITracer tracer = null)
         {
-            GitProcess git = new GitProcess(this.GetGitPath(), this.root);
+            GitProcess git = this.environment.CreateGitProcess(this.GetGitPath(), this.root);
             return AuthenticationConfiguration.Collect(url, command =>
             {
                 Process process = git.GetGitProcess(command, this.root, Path.Combine(this.root, ".git"), false, null, false);
@@ -548,12 +547,12 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             Assert.That(EventMetadataConverter.SerializeToString(metadata), Does.Not.Contain(Secret).And.Not.Contain("System.String[]"));
         }
 
-        private sealed class PreCloneGitProcess : GitProcess
+        private sealed class PreCloneGitProcess : IsolatedGitProcess
         {
             private readonly Dictionary<string, string> environment;
 
-            internal PreCloneGitProcess(string gitPath, string root, Dictionary<string, string> environment)
-                : base(gitPath, root)
+            internal PreCloneGitProcess(string gitPath, string root, Dictionary<string, string> environment, IsolatedGitEnvironment isolation)
+                : base(gitPath, root, isolation)
             {
                 this.environment = environment;
             }
@@ -579,10 +578,10 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             }
         }
 
-        private sealed class PlumbingGitProcess : GitProcess
+        private sealed class PlumbingGitProcess : IsolatedGitProcess
         {
-            internal PlumbingGitProcess(string gitPath, string root)
-                : base(gitPath, root)
+            internal PlumbingGitProcess(string gitPath, string root, IsolatedGitEnvironment environment)
+                : base(gitPath, root, environment)
             {
             }
 
