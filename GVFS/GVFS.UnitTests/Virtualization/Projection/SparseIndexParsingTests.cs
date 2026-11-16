@@ -87,7 +87,8 @@ namespace GVFS.UnitTests.Virtualization.Projection
             error.Message.ShouldContain(
                 "sparse-directory entry 'src/'",
                 "1. If the enlistment is mounted, run 'gvfs unmount'.",
-                "2. In the 'src' folder of the enlistment, run '" + DisableSparseIndexCommand + "'.",
+                "2. In the 'src' folder of the enlistment, run '" + DisableSparseIndexCommand + "'. " +
+                "If git reports that --worktree cannot be used with multiple working trees, run 'git -c core.hookspath= config index.sparse false' instead.",
                 "3. In the 'src' folder of the enlistment, run '" + ExpandIndexCommand + "'.",
                 "4. Delete '" + Path.Combine(GVFSPlatform.Instance.Constants.DotGVFSRoot, ProjectionIndexBackupName) + "' in the enlistment root.",
                 "5. Run 'gvfs mount'.");

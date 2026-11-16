@@ -204,7 +204,8 @@ namespace GVFS.Virtualization.Projection
                     "VFS for Git does not support a sparse index (git config index.sparse). " +
                     "To expand the index to the full format, do these steps:" + Environment.NewLine +
                     "1. If the enlistment is mounted, run 'gvfs unmount'." + Environment.NewLine +
-                    $"2. In {workingDirectory}, run 'git -c core.hookspath= config --worktree index.sparse false'." + Environment.NewLine +
+                    $"2. In {workingDirectory}, run 'git -c core.hookspath= config --worktree index.sparse false'. " +
+                    "If git reports that --worktree cannot be used with multiple working trees, run 'git -c core.hookspath= config index.sparse false' instead." + Environment.NewLine +
                     $"3. In {workingDirectory}, run 'git -c core.virtualfilesystem= -c core.hookspath= -c index.sparse=false update-index --force-write-index'." + Environment.NewLine +
                     $"4. Delete {projectionBackup}." + Environment.NewLine +
                     "5. Run 'gvfs mount'.";
