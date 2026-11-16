@@ -215,6 +215,39 @@ namespace GVFS.Common.Git
             return this.libgit2RepoInvoker.TryInvoke(repo => repo.GetConfigString(name), out value);
         }
 
+        /// <summary>
+        /// Reads a boolean git config value through the in-process libgit2 repo (no git.exe spawn).
+        /// </summary>
+        /// <returns>
+        /// The config value, or <paramref name="defaultValue"/> if the setting is unset or no
+        /// libgit2 repo is available.
+        /// </returns>
+        public virtual bool GetConfigBoolOrDefault(string name, bool defaultValue)
+        {
+            if (this.libgit2RepoInvoker == null)
+            {
+                return defaultValue;
+            }
+
+            return this.libgit2RepoInvoker.GetConfigBoolOrDefault(name, defaultValue);
+        }
+
+        /// <summary>
+        /// Reads the entries of a tree object from the local object store. Does not download objects.
+        /// </summary>
+        /// <param name="treeId">The 20-byte object id of the tree</param>
+        /// <param name="visitor">Receives each entry, in tree order. The spans are valid only during the call.</param>
+        public virtual TreeEnumerationResult TryEnumerateTree(byte[] treeId, TreeEntryVisitor visitor)
+        {
+            if (this.libgit2RepoInvoker == null ||
+                !this.libgit2RepoInvoker.TryInvoke(repo => repo.EnumerateTree(treeId, visitor), out TreeEnumerationResult result))
+            {
+                return TreeEnumerationResult.RepositoryUnavailable;
+            }
+
+            return result;
+        }
+
         public void Dispose()
         {
             if (this.libgit2RepoInvoker != null)

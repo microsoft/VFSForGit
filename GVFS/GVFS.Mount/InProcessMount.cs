@@ -1765,6 +1765,11 @@ namespace GVFS.Mount
                 // The message tells the user how to recover. GitIndexProjection already logged the stack trace.
                 this.FailMountAndExit("Error: {0}", e.Message);
             }
+            catch (SparseIndexExpansionException e)
+            {
+                // The message tells the user what to do next. GitIndexProjection already logged the stack trace.
+                this.FailMountAndExit("Error: {0}", e.Message);
+            }
             catch (Exception e)
             {
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());

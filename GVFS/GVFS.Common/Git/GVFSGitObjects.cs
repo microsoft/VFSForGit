@@ -32,6 +32,7 @@ namespace GVFS.Common.Git
             GVFSVerb,
             NamedPipeMessage,
             SymLinkCreation,
+            ProjectionBuild,
         }
 
         /// <summary>
@@ -259,6 +260,12 @@ namespace GVFS.Common.Git
         public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, RequestSource requestSource)
         {
             return this.TryDownloadAndSaveObject(objectId, CancellationToken.None, requestSource, retryOnFailure: true).Result;
+        }
+
+        /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled</exception>
+        public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, CancellationToken cancellationToken, RequestSource requestSource)
+        {
+            return this.TryDownloadAndSaveObject(objectId, cancellationToken, requestSource, retryOnFailure: true).Result;
         }
 
         public bool TryGetBlobSizeLocally(string sha, out long length)

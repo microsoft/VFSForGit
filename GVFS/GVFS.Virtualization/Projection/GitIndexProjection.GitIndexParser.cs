@@ -19,6 +19,7 @@ namespace GVFS.Virtualization.Projection
 
             private const ushort ExtendedBit = 0x4000;
             private const ushort SkipWorktreeBit = 0x4000;
+            private const byte PathSeparatorByte = (byte)'/';
 
             private Stream indexStream;
             private byte[] page;
@@ -50,10 +51,28 @@ namespace GVFS.Virtualization.Projection
                 Theirs = 3
             }
 
-            public static void ValidateIndex(ITracer tracer, Stream indexStream)
+            /// <summary>
+            /// What <see cref="ParseIndex"/> does with a sparse-directory entry of a sparse index.
+            /// </summary>
+            public enum SparseDirectoryHandling
+            {
+                /// <summary>
+                /// Throw <see cref="SparseIndexNotSupportedException"/>. The default, when
+                /// gvfs.auto-sparse-index is false.
+                /// </summary>
+                Reject,
+
+                /// <summary>
+                /// Validate the entry, and give it to the entry action with
+                /// <see cref="GitIndexEntry.IsSparseDirectory"/> set.
+                /// </summary>
+                Accept,
+            }
+
+            public static void ValidateIndex(ITracer tracer, Stream indexStream, SparseDirectoryHandling sparseDirectoryHandling = SparseDirectoryHandling.Reject)
             {
                 GitIndexParser indexParser = new GitIndexParser(null);
-                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, indexParser.resuableProjectionBuildingIndexEntry, ValidateIndexEntry);
+                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, indexParser.resuableProjectionBuildingIndexEntry, sparseDirectoryHandling, ValidateIndexEntry);
 
                 if (result != FileSystemTaskResult.Success)
                 {
@@ -75,6 +94,7 @@ namespace GVFS.Virtualization.Projection
                     tracer,
                     indexStream,
                     indexParser.resuableProjectionBuildingIndexEntry,
+                    SparseDirectoryHandling.Reject,
                     entry =>
                     {
                         // Match the same filter as AddIndexEntryToProjection so the
@@ -117,10 +137,13 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 this.projection.ClearProjectionCaches();
+                this.projection.projectionHasExpandedSparseDirectories = false;
+                this.projection.sparseDirectoryExpander?.StartBuild(this.projection.GetModifiedPathsForExpansion);
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
                     this.resuableProjectionBuildingIndexEntry,
+                    this.projection.ProjectionSparseDirectoryHandling,
                     this.AddIndexEntryToProjection);
 
                 if (result != FileSystemTaskResult.Success)
@@ -128,6 +151,8 @@ namespace GVFS.Virtualization.Projection
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
                     throw new InvalidOperationException($"{nameof(this.RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddIndexEntryToProjection)}");
                 }
+
+                this.projection.projectionHasExpandedSparseDirectories = this.projection.sparseDirectoryExpander?.SparseDirectoryCount > 0;
             }
 
             public FileSystemTaskResult AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
@@ -149,21 +174,34 @@ namespace GVFS.Virtualization.Projection
                         { "FilePlaceholderCount", filePlaceholders.Count }
                     });
 
+                // The tree id of each sparse-directory entry, by the platform-relative folder path
+                Dictionary<string, byte[]> sparseDirectories = new Dictionary<string, byte[]>(GVFSPlatform.Instance.Constants.PathComparer);
+
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
                     this.resuableBackgroundTaskThreadIndexEntry,
-                    (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders));
+                    this.projection.ProjectionSparseDirectoryHandling,
+                    (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders, sparseDirectories));
 
                 if (result != FileSystemTaskResult.Success)
                 {
                     return result;
                 }
 
+                SparseDirectoryTreeLookup treeLookup = sparseDirectories.Count > 0 && this.projection.sparseDirectoryExpander != null
+                    ? new SparseDirectoryTreeLookup(this.projection.sparseDirectoryExpander.TreeReader)
+                    : null;
+
                 // Any paths that were not found in the index need to be added to ModifiedPaths
                 // and removed from the placeholder list
                 foreach (string path in filePlaceholders)
                 {
+                    if (treeLookup != null && this.IsInSparseDirectoryTree(tracer, path, sparseDirectories, treeLookup))
+                    {
+                        continue;
+                    }
+
                     result = this.projection.AddModifiedPath(path);
                     if (result != FileSystemTaskResult.Success)
                     {
@@ -174,6 +212,34 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 return FileSystemTaskResult.Success;
+            }
+
+            /// <summary>
+            /// Replaces control and format characters with \uXXXX escapes, so that a path read from
+            /// the index cannot add lines or terminal escape sequences to a message.
+            /// </summary>
+            internal static string EscapeForDisplay(string value)
+            {
+                StringBuilder escaped = null;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    char c = value[i];
+                    if (char.IsControl(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format)
+                    {
+                        if (escaped == null)
+                        {
+                            escaped = new StringBuilder(value, 0, i, value.Length + 16);
+                        }
+
+                        escaped.Append("\\u").Append(((int)c).ToString("X4"));
+                    }
+                    else
+                    {
+                        escaped?.Append(c);
+                    }
+                }
+
+                return escaped?.ToString() ?? value;
             }
 
             private static FileSystemTaskResult ValidateIndexEntry(GitIndexEntry data)
@@ -211,56 +277,61 @@ namespace GVFS.Virtualization.Projection
             }
 
             /// <summary>
-            /// Replaces control and format characters with \uXXXX escapes, so that a path read from
-            /// the index cannot add lines or terminal escape sequences to a message.
-            /// </summary>
-            private static string EscapeForDisplay(string value)
-            {
-                StringBuilder escaped = null;
-                for (int i = 0; i < value.Length; i++)
-                {
-                    char c = value[i];
-                    if (char.IsControl(c) || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format)
-                    {
-                        if (escaped == null)
-                        {
-                            escaped = new StringBuilder(value, 0, i, value.Length + 16);
-                        }
-
-                        escaped.Append("\\u").Append(((int)c).ToString("X4"));
-                    }
-                    else
-                    {
-                        escaped?.Append(c);
-                    }
-                }
-
-                return escaped?.ToString() ?? value;
-            }
-
-            /// <summary>
-            /// Throws if <paramref name="data"/> is a sparse-directory entry from a sparse index
-            /// (git index.sparse). Such an entry has mode 040000, a tree id, the skip-worktree bit,
-            /// and a path that ends in '/'. It stands in for a collapsed subtree.
+            /// Handles a sparse-directory entry from a sparse index (git index.sparse). Such an entry
+            /// has mode 040000, a tree id, the skip-worktree bit, and a path that ends in '/'. It
+            /// stands in for a collapsed subtree.
             /// </summary>
             /// <remarks>
-            /// ParseIndex calls this for every entry, before the entry callback. A callback that
-            /// received the entry would treat it as a file: the projection would omit every file in
-            /// the collapsed subtree and contain a folder with an empty name, and the placeholder scan
-            /// would treat every placeholder in the subtree as absent from the index. The check uses
-            /// the trailing '/' because ParseIndex reads the mode field only when SupportsFileMode is
-            /// true, and it is false on Windows.
+            /// ParseIndex calls this for every entry, before the entry callback. A callback that does
+            /// not know about sparse-directory entries would treat the entry as a file: the projection
+            /// would omit every file in the collapsed subtree and contain a folder with an empty name,
+            /// and the placeholder scan would treat every placeholder in the subtree as absent from
+            /// the index. Thus <see cref="SparseDirectoryHandling.Reject"/> throws, and
+            /// <see cref="SparseDirectoryHandling.Accept"/> sets <see cref="GitIndexEntry.IsSparseDirectory"/>.
+            /// The check uses the trailing '/' because ParseIndex reads the mode field only when
+            /// SupportsFileMode is true, and it is false on Windows.
             /// </remarks>
-            private void FailIfSparseDirectoryEntry(GitIndexEntry data)
+            private void HandleSparseDirectoryEntry(GitIndexEntry data, SparseDirectoryHandling sparseDirectoryHandling, bool parseMode)
             {
-                if (data.PathEndsInSlash || data.TypeAndMode.Type == FileType.Directory)
+                data.IsSparseDirectory = false;
+                if (!data.PathEndsInSlash && data.TypeAndMode.Type != FileType.Directory)
                 {
-                    string entryPath = Encoding.UTF8.GetString(data.PathBuffer, 0, data.PathLength);
+                    return;
+                }
+
+                string entryPath = Encoding.UTF8.GetString(data.PathBuffer, 0, data.PathLength);
+                if (sparseDirectoryHandling == SparseDirectoryHandling.Reject)
+                {
                     throw new SparseIndexNotSupportedException(GetSparseDirectoryEntryErrorMessage(
                         entryPath,
                         this.projection?.context.Enlistment.WorkingDirectoryRoot,
                         this.projection?.projectionIndexBackupPath));
                 }
+
+                string error = null;
+                if (!data.PathEndsInSlash)
+                {
+                    error = "has the directory mode, but its path does not end in '/'";
+                }
+                else if (parseMode && data.TypeAndMode.Type != FileType.Directory)
+                {
+                    error = "has a path that ends in '/', but it does not have the directory mode";
+                }
+                else if (data.PathLength < 2 || data.PathBuffer[0] == PathSeparatorByte || entryPath.Contains("//", StringComparison.Ordinal))
+                {
+                    error = "has an empty path component";
+                }
+                else if (data.MergeState != MergeStage.NoConflicts)
+                {
+                    error = "has a merge stage";
+                }
+
+                if (error != null)
+                {
+                    throw new InvalidDataException($"The sparse-directory entry '{EscapeForDisplay(entryPath)}' in the index {error}");
+                }
+
+                data.IsSparseDirectory = true;
             }
 
             private FileSystemTaskResult AddIndexEntryToProjection(GitIndexEntry data)
@@ -268,8 +339,15 @@ namespace GVFS.Virtualization.Projection
                 // Never want to project the common ancestor even if the skip worktree bit is on
                 if ((data.MergeState != MergeStage.CommonAncestor && data.SkipWorktree) || data.MergeState == MergeStage.Yours)
                 {
-                    data.BuildingProjection_ParsePath();
-                    this.projection.AddItemFromIndexEntry(data);
+                    if (data.IsSparseDirectory)
+                    {
+                        this.projection.AddSparseDirectoryEntry(data);
+                    }
+                    else
+                    {
+                        data.BuildingProjection_ParsePath();
+                        this.projection.AddItemFromIndexEntry(data);
+                    }
                 }
                 else
                 {
@@ -289,14 +367,39 @@ namespace GVFS.Virtualization.Projection
             /// AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded is called for all entries in the index
             /// filePlaceholders will contain only those placeholders that are not in the index.
             /// </param>
+            /// <param name="sparseDirectories">
+            /// Receives the tree id of each sparse-directory entry that has the skip-worktree bit, by
+            /// the platform-relative folder path. Git sets the bit on every entry of a collapsed
+            /// folder, so a placeholder for a file in the tree of the entry is in the index with the bit.
+            /// </param>
             private FileSystemTaskResult AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(
                 GitIndexEntry gitIndexEntry,
-                HashSet<string> filePlaceholders)
+                HashSet<string> filePlaceholders,
+                Dictionary<string, byte[]> sparseDirectories)
             {
                 gitIndexEntry.BackgroundTask_ParsePath();
                 string placeholderRelativePath = gitIndexEntry.BackgroundTask_GetPlatformRelativePath();
 
                 FileSystemTaskResult result = FileSystemTaskResult.Success;
+
+                if (gitIndexEntry.IsSparseDirectory)
+                {
+                    string folderRelativePath = placeholderRelativePath.TrimEnd(GVFSPlatform.GVFSPlatformConstants.PathSeparator);
+                    if (gitIndexEntry.SkipWorktree)
+                    {
+                        sparseDirectories[folderRelativePath] = (byte[])gitIndexEntry.Sha.Clone();
+                    }
+                    else
+                    {
+                        // Git cleared the skip-worktree bit of the collapsed folder, as it does for each
+                        // entry under a modified folder. The folder path covers every file under it. The
+                        // placeholders under the folder stay in filePlaceholders, so the caller removes
+                        // them from the placeholder list, as it does for a file that is not in the index.
+                        result = this.projection.AddModifiedPath(folderRelativePath, isFolder: true);
+                    }
+
+                    return result;
+                }
 
                 if (!gitIndexEntry.SkipWorktree)
                 {
@@ -324,6 +427,44 @@ namespace GVFS.Virtualization.Projection
             }
 
             /// <summary>
+            /// True if <paramref name="placeholderPath"/> is under a sparse-directory entry, and the
+            /// file is in the tree of that entry. Such a file is in the index with the skip-worktree bit.
+            /// </summary>
+            /// <remarks>
+            /// If a tree cannot be read, this returns false, so the caller treats the placeholder as
+            /// a file that is not in the index: GVFS keeps the file and adds it to the modified paths.
+            /// </remarks>
+            private bool IsInSparseDirectoryTree(
+                ITracer tracer,
+                string placeholderPath,
+                Dictionary<string, byte[]> sparseDirectories,
+                SparseDirectoryTreeLookup treeLookup)
+            {
+                char separator = GVFSPlatform.GVFSPlatformConstants.PathSeparator;
+                for (int separatorIndex = placeholderPath.IndexOf(separator);
+                    separatorIndex > 0;
+                    separatorIndex = placeholderPath.IndexOf(separator, separatorIndex + 1))
+                {
+                    if (sparseDirectories.TryGetValue(placeholderPath.Substring(0, separatorIndex), out byte[] treeId))
+                    {
+                        string[] relativePathParts = placeholderPath.Substring(separatorIndex + 1).Split(separator);
+                        SparseDirectoryFileLookupResult lookupResult = treeLookup.FindFile(treeId, relativePathParts);
+                        if (lookupResult == SparseDirectoryFileLookupResult.TreeUnreadable)
+                        {
+                            EventMetadata metadata = CreateEventMetadata();
+                            metadata.Add("PlaceholderPath", placeholderPath);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "Cannot read a tree of a sparse directory. The placeholder is treated as a file that is not in the index.");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.IsInSparseDirectoryTree)}: Tree unreadable");
+                        }
+
+                        return lookupResult == SparseDirectoryFileLookupResult.Found;
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>
             /// Takes an action on a GitIndexEntry using the index in indexStream
             /// </summary>
             /// <param name="indexStream">Stream for reading a git index file</param>
@@ -334,13 +475,14 @@ namespace GVFS.Virtualization.Projection
             /// <remarks>
             /// Only the AddToModifiedFiles method because it updates the modified paths file can result
             /// in TryIndexAction returning a FileSystemTaskResult other than Success.  All other actions result in success (or an exception in the
-            /// case of a corrupt index). ParseIndex throws SparseIndexNotSupportedException for a sparse
-            /// index, before any action receives a sparse-directory entry.
+            /// case of a corrupt index). See <see cref="HandleSparseDirectoryEntry"/> for the
+            /// sparse-directory entries of a sparse index.
             /// </remarks>
             private FileSystemTaskResult ParseIndex(
                 ITracer tracer,
                 Stream indexStream,
                 GitIndexEntry resuableParsedIndexEntry,
+                SparseDirectoryHandling sparseDirectoryHandling,
                 Func<GitIndexEntry, FileSystemTaskResult> entryAction)
             {
                 this.indexStream = indexStream;
@@ -384,7 +526,7 @@ namespace GVFS.Virtualization.Projection
 
                         // 4-bit object type
                         //     valid values in binary are 1000(regular file), 1010(symbolic link) and 1110(gitlink)
-                        //     0100(directory) is a sparse-directory entry, which FailIfSparseDirectoryEntry rejects
+                        //     0100(directory) is a sparse-directory entry, which HandleSparseDirectoryEntry handles
                         // 3-bit unused
                         // 9-bit unix permission. Only 0755 and 0644 are valid for regular files. (Legacy repos can also contain 664)
                         //     Symbolic links and gitlinks have value 0 in this field.
@@ -414,8 +556,8 @@ namespace GVFS.Virtualization.Projection
                                 break;
 
                             case FileType.Directory:
-                                // A sparse-directory entry. FailIfSparseDirectoryEntry rejects it
-                                // with an actionable message after the parser reads its path.
+                                // A sparse-directory entry. HandleSparseDirectoryEntry handles it
+                                // after the parser reads its path.
                                 if (typeAndMode.Mode != 0)
                                 {
                                     throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for sparse directory in index");
@@ -461,7 +603,7 @@ namespace GVFS.Virtualization.Projection
                     this.ReadPath(resuableParsedIndexEntry, resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
                     previousPathLength = resuableParsedIndexEntry.PathLength;
 
-                    this.FailIfSparseDirectoryEntry(resuableParsedIndexEntry);
+                    this.HandleSparseDirectoryEntry(resuableParsedIndexEntry, sparseDirectoryHandling, parseMode);
 
                     result = entryAction.Invoke(resuableParsedIndexEntry);
                     if (result != FileSystemTaskResult.Success)

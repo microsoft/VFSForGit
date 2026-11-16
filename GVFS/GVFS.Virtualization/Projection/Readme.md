@@ -146,6 +146,19 @@ Class used to store the data from the index about a single entry.  There is only
 
 Class that is responsible for parsing the git index based of version 4.  Please see [`index-format.txt`](https://github.com/microsoft/git/blob/f5992bb185757a1654ce31424611b4d05bda3400/Documentation/technical/index-format.txt) for detailed information of this format.  This is used to both validate the index and build the projection.  It currently ignores all index extensions and is only for getting the paths and building the tree using the `FolderData` and `FileData` classes. The index is read in chunks of 512K which gave the best performance.
 
+### `SparseDirectoryExpander`
+
+A sparse index (git `index.sparse`) stores a folder outside the sparse-checkout cone as one sparse-directory entry. The entry has mode `040000`, a path that ends in `/`, and the id of the tree of the folder. By default (`gvfs.auto-sparse-index` is false), `GitIndexParser` rejects a sparse index. When `gvfs.auto-sparse-index` is true, `SparseDirectoryExpander` reads the tree behind each sparse-directory entry through libgit2, and adds every file under it to the projection. The projection is then the same as the projection of the full index:
+
+- Folders and files are added in index order, so folder names that differ only in case merge as they do for a full index.
+- A folder is added only when a file is added under it. A full index has no entry for an empty tree.
+- A file is not added if the file, or a folder above it, is in the modified paths. For a full index, git clears the skip-worktree bit of those entries, and the projection does not contain them.
+- If a tree is not in the local object store, the expander downloads it once. If the tree is still missing, is not a tree, or cannot be read, or if an entry cannot be in a full index, the projection build fails with `SparseIndexExpansionException`. The mount never serves a projection with missing files.
+
+The background placeholder scan treats a placeholder under a sparse-directory entry as an index entry only if the file is in the tree of that entry.
+
+The expansion reads every tree under every sparse-directory entry on each projection build.
+
 ## Other classes
 
 ### `ProjectedFileInfo`

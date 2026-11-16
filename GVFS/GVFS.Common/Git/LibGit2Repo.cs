@@ -28,6 +28,8 @@ namespace GVFS.Common.Git
     /// </remarks>
     public class LibGit2Repo : IDisposable
     {
+        private const int GitOidLength = 20;
+
         // git.exe reads config from these variables, or uses them to select config files.
         // libgit2 does not.
         //
@@ -330,6 +332,80 @@ namespace GVFS.Common.Git
             }
 
             return missingSubtreesList.ToArray();
+        }
+
+        /// <summary>
+        /// Reads the entries of a tree object from the local object store, and calls
+        /// <paramref name="visitor"/> once for each entry, in tree order. Does not download objects.
+        /// </summary>
+        /// <param name="treeId">The 20-byte object id of the tree</param>
+        /// <param name="visitor">Receives each entry. The spans are valid only during the call.</param>
+        public virtual unsafe TreeEnumerationResult EnumerateTree(byte[] treeId, TreeEntryVisitor visitor)
+        {
+            if (treeId == null || treeId.Length != GitOidLength)
+            {
+                throw new ArgumentException($"A tree id must have {GitOidLength} bytes", nameof(treeId));
+            }
+
+            GitOid oid = new GitOid { Id = treeId };
+            Native.ResultCode lookupResult = Native.Object.Lookup(out IntPtr treeHandle, this.RepoHandle, ref oid, Native.Object.AnyType);
+            if (lookupResult == Native.ResultCode.NotFound)
+            {
+                return TreeEnumerationResult.MissingTree;
+            }
+
+            if (lookupResult != Native.ResultCode.Success || treeHandle == IntPtr.Zero)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("TreeSha", oid.ToString());
+                metadata.Add("ResultCode", (int)lookupResult);
+                metadata.Add("NativeError", this.GetLastNativeError());
+                this.Tracer?.RelatedWarning(metadata, $"{nameof(this.EnumerateTree)}: git_object_lookup failed");
+                return TreeEnumerationResult.CorruptTree;
+            }
+
+            try
+            {
+                if (Native.Object.GetType(treeHandle) != Native.ObjectTypes.Tree)
+                {
+                    return TreeEnumerationResult.NotTree;
+                }
+
+                uint entryCount = Native.Tree.GetEntryCount(treeHandle);
+                for (uint i = 0; i < entryCount; i++)
+                {
+                    // The entry, its name, and its id belong to the tree. Do not free them.
+                    IntPtr entryHandle = Native.Tree.GetEntryByIndex(treeHandle, i);
+                    if (entryHandle == IntPtr.Zero)
+                    {
+                        return TreeEnumerationResult.CorruptTree;
+                    }
+
+                    byte* name = Native.Tree.GetEntryName(entryHandle);
+                    IntPtr entryId = Native.Tree.GetEntryId(entryHandle);
+                    if (name == null || entryId == IntPtr.Zero)
+                    {
+                        return TreeEnumerationResult.CorruptTree;
+                    }
+
+                    int nameLength = 0;
+                    while (name[nameLength] != 0)
+                    {
+                        nameLength++;
+                    }
+
+                    visitor(
+                        new ReadOnlySpan<byte>(name, nameLength),
+                        new ReadOnlySpan<byte>((byte*)entryId, GitOidLength),
+                        Native.Tree.GetEntryFileMode(entryHandle));
+                }
+            }
+            finally
+            {
+                Native.Object.Free(treeHandle);
+            }
+
+            return TreeEnumerationResult.Success;
         }
 
         /// <summary>
@@ -1177,6 +1253,12 @@ namespace GVFS.Common.Git
 
             public static class Object
             {
+                // GIT_OBJECT_ANY: git_object_lookup returns an object of any type.
+                public const int AnyType = -2;
+
+                [DllImport(Git2NativeLibName, EntryPoint = "git_object_lookup")]
+                public static extern ResultCode Lookup(out IntPtr objectHandle, IntPtr repoHandle, ref GitOid id, int type);
+
                 [DllImport(Git2NativeLibName, EntryPoint = "git_object_type")]
                 public static extern ObjectTypes GetType(IntPtr objectHandle);
 
@@ -1211,6 +1293,11 @@ namespace GVFS.Common.Git
 
                 [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_id")]
                 public static extern IntPtr GetEntryId(IntPtr entryHandle);
+
+                // Returns a borrowed, NUL-terminated UTF-8 name that the tree owns. It is read as raw
+                // bytes, so the marshaller does not copy or free it.
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_entry_name")]
+                public static unsafe extern byte* GetEntryName(IntPtr entryHandle);
 
                 /* git_tree_entry_type requires the object to exist, so we can't use it to check if
                  * a missing entry is a tree. Instead, we can use the file mode to determine if it is a tree. */

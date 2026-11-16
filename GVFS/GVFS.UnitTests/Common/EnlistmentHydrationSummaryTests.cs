@@ -232,6 +232,19 @@ namespace GVFS.UnitTests.Common
             Assert.IsNull(result.Error);
         }
 
+        [TestCase(42, 42)]
+        [TestCase(-1, 100)]
+        public void ProjectedFileCountReplacesTheIndexEntryCount(int projectedFileCount, int expectedTotalFileCount)
+        {
+            // The index header of a sparse index counts each collapsed folder as one entry.
+            // The projection provides the file count then, and -1 for a full index.
+            this.AddIndex(100);
+            EnlistmentHydrationSummary summary = EnlistmentHydrationSummary.CreateSummary(
+                this.context.Enlistment, this.fileSystem, this.tracer, () => 20, new TestPathData(), projectedFileCountProvider: () => projectedFileCount);
+
+            Assert.AreEqual(expectedTotalFileCount, summary.TotalFileCount);
+        }
+
         [TestCase(100, 20, "None")]
         [TestCase(100, 1, "HydratedFoldersExceedTotal")]
         [TestCase(4, 1, "HydratedFilesExceedTotal, HydratedFoldersExceedTotal")]

@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Projection;
 using System;
@@ -112,6 +113,11 @@ namespace GVFS.RepairJobs
         protected IssueType TryParseIndex(string path, List<string> messages)
         {
             GVFSContext context = new GVFSContext(this.Tracer, null, null, this.Enlistment);
+            bool sparseIndexEnabled = LibGit2Repo.GetConfigBoolOrDefault(
+                this.Tracer,
+                this.Enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.AutoSparseIndex,
+                GVFSConstants.GitConfig.AutoSparseIndexDefault);
 
             using (GitIndexProjection index = new GitIndexProjection(
                 context,
@@ -125,7 +131,9 @@ namespace GVFS.RepairJobs
             {
                 try
                 {
-                    index.BuildProjectionFromPath(this.Tracer, path);
+                    // When sparse-index support is on, a sparse-directory entry is valid. Repair
+                    // checks the entry, but it does not read the trees under it.
+                    index.BuildProjectionFromPath(this.Tracer, path, acceptSparseDirectories: sparseIndexEnabled);
                 }
                 catch (SparseIndexNotSupportedException ex)
                 {
