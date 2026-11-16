@@ -40,10 +40,13 @@ namespace GVFS.PerfProfiling
             }
 
             ProfilingEnvironment environment = new ProfilingEnvironment(enlistmentRootPath);
+            bool sparseIndexEnabled = environment.Context.Repository.GetConfigBoolOrDefault(
+                GVFSConstants.GitConfig.AutoSparseIndex,
+                GVFSConstants.GitConfig.AutoSparseIndexDefault);
 
             Dictionary<TestsToRun, Action> allTests = new Dictionary<TestsToRun, Action>
             {
-                { TestsToRun.ValidateIndex, () => GitIndexProjection.ReadIndex(environment.Context.Tracer, Path.Combine(environment.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index)) },
+                { TestsToRun.ValidateIndex, () => GitIndexProjection.ReadIndex(environment.Context.Tracer, Path.Combine(environment.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index), acceptSparseDirectories: sparseIndexEnabled) },
                 { TestsToRun.RebuildProjection, () => environment.FileSystemCallbacks.GitIndexProjectionProfiler.ForceRebuildProjection() },
                 { TestsToRun.ValidateModifiedPaths, () => environment.FileSystemCallbacks.GitIndexProjectionProfiler.ForceAddMissingModifiedPaths(environment.Context.Tracer) },
             };

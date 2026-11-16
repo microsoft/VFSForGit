@@ -58,6 +58,7 @@ namespace GVFS.Common
         private readonly Lock hydrationStatisticsLock = new Lock();
 
         private Func<int> projectedFolderCountProvider;
+        private Func<int> projectedFileCountProvider;
         private Func<IEnumerable<string>> modifiedPathsProvider;
 
         private volatile CacheState cacheState = CacheState.Dirty;
@@ -97,6 +98,15 @@ namespace GVFS.Common
         public void SetProjectedFolderCountProvider(Func<int> provider)
         {
             this.projectedFolderCountProvider = provider;
+        }
+
+        /// <summary>
+        /// Sets the provider of the projected file count for the hydration summary. The provider
+        /// returns -1 when the index entry count is the file count (a full index).
+        /// </summary>
+        public void SetProjectedFileCountProvider(Func<int> provider)
+        {
+            this.projectedFileCountProvider = provider;
         }
 
         public void SetModifiedPathsProvider(Func<IEnumerable<string>> provider)
@@ -566,7 +576,8 @@ namespace GVFS.Common
         internal virtual EnlistmentHydrationSummary CreateHydrationSummary(HydrationSummaryDiagnostics diagnostics)
         {
             return EnlistmentHydrationSummary.CreateSummary(this.context.Enlistment, this.context.FileSystem, this.context.Tracer,
-                this.projectedFolderCountProvider, new EnlistmentPathData(this.modifiedPathsProvider), this.shutdownTokenSource.Token, diagnostics);
+                this.projectedFolderCountProvider, new EnlistmentPathData(this.modifiedPathsProvider), this.shutdownTokenSource.Token, diagnostics,
+                this.projectedFileCountProvider);
         }
 
         private void RecordHydrationSkip(NamedPipeMessages.HydrationStatus.CacheState state)

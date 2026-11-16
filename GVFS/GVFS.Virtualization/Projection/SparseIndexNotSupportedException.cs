@@ -3,7 +3,8 @@ using System;
 namespace GVFS.Virtualization.Projection
 {
     /// <summary>
-    /// The git index is a sparse index (git index.sparse), and the projection cannot use it.
+    /// The git index is a sparse index (git index.sparse), and sparse-index support
+    /// (gvfs.auto-sparse-index) is off, so the projection cannot use the index.
     /// The message tells the user how to expand the index.
     /// </summary>
     /// <remarks>

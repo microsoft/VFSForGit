@@ -103,6 +103,13 @@ namespace GVFS.Common
 
             public const string PrefetchOffload = GVFSPrefix + "prefetch-offload";
             public const bool PrefetchOffloadDefault = false;
+
+            /* Gates sparse-index support (git index.sparse). When true, the projection expands each
+             * sparse-directory entry from its tree, so the working directory stays full. When false
+             * (default), the projection rejects a sparse index. The mount reads it when it starts,
+             * and 'gvfs repair' reads it when it checks the index. */
+            public const string AutoSparseIndex = GVFSPrefix + "auto-sparse-index";
+            public const bool AutoSparseIndexDefault = false;
         }
 
         public static class LocalGVFSConfig
