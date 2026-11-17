@@ -3,6 +3,7 @@ using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.BlobSize;
@@ -46,6 +47,9 @@ namespace GVFS.Virtualization
 
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
+
+        // Receives the working-tree changes, or null. See SetWorkingDirectoryChangeObserver.
+        private IWorkingDirectoryChangeObserver workingDirectoryChangeObserver;
 
         public FileSystemCallbacks(
             GVFSContext context,
@@ -721,25 +725,48 @@ namespace GVFS.Virtualization
             this.InvalidateGitStatusCache();
         }
 
+        /// <summary>
+        /// Set the receiver of working-tree changes, or null to stop the notifications. The
+        /// receiver runs in file system callbacks.
+        /// </summary>
+        public void SetWorkingDirectoryChangeObserver(IWorkingDirectoryChangeObserver observer)
+        {
+            Volatile.Write(ref this.workingDirectoryChangeObserver, observer);
+        }
+
+        /// <summary>
+        /// A handle to a file that was written was closed. This happens for every change, also
+        /// for a file that already is a full file.
+        /// </summary>
+        public void OnFileModified(string relativePath)
+        {
+            this.InvalidateGitStatusCache();
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
+        }
+
         public void OnFileCreated(string relativePath)
         {
             this.AddToNewlyCreatedList(relativePath, isFolder: false);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileCreated(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
         }
 
         public void OnFileOverwritten(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileOverwritten(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
         }
 
         public void OnFileSuperseded(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileSuperseded(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
         }
 
         public void OnFileConvertedToFull(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileConvertedToFull(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
         }
 
         public void OnFailedFileHydration(string relativePath)
@@ -750,21 +777,26 @@ namespace GVFS.Virtualization
         public virtual void OnFileRenamed(string oldRelativePath, string newRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
+            this.NotifyWorkingDirectoryChange(oldRelativePath, isFolder: false);
+            this.NotifyWorkingDirectoryChange(newRelativePath, isFolder: false);
         }
 
         public virtual void OnFileHardLinkCreated(string newLinkRelativePath, string existingRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath, existingRelativePath));
+            this.NotifyWorkingDirectoryChange(newLinkRelativePath, isFolder: false);
         }
 
         public virtual void OnFileSymLinkCreated(string newLinkRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileSymLinkCreated(newLinkRelativePath));
+            this.NotifyWorkingDirectoryChange(newLinkRelativePath, isFolder: false);
         }
 
         public void OnFileDeleted(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileDeleted(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: false);
         }
 
         public void OnFilePreDelete(string relativePath)
@@ -795,16 +827,20 @@ namespace GVFS.Virtualization
 
             this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: true);
         }
 
         public virtual void OnFolderRenamed(string oldRelativePath, string newRelativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderRenamed(oldRelativePath, newRelativePath));
+            this.NotifyWorkingDirectoryChange(oldRelativePath, isFolder: true);
+            this.NotifyWorkingDirectoryChange(newRelativePath, isFolder: true);
         }
 
         public void OnFolderDeleted(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
+            this.NotifyWorkingDirectoryChange(relativePath, isFolder: true);
         }
 
         public void OnPossibleTombstoneFolderCreated(string relativePath)
@@ -815,6 +851,15 @@ namespace GVFS.Virtualization
         public void OnFolderPreDelete(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderPreDelete(relativePath));
+        }
+
+        private void NotifyWorkingDirectoryChange(string relativePath, bool isFolder)
+        {
+            IWorkingDirectoryChangeObserver observer = Volatile.Read(ref this.workingDirectoryChangeObserver);
+            if (observer != null && !string.IsNullOrEmpty(relativePath) && !IsPathInsideDotGit(relativePath))
+            {
+                observer.OnWorkingDirectoryPathChanged(relativePath, isFolder);
+            }
         }
 
         public void OnPlaceholderFileCreated(string relativePath, string sha, string triggeringProcessImageFileName)

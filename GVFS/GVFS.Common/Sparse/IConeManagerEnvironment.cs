@@ -46,5 +46,35 @@ namespace GVFS.Common.Sparse
 
         /// <summary>Read the start time of a process, to tell it apart from a later process with the same id.</summary>
         ProcessStartTimeResult TryGetProcessStartTime(int processId, out long startTime);
+
+        /// <summary>
+        /// True when Git changes only the index when the cone changes, and never writes or deletes
+        /// a working-tree file. Then a widen can expand the directory of a deleted file, and the
+        /// manager does not need <see cref="TryGetSparseDirectories"/>.
+        /// </summary>
+        bool SparsityChangeIsIndexOnly { get; }
+
+        /// <summary>
+        /// Create (<paramref name="pending"/> true) or delete the file that tells the pre-command
+        /// hook that a cone change is pending (see <see cref="GVFSConstants.DotGVFS.ConeChangePending"/>).
+        /// This runs in file system callbacks, so it must be fast and must not throw.
+        /// </summary>
+        bool TrySetConeChangePending(bool pending, out Exception error);
+
+        /// <summary>
+        /// Get the paths that differ between HEAD and the index or the working tree, as Git
+        /// reports them. Git compares the content of a file whose stat data changed, and it
+        /// does not write the index.
+        /// </summary>
+        bool TryGetPathsThatDifferFromHead(out ICollection<string> paths, out string error);
+
+        /// <summary>Return true when the index has an entry for the file <paramref name="gitPath"/>.</summary>
+        bool IsTracked(string gitPath);
+
+        /// <summary>
+        /// Return a value that changes when Git writes the index or moves HEAD, so that the
+        /// manager can skip a check when nothing changed.
+        /// </summary>
+        long GetRepositoryStamp();
     }
 }

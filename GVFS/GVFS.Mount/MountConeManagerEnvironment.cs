@@ -14,9 +14,19 @@ namespace GVFS.Mount
     /// </summary>
     internal class MountConeManagerEnvironment : IConeManagerEnvironment
     {
+        /// <summary>
+        /// The <c>git version --build-options</c> line of a Git that changes only the index when
+        /// the sparse-checkout cone changes under a virtual file system.
+        /// </summary>
+        internal const string IndexOnlySparsityFeature = "feature: vfs-sparse-index-sparsity-index-only";
+
+        // The background check stops Git after this long. The cone then keeps the files.
+        private const int ListPathsTimeoutMs = 2 * 60 * 1000;
+
         private readonly GVFSContext context;
         private readonly FileSystemCallbacks fileSystemCallbacks;
         private readonly string coneFileLockPath;
+        private readonly string pendingFilePath;
 
         public MountConeManagerEnvironment(GVFSContext context, FileSystemCallbacks fileSystemCallbacks, string sparseCheckoutPath)
         {
@@ -27,6 +37,16 @@ namespace GVFS.Mount
             this.context = context;
             this.fileSystemCallbacks = fileSystemCallbacks;
             this.coneFileLockPath = sparseCheckoutPath + GVFSConstants.DotGit.LockExtension;
+            this.pendingFilePath = GetPendingFilePath(context.Enlistment);
+            this.SparsityChangeIsIndexOnly = HasBuildOption(context.Enlistment, IndexOnlySparsityFeature);
+        }
+
+        public bool SparsityChangeIsIndexOnly { get; }
+
+        /// <summary>The path of the file that tells the hooks that a cone change is pending.</summary>
+        public static string GetPendingFilePath(GVFSEnlistment enlistment)
+        {
+            return Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.ConeChangePending);
         }
 
         public IEnumerable<string> GetModifiedPaths()
@@ -115,6 +135,77 @@ namespace GVFS.Mount
         public ProcessStartTimeResult TryGetProcessStartTime(int processId, out long startTime)
         {
             return GVFSPlatform.Instance.TryGetActiveProcessStartTime(processId, out startTime);
+        }
+
+        public bool TrySetConeChangePending(bool pending, out Exception error)
+        {
+            error = null;
+            try
+            {
+                if (pending)
+                {
+                    // The hook only checks that the file exists.
+                    using (new FileStream(this.pendingFilePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+                    {
+                    }
+                }
+                else
+                {
+                    File.Delete(this.pendingFilePath);
+                }
+
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                error = e;
+                return false;
+            }
+        }
+
+        public bool TryGetPathsThatDifferFromHead(out ICollection<string> paths, out string error)
+        {
+            List<string> differing = new List<string>();
+            GitProcess.Result result = new GitProcess(this.context.Enlistment).ListPathsThatDifferFromHead(differing.Add, ListPathsTimeoutMs);
+            if (result.ExitCodeIsFailure)
+            {
+                paths = null;
+                error = result.Errors;
+                return false;
+            }
+
+            paths = differing;
+            error = null;
+            return true;
+        }
+
+        public bool IsTracked(string gitPath)
+        {
+            string virtualPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            return this.fileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out _, out bool isFolder) && !isFolder;
+        }
+
+        public long GetRepositoryStamp()
+        {
+            try
+            {
+                // "git reset --soft" moves HEAD without a write to the index, but Git logs the
+                // move in the HEAD reflog.
+                long index = File.GetLastWriteTimeUtc(this.context.Enlistment.GitIndexPath).Ticks;
+                long headLog = File.GetLastWriteTimeUtc(this.context.Enlistment.GitHeadLogPath).Ticks;
+                return unchecked((index * 31) + headLog);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                // Unknown: the manager checks again.
+                return DateTime.UtcNow.Ticks;
+            }
+        }
+
+        private static bool HasBuildOption(GVFSEnlistment enlistment, string option)
+        {
+            GitProcess.Result result = new GitProcess(enlistment).VersionBuildOptions();
+            return !result.ExitCodeIsFailure && GitProcess.HasBuildOption(result.Output, option);
         }
     }
 }

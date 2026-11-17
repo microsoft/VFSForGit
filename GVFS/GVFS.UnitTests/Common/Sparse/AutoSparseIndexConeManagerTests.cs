@@ -45,7 +45,13 @@ namespace GVFS.UnitTests.Common.Sparse
             this.environment = new MockEnvironment(this.fileSystem);
             this.environment.RunningProcesses[FirstGit] = 1;
             this.environment.RunningProcesses[SecondGit] = 2;
-            this.manager = new AutoSparseIndexConeManager(this.tracer, this.fileSystem, SparseCheckoutPath, ignoreCase: false, this.environment);
+            this.manager = this.CreateManager(ignoreCase: false, changeCheckDelayMs: Timeout.Infinite);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            this.manager.Stop();
         }
 
         [TestCase]
@@ -594,7 +600,410 @@ namespace GVFS.UnitTests.Common.Sparse
                 .ShouldEqual(NamedPipeMessages.ConeManagement.FailureResult);
         }
 
+        [TestCase]
+        public void StartMakesTheFirstCommandApplyTheConeOfTheModifiedPaths()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+
+            this.manager.Start();
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+            this.environment.ConeFilesAtApply.ShouldMatchInOrder(ConeWithC);
+            this.environment.IsPending.ShouldBeFalse();
+            this.LastEvent("ConeApply").Level.ShouldEqual(EventLevel.Informational);
+        }
+
+        [TestCase]
+        public void ChangeOutsideTheAppliedConeIsPendingUntilTheNextApply()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.IsPending.ShouldBeFalse();
+
+            // The callback runs before the mount adds the path to the modified paths.
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+            this.environment.ConeFilesAtApply.Last().ShouldEqual(ConeWithC);
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ChangeInsideTheAppliedConeIsNotPending()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.OnWorkingDirectoryPathChanged(@"C\other.txt", isFolder: false);
+            this.manager.OnWorkingDirectoryPathChanged("root.txt", isFolder: false);
+
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void FolderChangeIsPendingUntilTheConeIncludesItsWholeSubtree()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.OnWorkingDirectoryPathChanged(@"C\new", isFolder: true);
+            this.environment.ModifiedPaths.Add("C/new/");
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC + "/C/new/\n");
+        }
+
+        [TestCase]
+        public void WidenAlsoAppliesThePendingChanges()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.environment.ModifiedPaths.Add("C/c.txt");
+
+            this.Widen(FirstGit, "A/B/b.txt").ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header + "/A/\n!/A/*/\n/A/B/\n!/A/B/*/\n/C/\n!/C/*/\n");
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ApplyForACommandThatDoesNotHoldTheGVFSLockKeepsTheChangePending()
+        {
+            this.manager.Start();
+            this.environment.LockHolder = SecondGit;
+
+            this.Apply(FirstGit).ShouldBeFalse();
+
+            this.environment.IsPending.ShouldBeTrue();
+            this.environment.ConeFilesAtApply.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void FailedApplyKeepsTheChangePendingUntilAnApplySucceeds()
+        {
+            this.manager.Start();
+            this.environment.ApplyExitCode = 1;
+
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                this.Apply(FirstGit).ShouldBeFalse();
+                this.environment.IsPending.ShouldBeTrue("Git has no fallback for a change that the index does not show");
+            }
+
+            this.environment.ApplyExitCode = 0;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ApplyIncludesAChangeBeforeTheModifiedPathsHaveIt()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            // The background task that adds the modified path waits while Git holds the lock.
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC);
+
+            // The cone keeps the path until the modified paths have it.
+            this.Widen(SecondGit, "A/B/b.txt").ShouldBeTrue();
+            this.Narrow(SecondGit).ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC);
+
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.DifferingPaths.Add("C/c.txt");
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void ChangedPathThatIsNotAModifiedPathLeavesTheConeWhenItIsClean()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            // For example, Git wrote the file with the content of HEAD.
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC);
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header);
+        }
+
+        [TestCase]
+        public void PendingFileThatCannotBeDeletedIsDeletedByTheNextApply()
+        {
+            this.manager.Start();
+            this.environment.PendingFileDeleteFails = true;
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.environment.PendingFileDeleteFails = false;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void PendingFileThatCannotBeCreatedIsCreatedByTheNextChange()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.PendingFileFails = true;
+
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.environment.IsPending.ShouldBeFalse();
+
+            this.environment.PendingFileFails = false;
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.environment.IsPending.ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void ReconcileRemovesAModifiedFileThatMatchesHeadWithoutRunningGitToApply()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header);
+            this.environment.DiffCount.ShouldEqual(1);
+            this.environment.ConeFilesAtApply.Count.ShouldEqual(1, "Only Git can apply a cone");
+            this.environment.IsPending.ShouldBeFalse();
+            // The root file .gitattributes is clean too.
+            this.LastEvent("ConeReconcile").Metadata["NewlyCleanCount"].ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void ReconcileKeepsFilesThatDifferFromHead()
+        {
+            // C differs, D is untracked, E is a deleted tracked file, and F was created and
+            // deleted again.
+            this.environment.ModifiedPaths.AddRange(new[] { "C/c.txt", "D/d.txt", "E/e.txt", "F/f.txt" });
+            this.environment.DifferingPaths.Add("C/c.txt");
+            this.environment.UntrackedFiles.Add("D/d.txt");
+            this.environment.DeletedFiles.Add("E/e.txt");
+            this.environment.DeletedFiles.Add("F/f.txt");
+            this.environment.UntrackedFiles.Add("F/f.txt");
+            this.environment.SparsityChangeIsIndexOnly = true;
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header + "/C/\n!/C/*/\n/D/\n!/D/*/\n/E/\n!/E/*/\n");
+        }
+
+        [TestCase]
+        public void ReconcileUsesTheRepositoryCaseRule()
+        {
+            this.manager = this.CreateManager(ignoreCase: true, changeCheckDelayMs: Timeout.Infinite);
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.DifferingPaths.Add("c/C.TXT");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void CleanFileThatChangesAgainIsPendingAndTheApplyWidensTheCone()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.ConeFile.ShouldEqual(Header);
+
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.environment.IsPending.ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+            this.environment.ConeFilesAtApply.Last().ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void CleanFileThatDiffersAfterAHeadChangeIsPending()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.ConeFile.ShouldEqual(Header);
+
+            // For example "git reset --soft HEAD~1" after a commit of the file.
+            this.environment.DifferingPaths.Add("C/c.txt");
+            this.environment.RepositoryStamp++;
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.environment.IsPending.ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void ReconcileDoesNotRunGitWhileAChangeIsPendingOrWhenNothingChanged()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.manager.Start();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.DiffCount.ShouldEqual(0, "A pending change can be in a directory that the index does not expand");
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DifferingPaths.Add("C/c.txt");
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.DiffCount.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void ChangeDuringTheCheckKeepsTheFileInTheCone()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DuringDiff = () => this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void ChangeInsideTheAppliedConeStartsACheckWhenTheChangesStop()
+        {
+            this.manager.Stop();
+            this.manager = this.CreateManager(ignoreCase: false, changeCheckDelayMs: 10);
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            // For example, an editor wrote the content of HEAD back.
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+
+            SpinWait.SpinUntil(() => this.tracer.SnapshotRelatedEvents().Any(recorded => recorded.Name == "ConeReconcile"), TimeSpan.FromSeconds(10))
+                .ShouldBeTrue("The check did not run");
+            this.ConeFile.ShouldEqual(Header);
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ApplyRunsGitForANewModifiedPathThatACheckWroteToTheConeFile()
+        {
+            const string ConeWithD = Header + "/D/\n!/D/*/\n";
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DuringDiff = () =>
+            {
+                this.environment.ModifiedPaths.Add("D/d.txt");
+                this.manager.OnWorkingDirectoryPathChanged(@"D\d.txt", isFolder: false);
+            };
+
+            // The check writes D into the cone file, but the index does not expand D yet.
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.ConeFile.ShouldEqual(ConeWithD);
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.ConeFilesAtApply.Last().ShouldEqual(ConeWithD);
+        }
+
+        [TestCase]
+        public void ApplyDuringTheCheckDiscardsTheResult()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DuringDiff = () => this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void ReconcileFailureKeepsTheCone()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DiffFails = true;
+
+            this.manager.TryReconcile().ShouldBeFalse();
+
+            this.ConeFile.ShouldEqual(ConeWithC);
+            this.LastEvent("ConeReconcile").Level.ShouldEqual(EventLevel.Warning);
+        }
+
+        [TestCase]
+        public void NarrowDoesNotPutACleanFileBackInTheCone()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Widen(SecondGit, "A/B/b.txt").ShouldBeTrue();
+            this.Narrow(SecondGit).ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header);
+        }
+
+        [TestCase]
+        public void WhenGitChangesOnlyTheIndexADeletedFileInASparseDirectoryIsInTheCone()
+        {
+            this.environment.SparsityChangeIsIndexOnly = true;
+            this.environment.SparseDirectories.Add("A/");
+            this.environment.ModifiedPaths.Add("A/B/deleted.txt");
+            this.environment.DeletedFiles.Add("A/B/deleted.txt");
+
+            this.Widen(FirstGit, "A/B/b.txt").ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(ConeWithAB);
+            this.environment.ConeFilesAtApply.ShouldMatchInOrder(ConeWithAB);
+        }
+
+        [TestCase]
+        public void DeletedFileInTheAppliedConeDoesNotNeedTheSparseDirectories()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.SparseDirectoriesFail = true;
+            this.environment.ModifiedPaths.Add("C/deleted.txt");
+            this.environment.DeletedFiles.Add("C/deleted.txt");
+
+            this.Widen(FirstGit, "A/B/b.txt").ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header + "/A/\n!/A/*/\n/A/B/\n!/A/B/*/\n/C/\n!/C/*/\n");
+        }
+
+        [TestCase]
+        public void HandleRequestAppliesAnApplyRequest()
+        {
+            this.manager.Start();
+
+            AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.ApplyRequest, FirstGit.ToString()))
+                .ShouldEqual(NamedPipeMessages.ConeManagement.SuccessResult);
+            AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.ApplyRequest, "x"))
+                .ShouldEqual(NamedPipeMessages.ConeManagement.FailureResult);
+            AutoSparseIndexConeManager.HandleRequest(null, this.tracer, new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.ApplyRequest, FirstGit.ToString()))
+                .ShouldEqual(NamedPipeMessages.ConeManagement.NotEnabledResult);
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
         private string ConeFile => this.fileSystem.ReadAllText(SparseCheckoutPath);
+
+        private AutoSparseIndexConeManager CreateManager(bool ignoreCase, int changeCheckDelayMs)
+        {
+            return new AutoSparseIndexConeManager(this.tracer, this.fileSystem, SparseCheckoutPath, ignoreCase, this.environment, changeCheckDelayMs);
+        }
+
+        private bool Apply(int processId)
+        {
+            return this.manager.TryApply(new NamedPipeMessages.ConeManagement.ApplyParameters(processId.ToString()));
+        }
 
         private bool Widen(int processId, params string[] paths)
         {
@@ -679,6 +1088,72 @@ namespace GVFS.UnitTests.Common.Sparse
             public int LockCount { get; private set; }
 
             public bool IsConeFileLockHeld => this.lockHeld != 0;
+
+            public bool SparsityChangeIsIndexOnly { get; set; }
+
+            public bool IsPending { get; private set; }
+
+            public int PendingFileCreateCount { get; private set; }
+
+            public bool PendingFileFails { get; set; }
+
+            public bool PendingFileDeleteFails { get; set; }
+
+            public HashSet<string> DifferingPaths { get; } = new HashSet<string>();
+
+            public HashSet<string> UntrackedFiles { get; } = new HashSet<string>();
+
+            public bool DiffFails { get; set; }
+
+            public int DiffCount { get; private set; }
+
+            public Action DuringDiff { get; set; }
+
+            public long RepositoryStamp { get; set; }
+
+            public bool TrySetConeChangePending(bool pending, out Exception error)
+            {
+                if (this.PendingFileFails || (!pending && this.PendingFileDeleteFails))
+                {
+                    error = new IOException("Injected pending file failure");
+                    return false;
+                }
+
+                if (pending && !this.IsPending)
+                {
+                    this.PendingFileCreateCount++;
+                }
+
+                this.IsPending = pending;
+                error = null;
+                return true;
+            }
+
+            public bool TryGetPathsThatDifferFromHead(out ICollection<string> paths, out string error)
+            {
+                this.DiffCount++;
+                this.DuringDiff?.Invoke();
+                if (this.DiffFails)
+                {
+                    paths = null;
+                    error = "fatal: injected failure";
+                    return false;
+                }
+
+                paths = this.DifferingPaths.ToList();
+                error = null;
+                return true;
+            }
+
+            public bool IsTracked(string gitPath)
+            {
+                return !this.UntrackedFiles.Contains(gitPath);
+            }
+
+            public long GetRepositoryStamp()
+            {
+                return this.RepositoryStamp;
+            }
 
             public IEnumerable<string> GetModifiedPaths()
             {

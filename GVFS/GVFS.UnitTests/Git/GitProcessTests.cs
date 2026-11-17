@@ -29,6 +29,26 @@ namespace GVFS.UnitTests.Git
             tokens.ShouldMatchInOrder("a.txt", "d/b.txt", "d/c.txt");
         }
 
+        [TestCase("git version 2.56.1\ncpu: x86_64\nfeature: vfs-sparse-index\r\nfeature: other\n", "feature: vfs-sparse-index", true)]
+        [TestCase("git version 2.56.1\nfeature: vfs-sparse-index-more\n", "feature: vfs-sparse-index", false)]
+        [TestCase("git version 2.56.1\nnot feature: vfs-sparse-index\n", "feature: vfs-sparse-index", false)]
+        [TestCase(null, "feature: vfs-sparse-index", false)]
+        public void HasBuildOptionMatchesAWholeLine(string output, string option, bool expected)
+        {
+            GitProcess.HasBuildOption(output, option).ShouldEqual(expected);
+        }
+
+        [TestCase("1 .M N... 100644 100644 100644 0123 0123 d/a.txt", "d/a.txt")]
+        [TestCase("1 D. N... 100644 000000 000000 0123 0000 d/with space.txt", "d/with space.txt")]
+        [TestCase("u UU N... 100644 100644 100644 100644 0123 0456 0789 d/conflict.txt", "d/conflict.txt")]
+        [TestCase("? d/untracked.txt", null)]
+        [TestCase("# branch.oid 0123", null)]
+        [TestCase("1 .M N... 100644", null)]
+        public void GetPorcelainV2PathReturnsThePathOfAChangedEntry(string record, string expectedPath)
+        {
+            GitProcess.GetPorcelainV2Path(record).ShouldEqual(expectedPath);
+        }
+
         [TestCase]
         public void ReadStdOutTokens_EmptyInputYieldsNoTokens()
         {

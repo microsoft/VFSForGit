@@ -956,6 +956,7 @@ namespace GVFS.Mount
 
                     case NamedPipeMessages.ConeManagement.WidenRequest:
                     case NamedPipeMessages.ConeManagement.NarrowRequest:
+                    case NamedPipeMessages.ConeManagement.ApplyRequest:
                         this.HandleConeRequest(message, connection);
                         break;
 
@@ -1191,6 +1192,9 @@ namespace GVFS.Mount
             if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
             {
                 this.tracer.SetGitCommandSessionId(string.Empty);
+
+                // The command can have committed or restored modified files.
+                this.coneManager?.OnGitCommandCompleted();
             }
 
             connection.TrySendResponse(response.CreateMessage());
@@ -1795,9 +1799,32 @@ namespace GVFS.Mount
             }
 
             this.coneManager = this.CreateConeManagerIfEnabled();
+            if (this.coneManager != null)
+            {
+                this.fileSystemCallbacks.SetWorkingDirectoryChangeObserver(this.coneManager);
+                this.coneManager.Start();
+            }
+            else
+            {
+                // A pending file from an earlier mount with the feature on would make every hook
+                // send a request that this mount does not apply.
+                this.DeleteConeChangePendingFile();
+            }
 
             this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
+        }
+
+        private void DeleteConeChangePendingFile()
+        {
+            string pendingFilePath = MountConeManagerEnvironment.GetPendingFilePath(this.enlistment);
+            if (!this.context.FileSystem.TryDeleteFile(pendingFilePath, out Exception error) && error != null)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add("Exception", error.ToString());
+                this.tracer.RelatedWarning(metadata, nameof(this.DeleteConeChangePendingFile) + " failed");
+            }
         }
 
         private AutoSparseIndexConeManager CreateConeManagerIfEnabled()
@@ -2260,7 +2287,12 @@ namespace GVFS.Mount
                 this.heartbeat = null;
             }
 
-            this.coneManager = null;
+            if (this.coneManager != null)
+            {
+                this.fileSystemCallbacks?.SetWorkingDirectoryChangeObserver(null);
+                this.coneManager.Stop();
+                this.coneManager = null;
+            }
 
             if (this.fileSystemCallbacks != null)
             {

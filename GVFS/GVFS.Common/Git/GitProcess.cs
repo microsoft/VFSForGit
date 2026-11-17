@@ -898,6 +898,96 @@ namespace GVFS.Common.Git
                 });
         }
 
+        /// <summary>
+        /// List the tracked paths that differ between HEAD and the index or the working tree,
+        /// with <c>git status --porcelain=v2</c>.
+        /// </summary>
+        /// <remarks>
+        /// <c>git status</c> reads a sparse index without expanding it, and it compares the
+        /// content of a file whose stat data changed, so a file that has the content of HEAD
+        /// again is not listed. <c>--no-optional-locks</c> stops Git from writing the refreshed
+        /// index, so this does not need the GVFS lock. <c>--no-deserialize</c> stops Git from
+        /// reading the GVFS status cache. The virtual file system stays on, so Git checks only
+        /// the paths that the mount reports. <c>COMMAND_HOOK_LOCK</c> makes Git skip the
+        /// pre-command and post-command hooks.
+        /// </remarks>
+        public Result ListPathsThatDifferFromHead(Action<string> onPath, int timeoutMs)
+        {
+            ArgumentNullException.ThrowIfNull(onPath);
+
+            return this.InvokeGitImpl(
+                "--no-optional-locks status --porcelain=v2 -z --untracked-files=no --no-renames --ignore-submodules=all --no-deserialize",
+                workingDirectory: this.workingDirectoryRoot,
+                dotGitDirectory: null,
+                useReadObjectHook: true,
+                writeStdIn: null,
+                parseStdOutLine: null,
+                timeoutMs: timeoutMs,
+                usePreCommandHook: false,
+                parseStdOutToken: record =>
+                {
+                    string path = GetPorcelainV2Path(record);
+                    if (path != null)
+                    {
+                        onPath(path);
+                    }
+                });
+        }
+
+        /// <summary>Run <c>git version --build-options</c>.</summary>
+        public Result VersionBuildOptions()
+        {
+            return this.InvokeGitOutsideEnlistment("version --build-options");
+        }
+
+        /// <summary>
+        /// Return true when the output of <c>git version --build-options</c> has a line that is
+        /// exactly <paramref name="option"/>, apart from white space at the ends.
+        /// </summary>
+        internal static bool HasBuildOption(string buildOptionsOutput, string option)
+        {
+            if (buildOptionsOutput == null)
+            {
+                return false;
+            }
+
+            foreach (string line in buildOptionsOutput.Split('\n'))
+            {
+                if (string.Equals(line.Trim(), option, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Return the path of a <c>git status --porcelain=v2 -z</c> record for a changed or
+        /// unmerged tracked entry, or null for any other record.
+        /// </summary>
+        internal static string GetPorcelainV2Path(string record)
+        {
+            // "1 XY sub mH mI mW hH hI path" and "u XY sub m1 m2 m3 mW h1 h2 h3 path". The path
+            // is the rest of the record, so it can contain spaces.
+            int pathField;
+            if (record.StartsWith("1 ", StringComparison.Ordinal))
+            {
+                pathField = 8;
+            }
+            else if (record.StartsWith("u ", StringComparison.Ordinal))
+            {
+                pathField = 10;
+            }
+            else
+            {
+                return null;
+            }
+
+            string[] fields = record.Split(' ', pathField + 1);
+            return fields.Length == pathField + 1 && fields[pathField].Length > 0 ? fields[pathField] : null;
+        }
+
         public Result Status(bool allowObjectDownloads, bool useStatusCache, bool showUntracked = false)
         {
             string command = "status";

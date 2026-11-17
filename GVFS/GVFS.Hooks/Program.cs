@@ -137,7 +137,10 @@ namespace GVFS.Hooks
                     break;
             }
 
-            TrySendConeWiden(args);
+            // Check before the widen: a widen that the mount applies also applies the pending change.
+            bool coneChangePending = IsConeChangePending();
+            ConeRequestOutcome widenOutcome = TrySendConeWiden(args);
+            TryApplyPendingConeChange(args, coneChangePending, widenOutcome);
         }
 
         private static bool ArgsBlockHydrationStatus(string[] args)
@@ -386,6 +389,8 @@ namespace GVFS.Hooks
             {
                 ExitWithError(result);
             }
+
+            commandHoldsGVFSLock = !checkGvfsLockAvailabilityOnly;
         }
 
         private static void ReleaseGVFSLock(bool unattended, string[] args, int pid, NamedPipeClient pipeClient)

@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -16,13 +15,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     /// <c>gvfs.auto-sparse-index</c> is true and the index is sparse.
     /// </summary>
     [TestFixture]
-    public class AutoSparseIndexConeTests : TestsWithEnlistmentPerFixture
+    public class AutoSparseIndexConeTests : AutoSparseIndexTestsBase
     {
-        private const string BypassGVFS = "-c core.virtualfilesystem= -c core.hookspath=";
-        private const string RootOnlyCone = "/*\n!/*/\n";
         private const string HookFailurePrefix = "gvfs cone-management: widen not applied";
-
-        private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
         // Files three or more levels deep, one for each different "first/second" directory
         private List<string> deepFiles;
@@ -30,53 +25,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         // Two files in one directory that no other test uses
         private string deletedFile;
         private string siblingOfDeletedFile;
-        private int traceCount;
 
         [OneTimeSetUp]
-        public void EnableSparseIndex()
+        public void SelectFiles()
         {
-            string buildOptions = GitProcess.Invoke(this.Enlistment.RepoRoot, "version --build-options");
-            if (!buildOptions.Contains("feature: vfs-sparse-index"))
-            {
-                Assert.Ignore("This git does not support a sparse index with VFS (git version --build-options has no 'feature: vfs-sparse-index')");
-            }
-
-            List<string> headFiles = this.GitShouldSucceed("-c core.quotepath=false ls-tree -r --name-only HEAD")
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => path.Trim())
-                .Where(path => path.Count(character => character == '/') >= 2 && !path.Contains(' '))
-                .ToList();
-            List<IGrouping<string, string>> directories = headFiles
-                .GroupBy(path => TwoLevelDirectory(path), StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            List<IGrouping<string, string>> directories = this.GroupByTwoLevelDirectory();
             directories.Count.ShouldBeAtLeast(8, "HEAD has too few directories that are two levels deep");
             this.deepFiles = directories.Take(7).Select(group => group.First()).ToList();
 
             List<string> pair = directories
                 .Skip(7)
-                .SelectMany(group => group.GroupBy(path => path.Substring(0, path.LastIndexOf('/')), StringComparer.OrdinalIgnoreCase))
+                .SelectMany(group => group.GroupBy(path => ParentDirectory(path), StringComparer.OrdinalIgnoreCase))
                 .First(group => group.Count() >= 2)
                 .Take(2)
                 .ToList();
             this.deletedFile = pair[0];
             this.siblingOfDeletedFile = pair[1];
-
-            // Mount with the feature on, a root-only cone, and a collapsed index. The persisted
-            // projection gets the same index, as it does when git collapses the index while the
-            // repository is mounted.
-            this.Enlistment.UnmountGVFS();
-            this.GitShouldSucceed("-c core.hookspath= config gvfs.auto-sparse-index true");
-            this.GitShouldSucceed("-c core.hookspath= config core.sparseCheckout true");
-            this.GitShouldSucceed("-c core.hookspath= config core.sparseCheckoutCone true");
-            this.GitShouldSucceed("-c core.hookspath= config index.sparse true");
-            File.WriteAllText(this.SparseCheckoutPath, RootOnlyCone, Utf8NoBom);
-            this.GitShouldSucceed($"{BypassGVFS} -c sparse.expectFilesOutsideOfPatterns=true update-index --force-write-index");
-            this.SparseDirectoryEntries().ShouldBeNonEmpty();
-            File.Copy(this.Enlistment.GetDotGitPath("index"), Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), overwrite: true);
-            this.Enlistment.MountGVFS();
         }
-
-        private string SparseCheckoutPath => this.Enlistment.GetDotGitPath("info", "sparse-checkout");
 
         [TestCase]
         public void GitAddWidensTheConeWithoutExpandingTheIndexAndTheConeNarrowsAfterwards()
@@ -167,87 +132,25 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void WidenDoesNotRestoreADeletedFile()
         {
-            // Expanding the directory of a deleted file makes Git check the file out again, so
-            // the mount must not widen the cone to that directory.
             File.Delete(this.Enlistment.GetVirtualPathTo(this.deletedFile));
 
             ProcessResult add = this.GitWithTrace($"add -- {this.siblingOfDeletedFile}", out _);
 
             add.ExitCode.ShouldEqual(0, add.Errors);
-            add.Errors.ShouldContain(HookFailurePrefix + ": Rejected");
-            File.Exists(this.Enlistment.GetVirtualPathTo(this.deletedFile)).ShouldBeFalse("The widen restored the deleted file");
-        }
-
-        private static string[] ConeLines(string cone)
-        {
-            return cone.Split('\n');
-        }
-
-        private string[] WaitForConeFile(Func<string[], bool> isExpected)
-        {
-            string[] lines = ConeLines(File.ReadAllText(this.SparseCheckoutPath));
-            for (int attempt = 0; attempt < 50 && !isExpected(lines); attempt++)
+            if (this.GitChangesOnlyTheIndex)
             {
-                System.Threading.Thread.Sleep(100);
-                lines = ConeLines(File.ReadAllText(this.SparseCheckoutPath));
+                // Git expands the directory of the deleted file without a checkout.
+                add.Errors.ShouldNotContain(ignoreCase: false, HookFailurePrefix);
+                this.GitShouldSucceed("status --porcelain").ShouldContain(" D " + this.deletedFile);
+            }
+            else
+            {
+                // An older Git checks the deleted file out again when it expands the directory,
+                // so the mount must not widen the cone to that directory.
+                add.Errors.ShouldContain(HookFailurePrefix + ": Rejected");
             }
 
-            return lines;
-        }
-
-        private static bool IsConeLineFor(string line, string directory)
-        {
-            return line.Equals("/" + directory + "/", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string TwoLevelDirectory(string path)
-        {
-            string[] segments = path.Split('/');
-            return segments[0] + "/" + segments[1];
-        }
-
-        private static int CountFullIndexExpansions(string trace2EventFile)
-        {
-            File.Exists(trace2EventFile).ShouldBeTrue("git did not write the trace2 file " + trace2EventFile);
-            return File.ReadLines(trace2EventFile)
-                .Count(line => line.Contains("\"event\":\"region_enter\"") && line.Contains("\"label\":\"ensure_full_index\""));
-        }
-
-        private ProcessResult GitWithTrace(string command, out string trace2EventFile)
-        {
-            string traceFile = Path.Combine(this.Enlistment.EnlistmentRoot, $"cone-trace2-{System.Threading.Interlocked.Increment(ref this.traceCount)}.json");
-            trace2EventFile = traceFile;
-            return GitProcess.InvokeProcess(
-                this.Enlistment.RepoRoot,
-                command,
-                new Dictionary<string, string>
-                {
-                    { "GIT_TRACE", "1" },
-                    { "GIT_TRACE2_EVENT", traceFile },
-                });
-        }
-
-        private string GitShouldSucceed(string command)
-        {
-            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, command);
-            result.ExitCode.ShouldEqual(0, $"git {command} failed: {result.Errors}");
-            return result.Output;
-        }
-
-        private List<string> SparseDirectoryEntries()
-        {
-            return this.SparseIndexEntries().Where(line => line.EndsWith("/")).ToList();
-        }
-
-        private List<string> SparseIndexEntries()
-        {
-            // Without the virtual file system, git sees the projected folders outside the cone. By
-            // default it then clears their skip-worktree bits and expands the index in memory.
-            return this.GitShouldSucceed($"{BypassGVFS} -c sparse.expectFilesOutsideOfPatterns=true -c core.quotepath=false ls-files --sparse")
-                .Split('\n')
-                .Select(line => line.Trim())
-                .Where(line => line.Length > 0)
-                .ToList();
+            File.Exists(this.Enlistment.GetVirtualPathTo(this.deletedFile)).ShouldBeFalse("The widen restored the deleted file");
         }
     }
 }
