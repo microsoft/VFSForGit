@@ -74,6 +74,23 @@ namespace GVFS.Common.Sparse
     /// path, because the virtual file system hook clears its skip-worktree bit, so the index
     /// keeps its entry. The next change to the file makes it a candidate again.
     /// </para>
+    /// <para>
+    /// Dehydrate clean files: a clean file stays a modified path until the next apply. The check
+    /// makes a cone change pending, so the next Git command that holds the GVFS lock sends an
+    /// apply. The apply (not a widen, which is on the path of the Git command) returns each clean
+    /// file to a placeholder and removes it from the modified
+    /// paths (see <see cref="IConeManagerEnvironment.TryDehydrateCleanFile"/>), and then runs Git
+    /// even when the cone file does not change. Git then sets the skip-worktree bit of the file,
+    /// because the hook no longer reports it, and collapses its directory when the cone does not
+    /// include it. A modified path cannot only be removed: a later in-place or memory-mapped
+    /// write to a full file that is not a modified path does not make it a modified path again,
+    /// so Git would not see the write. A placeholder becomes a modified path at its first write.
+    /// The apply does this only for a file whose index entry and HEAD have the same blob, and
+    /// whose bytes on disk are exactly that blob, because the conversion discards the bytes on
+    /// disk. It does nothing while a merge, rebase, cherry-pick, or revert is in progress, or
+    /// while <c>gvfs dehydrate</c> works on folders. If Git fails, the files become modified
+    /// paths again: they are placeholders with the content of HEAD, so nothing is lost.
+    /// </para>
     /// </remarks>
     public class AutoSparseIndexConeManager : IWorkingDirectoryChangeObserver
     {
@@ -85,6 +102,25 @@ namespace GVFS.Common.Sparse
         /// this long, and then checks which modified files match HEAD again.
         /// </summary>
         public const int DefaultChangeCheckDelayMs = 2000;
+
+        /// <summary>
+        /// One apply checks at most this many clean files. Git compares each path of the request
+        /// with the index and HEAD, so the cost of the check grows with the count.
+        /// </summary>
+        public const int MaxDehydrateFiles = 128;
+
+        /// <summary>
+        /// A clean file that is larger than this stays a modified path, so that one apply does
+        /// not read a very large file while the Git command waits.
+        /// </summary>
+        public const long MaxDehydrateFileSize = 64L * 1024 * 1024;
+
+        /// <summary>
+        /// After this long, an apply stops returning clean files to placeholders, and the next
+        /// Git command continues. It returns at least one file, so every apply makes progress.
+        /// The Git command waits for the apply in its hook.
+        /// </summary>
+        internal const int DehydrateTimeBudgetMs = 250;
 
         private const string WidenEventName = "ConeWiden";
         private const string NarrowEventName = "ConeNarrow";
@@ -138,6 +174,15 @@ namespace GVFS.Common.Sparse
         // ConsumeChanges). The cone includes them. Guarded by coneLock.
         private HashSet<string> unconfirmedPaths;
 
+        // Clean files that an apply did not return to placeholders, and that an apply does not
+        // try again until they change: for example, the bytes on disk differ from the blob.
+        // Guarded by coneLock.
+        private HashSet<string> notDehydratablePaths;
+
+        // True when the last apply did not return clean files to placeholders because of a
+        // merge, rebase, or another blocker. Guarded by coneLock.
+        private bool dehydrateBlocked;
+
         // The directories that the cone file includes and the index expands, or null when that
         // is not known.
         private AppliedConeSnapshot appliedCone;
@@ -179,6 +224,7 @@ namespace GVFS.Common.Sparse
             this.changedPaths = new ConcurrentDictionary<string, PathChange>(this.pathComparer);
             this.cleanPaths = new HashSet<string>(this.pathComparer);
             this.unconfirmedPaths = new HashSet<string>(this.pathComparer);
+            this.notDehydratablePaths = new HashSet<string>(this.pathComparer);
             this.changeCheckDelayMs = changeCheckDelayMs;
             this.changeCheckTimer = new Timer(_ => this.ScheduleReconcile(), state: null, Timeout.Infinite, Timeout.Infinite);
         }
@@ -308,7 +354,7 @@ namespace GVFS.Common.Sparse
             ApplyAttempt attempt = new ApplyAttempt();
             ConeChange change = this.RunAndCatch(
                 () => TryGetProcessId(parameters.CommandId, out int processId)
-                    ? this.ApplyCone(processId, NoPaths, NamedPipeMessages.ConeManagement.ApplyWaitBudgetMs / 2, attempt, stopwatch, metadata)
+                    ? this.ApplyCone(processId, NoPaths, NamedPipeMessages.ConeManagement.ApplyWaitBudgetMs / 2, attempt, stopwatch, metadata, dehydrateCleanFiles: true)
                     : ConeChange.NoCommandId,
                 metadata);
             this.RearmPendingAfterAttempt(attempt, change, requestHasPaths: false, metadata);
@@ -389,6 +435,28 @@ namespace GVFS.Common.Sparse
         public void OnGitCommandCompleted()
         {
             this.ScheduleReconcile();
+        }
+
+        /// <summary>
+        /// Make the next Git command that reads the index apply the cone, for example after
+        /// <c>gvfs dehydrate</c> removed modified paths. Its <c>git reset</c> can expand the
+        /// folders in the index, and a narrow does not collapse them.
+        /// </summary>
+        public void RequestApply()
+        {
+            if (this.isStopped)
+            {
+                return;
+            }
+
+            lock (this.coneLock)
+            {
+                // Another Git command wrote the index, so the apply must run Git even when the
+                // cone file does not change.
+                this.indexMayDifferFromCone = true;
+            }
+
+            this.SetPending();
         }
 
         /// <summary>
@@ -522,15 +590,16 @@ namespace GVFS.Common.Sparse
                 metadata.Add("Paths", string.Join(";", parameters.Paths));
             }
 
-            return this.ApplyCone(processId, parameters.Paths, MaxQueueWaitBeforeApplyMs, attempt, stopwatch, metadata);
+            return this.ApplyCone(processId, parameters.Paths, MaxQueueWaitBeforeApplyMs, attempt, stopwatch, metadata, dehydrateCleanFiles: false);
         }
 
         /// <summary>
         /// Write the cone of the modified paths, the transient paths, and
         /// <paramref name="requestPaths"/>, and apply it to the index for the Git process that
-        /// holds the GVFS lock.
+        /// holds the GVFS lock. With <paramref name="dehydrateCleanFiles"/>, first return clean
+        /// files to placeholders (see <see cref="DehydrateCleanFiles"/>).
         /// </summary>
-        private ConeChange ApplyCone(int processId, IReadOnlyList<string> requestPaths, int maxQueueWaitMs, ApplyAttempt attempt, Stopwatch stopwatch, EventMetadata metadata)
+        private ConeChange ApplyCone(int processId, IReadOnlyList<string> requestPaths, int maxQueueWaitMs, ApplyAttempt attempt, Stopwatch stopwatch, EventMetadata metadata, bool dehydrateCleanFiles)
         {
             // Refuse a command that does not hold the GVFS lock before it waits for other
             // requests. The check runs again under the lock, because the holder can change.
@@ -571,115 +640,159 @@ namespace GVFS.Common.Sparse
                 List<string> modifiedPaths = new List<string>(this.environment.GetModifiedPaths());
                 this.ConsumeChanges(consumedSequence, modifiedPaths, metadata);
 
-                // A modified file that exists keeps its content when Git expands its directory.
-                // A deleted file, or a modified folder, does not, unless Git changes only the
-                // index. Only those need the list of sparse-directory entries, and only when the
-                // applied cone does not already expand them. A clean path has no index entry that
-                // differs from the working tree.
-                AppliedConeSnapshot applied = Volatile.Read(ref this.appliedCone);
-                List<string> unsafePaths = new List<string>();
-                if (!this.environment.SparsityChangeIsIndexOnly)
+                bool moreToDehydrate = false;
+                List<(string Path, HeadBlob Blob)> dehydratedPaths = dehydrateCleanFiles
+                    ? this.DehydrateCleanFiles(modifiedPaths, metadata, out moreToDehydrate)
+                    : new List<(string Path, HeadBlob Blob)>();
+                if (dehydratedPaths.Count > 0)
                 {
-                    foreach (string path in modifiedPaths.Concat(this.unconfirmedPaths))
+                    modifiedPaths = new List<string>(this.environment.GetModifiedPaths());
+                }
+
+                ConeChange change = ConeChange.UnexpectedException;
+                try
+                {
+                    // Git must write the index even when the cone does not change, so that it
+                    // sets the skip-worktree bit of each file that is no longer a modified path.
+                    change = this.WriteAndApplyCone(processId, startTime, requestPaths, modifiedPaths, mustRunGit: dehydratedPaths.Count > 0, metadata);
+                }
+                finally
+                {
+                    if (dehydratedPaths.Count > 0)
                     {
-                        if ((IsFolderPath(path) || !this.environment.IsFileInWorkingDirectory(path)) &&
-                            !this.cleanPaths.Contains(path) &&
-                            (applied == null || !applied.IsCovered(path)))
-                        {
-                            unsafePaths.Add(path);
-                        }
+                        this.FinishDehydrate(dehydratedPaths, indexWritten: change == ConeChange.Applied, metadata);
                     }
                 }
 
-                List<string> hidden = new List<string>();
-                if (unsafePaths.Count > 0)
+                if ((change == ConeChange.Applied || change == ConeChange.ConeUnchanged) &&
+                    (moreToDehydrate || (!dehydrateCleanFiles && this.HasDehydrateCandidates())))
                 {
-                    Stopwatch listStopwatch = Stopwatch.StartNew();
-                    if (!this.environment.TryGetSparseDirectories(out IReadOnlyList<string> sparseDirectories, out string sparseDirectoriesError))
+                    // Only an apply returns clean files to placeholders. The next Git command
+                    // sends one.
+                    metadata.Add("DehydratePending", true);
+                    this.SetPending();
+                }
+
+                return change;
+            }
+        }
+
+        /// <summary>
+        /// The part of <see cref="ApplyCone"/> after the changes are consumed: check the cone of
+        /// <paramref name="modifiedPaths"/> and <paramref name="requestPaths"/>, write it, and run
+        /// Git when the cone file or the index changes, or when <paramref name="mustRunGit"/>.
+        /// The caller holds <see cref="coneLock"/>.
+        /// </summary>
+        private ConeChange WriteAndApplyCone(int processId, long startTime, IReadOnlyList<string> requestPaths, List<string> modifiedPaths, bool mustRunGit, EventMetadata metadata)
+        {
+            // A modified file that exists keeps its content when Git expands its directory.
+            // A deleted file, or a modified folder, does not, unless Git changes only the
+            // index. Only those need the list of sparse-directory entries, and only when the
+            // applied cone does not already expand them. A clean path has no index entry that
+            // differs from the working tree.
+            AppliedConeSnapshot applied = Volatile.Read(ref this.appliedCone);
+            List<string> unsafePaths = new List<string>();
+            if (!this.environment.SparsityChangeIsIndexOnly)
+            {
+                foreach (string path in modifiedPaths.Concat(this.unconfirmedPaths))
+                {
+                    if ((IsFolderPath(path) || !this.environment.IsFileInWorkingDirectory(path)) &&
+                        !this.cleanPaths.Contains(path) &&
+                        (applied == null || !applied.IsCovered(path)))
                     {
-                        metadata.Add("SparseDirectoriesError", sparseDirectoriesError);
-                        return ConeChange.SparseDirectoriesUnknown;
+                        unsafePaths.Add(path);
+                    }
+                }
+            }
+
+            List<string> hidden = new List<string>();
+            if (unsafePaths.Count > 0)
+            {
+                Stopwatch listStopwatch = Stopwatch.StartNew();
+                if (!this.environment.TryGetSparseDirectories(out IReadOnlyList<string> sparseDirectories, out string sparseDirectoriesError))
+                {
+                    metadata.Add("SparseDirectoriesError", sparseDirectoriesError);
+                    return ConeChange.SparseDirectoriesUnknown;
+                }
+
+                metadata.Add("ListSparseDirectoriesMs", listStopwatch.ElapsedMilliseconds);
+                hidden = SparseDirectoryExpansionGuard.FindHiddenModifiedPaths(unsafePaths, sparseDirectories, this.ignoreCase);
+            }
+
+            HashSet<string> hiddenSet = new HashSet<string>(hidden, StringComparer.Ordinal);
+            if (hidden.Count > 0)
+            {
+                metadata.Add("HiddenModifiedPathCount", hidden.Count);
+            }
+
+            List<string> conePaths = this.GetConePaths(modifiedPaths, hiddenSet);
+            conePaths.AddRange(requestPaths);
+            if (!this.TryBuildCone(conePaths, metadata, out ConePatternSet cone))
+            {
+                return ConeChange.InvalidPath;
+            }
+
+            string unsafePath = SparseDirectoryExpansionGuard.FindReachedPath(cone, hidden, this.ignoreCase);
+            if (unsafePath != null)
+            {
+                metadata.Add("UnsafeModifiedPath", unsafePath);
+                return ConeChange.ExpandsModifiedPath;
+            }
+
+            if (!this.environment.TryLockConeFile(out IDisposable coneFileLock, out Exception lockError))
+            {
+                metadata.Add("LockError", lockError?.ToString());
+                return ConeChange.ConeFileLocked;
+            }
+
+            using (coneFileLock)
+            {
+                bool coneFileExisted = this.fileSystem.FileExists(this.sparseCheckoutPath);
+                ConeFileWriteResult writeResult = this.coneFileWriter.Write(this.sparseCheckoutPath, cone, out string backupPath, out Exception writeError);
+                metadata.Add("WriteResult", writeResult.ToString());
+                bool keepBackup = false;
+                try
+                {
+                    if (writeResult == ConeFileWriteResult.Failed)
+                    {
+                        metadata.Add("WriteError", writeError?.ToString());
+                        return ConeChange.WriteFailed;
                     }
 
-                    metadata.Add("ListSparseDirectoriesMs", listStopwatch.ElapsedMilliseconds);
-                    hidden = SparseDirectoryExpansionGuard.FindHiddenModifiedPaths(unsafePaths, sparseDirectories, this.ignoreCase);
-                }
-
-                HashSet<string> hiddenSet = new HashSet<string>(hidden, StringComparer.Ordinal);
-                if (hidden.Count > 0)
-                {
-                    metadata.Add("HiddenModifiedPathCount", hidden.Count);
-                }
-
-                List<string> conePaths = this.GetConePaths(modifiedPaths, hiddenSet);
-                conePaths.AddRange(requestPaths);
-                if (!this.TryBuildCone(conePaths, metadata, out ConePatternSet cone))
-                {
-                    return ConeChange.InvalidPath;
-                }
-
-                string unsafePath = SparseDirectoryExpansionGuard.FindReachedPath(cone, hidden, this.ignoreCase);
-                if (unsafePath != null)
-                {
-                    metadata.Add("UnsafeModifiedPath", unsafePath);
-                    return ConeChange.ExpandsModifiedPath;
-                }
-
-                if (!this.environment.TryLockConeFile(out IDisposable coneFileLock, out Exception lockError))
-                {
-                    metadata.Add("LockError", lockError?.ToString());
-                    return ConeChange.ConeFileLocked;
-                }
-
-                using (coneFileLock)
-                {
-                    bool coneFileExisted = this.fileSystem.FileExists(this.sparseCheckoutPath);
-                    ConeFileWriteResult writeResult = this.coneFileWriter.Write(this.sparseCheckoutPath, cone, out string backupPath, out Exception writeError);
-                    metadata.Add("WriteResult", writeResult.ToString());
-                    bool keepBackup = false;
-                    try
+                    this.hiddenModifiedPaths = hiddenSet;
+                    this.coneFileMayBeStale = false;
+                    if (writeResult == ConeFileWriteResult.Unchanged && !this.indexMayDifferFromCone && !mustRunGit)
                     {
-                        if (writeResult == ConeFileWriteResult.Failed)
-                        {
-                            metadata.Add("WriteError", writeError?.ToString());
-                            return ConeChange.WriteFailed;
-                        }
-
-                        this.hiddenModifiedPaths = hiddenSet;
-                        this.coneFileMayBeStale = false;
-                        if (writeResult == ConeFileWriteResult.Unchanged && !this.indexMayDifferFromCone)
-                        {
-                            this.AddTransientPaths(processId, startTime, requestPaths);
-                            this.PublishCone(cone);
-                            return ConeChange.ConeUnchanged;
-                        }
-
-                        // Until Git succeeds, the index can differ from the cone file.
-                        this.indexMayDifferFromCone = true;
-                        if (!this.TryApplyConeToIndex(metadata))
-                        {
-                            keepBackup = !this.TryRollBack(writeResult, coneFileExisted, backupPath, metadata);
-                            this.coneFileMayBeStale = keepBackup;
-                            if (keepBackup)
-                            {
-                                // The cone file now has directories that the index did not expand.
-                                this.PublishCone(null);
-                            }
-
-                            return ConeChange.ApplyFailed;
-                        }
-
-                        this.indexMayDifferFromCone = false;
                         this.AddTransientPaths(processId, startTime, requestPaths);
                         this.PublishCone(cone);
-                        return ConeChange.Applied;
+                        return ConeChange.ConeUnchanged;
                     }
-                    finally
+
+                    // Until Git succeeds, the index can differ from the cone file.
+                    this.indexMayDifferFromCone = true;
+                    if (!this.TryApplyConeToIndex(metadata))
                     {
-                        if (!keepBackup)
+                        keepBackup = !this.TryRollBack(writeResult, coneFileExisted, backupPath, metadata);
+                        this.coneFileMayBeStale = keepBackup;
+                        if (keepBackup)
                         {
-                            this.DeleteBackup(backupPath, metadata);
+                            // The cone file now has directories that the index did not expand.
+                            this.PublishCone(null);
                         }
+
+                        return ConeChange.ApplyFailed;
+                    }
+
+                    this.indexMayDifferFromCone = false;
+                    this.AddTransientPaths(processId, startTime, requestPaths);
+                    this.PublishCone(cone);
+                    return ConeChange.Applied;
+                }
+                finally
+                {
+                    if (!keepBackup)
+                    {
+                        this.DeleteBackup(backupPath, metadata);
                     }
                 }
             }
@@ -906,6 +1019,7 @@ namespace GVFS.Common.Sparse
                     ((ICollection<KeyValuePair<string, PathChange>>)this.changedPaths).Remove(change))
                 {
                     this.cleanPaths.Remove(change.Key);
+                    this.notDehydratablePaths.Remove(change.Key);
                     if (!IsModifiedPathOrUnderModifiedFolder(change.Key, modified))
                     {
                         this.unconfirmedPaths.Add(change.Key);
@@ -949,7 +1063,215 @@ namespace GVFS.Common.Sparse
         {
             // A dehydrated file leaves the modified paths. It is not clean or dirty any more.
             this.cleanPaths.RemoveWhere(path => !modified.Contains(path));
+            this.notDehydratablePaths.RemoveWhere(path => !modified.Contains(path));
             this.unconfirmedPaths.RemoveWhere(path => IsModifiedPathOrUnderModifiedFolder(path, modified));
+        }
+
+        /// <summary>
+        /// Return the clean files that an apply can return to placeholders: files that are
+        /// modified paths, and that no earlier attempt found unsuitable since they last changed.
+        /// The caller holds <see cref="coneLock"/>.
+        /// </summary>
+        private List<string> GetDehydrateCandidates(HashSet<string> modified)
+        {
+            List<string> candidates = new List<string>();
+            foreach (string path in this.cleanPaths)
+            {
+                if (!IsFolderPath(path) &&
+                    modified.Contains(path) &&
+                    !this.notDehydratablePaths.Contains(path) &&
+                    !this.hiddenModifiedPaths.Contains(path))
+                {
+                    candidates.Add(path);
+                }
+            }
+
+            candidates.Sort(StringComparer.Ordinal);
+            return candidates;
+        }
+
+        private bool HasDehydrateCandidates()
+        {
+            if (this.dehydrateBlocked || this.cleanPaths.Count == 0)
+            {
+                return false;
+            }
+
+            return this.GetDehydrateCandidates(new HashSet<string>(this.environment.GetModifiedPaths(), this.pathComparer)).Count > 0;
+        }
+
+        /// <summary>
+        /// Return clean files to placeholders, and remove them from the modified paths. The
+        /// caller holds <see cref="coneLock"/>, and the Git command that holds the GVFS lock waits
+        /// for the reply, so Git does not change the index or HEAD meanwhile.
+        /// </summary>
+        /// <param name="modifiedPaths">The modified paths before this step.</param>
+        /// <param name="metadata">Receives the counts.</param>
+        /// <param name="moreToDehydrate">True when candidates are left for the next apply.</param>
+        /// <returns>The files that are placeholders now and are no longer modified paths, with their blobs.</returns>
+        private List<(string Path, HeadBlob Blob)> DehydrateCleanFiles(List<string> modifiedPaths, EventMetadata metadata, out bool moreToDehydrate)
+        {
+            moreToDehydrate = false;
+            List<(string Path, HeadBlob Blob)> dehydrated = new List<(string Path, HeadBlob Blob)>();
+            List<string> candidates = this.GetDehydrateCandidates(new HashSet<string>(modifiedPaths, this.pathComparer));
+            if (candidates.Count == 0)
+            {
+                return dehydrated;
+            }
+
+            string blocker = this.environment.GetDehydrateBlocker();
+            this.dehydrateBlocked = blocker != null;
+            if (blocker != null)
+            {
+                metadata.Add("DehydrateBlocker", blocker);
+                return dehydrated;
+            }
+
+            if (candidates.Count > MaxDehydrateFiles)
+            {
+                candidates.RemoveRange(MaxDehydrateFiles, candidates.Count - MaxDehydrateFiles);
+                moreToDehydrate = true;
+            }
+
+            // Git reads one path on each line.
+            foreach (string path in candidates.Where(path => path.IndexOfAny(new[] { '\n', '\r' }) >= 0).ToList())
+            {
+                this.notDehydratablePaths.Add(path);
+                candidates.Remove(path);
+            }
+
+            metadata.Add("DehydrateCandidateCount", candidates.Count);
+            Stopwatch blobStopwatch = Stopwatch.StartNew();
+            if (!this.environment.TryGetBlobsThatMatchHead(candidates, out IReadOnlyDictionary<string, HeadBlob> blobs, out IReadOnlyCollection<string> notInIndex, out string blobError))
+            {
+                metadata.Add("DehydrateBlobError", blobError);
+                return dehydrated;
+            }
+
+            metadata.Add("DehydrateBlobMs", blobStopwatch.ElapsedMilliseconds);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            int attempted = 0;
+
+            HashSet<string> notInIndexSet = new HashSet<string>(notInIndex, this.pathComparer);
+            Dictionary<string, int> skipped = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (string path in candidates)
+            {
+                if (attempted > 0 && stopwatch.ElapsedMilliseconds > DehydrateTimeBudgetMs)
+                {
+                    moreToDehydrate = true;
+                    break;
+                }
+
+                if (!blobs.TryGetValue(path, out HeadBlob blob))
+                {
+                    this.notDehydratablePaths.Add(path);
+                    if (notInIndexSet.Contains(path))
+                    {
+                        // For example, an ignored file. Git does not report it, so it stays clean.
+                        CountSkip(skipped, "NotInIndex");
+                    }
+                    else
+                    {
+                        // The index or HEAD changed after the check, so the file differs from HEAD.
+                        this.cleanPaths.Remove(path);
+                        CountSkip(skipped, "IndexDiffersFromHead");
+                    }
+
+                    continue;
+                }
+
+                if (blob.Size > MaxDehydrateFileSize)
+                {
+                    this.notDehydratablePaths.Add(path);
+                    CountSkip(skipped, "TooLarge");
+                    continue;
+                }
+
+                attempted++;
+                CleanFileDehydrateResult result = this.environment.TryDehydrateCleanFile(path, blob);
+                switch (result)
+                {
+                    case CleanFileDehydrateResult.Dehydrated:
+                        dehydrated.Add((path, blob));
+                        this.cleanPaths.Remove(path);
+                        break;
+
+                    case CleanFileDehydrateResult.ContentDiffers:
+                    case CleanFileDehydrateResult.NotFound:
+                    case CleanFileDehydrateResult.NotModifiedPath:
+                        // Try again only after the file changes.
+                        this.notDehydratablePaths.Add(path);
+                        CountSkip(skipped, result.ToString());
+                        break;
+
+                    default:
+                        // For example, a process has the file open. The next apply tries again.
+                        CountSkip(skipped, result.ToString());
+                        break;
+                }
+            }
+
+            metadata.Add("DehydrateMs", stopwatch.ElapsedMilliseconds);
+            metadata.Add("DehydratedCount", dehydrated.Count);
+            if (skipped.Count > 0)
+            {
+                metadata.Add("DehydrateSkipped", string.Join(";", skipped.OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => entry.Key + "=" + entry.Value)));
+            }
+
+            return dehydrated;
+        }
+
+        private static void CountSkip(Dictionary<string, int> skipped, string reason)
+        {
+            skipped.TryGetValue(reason, out int count);
+            skipped[reason] = count + 1;
+        }
+
+        /// <summary>
+        /// After the apply: when Git wrote the index, make sure that the projection has the
+        /// files. Otherwise make the files modified paths again, so that Git sees them as it did
+        /// before. They are placeholders with the content of HEAD, so nothing is lost.
+        /// </summary>
+        /// <remarks>
+        /// A projection rebuild reads the whole index, which takes seconds for a large
+        /// repository. The projection still has a file as it was before the file became a
+        /// modified path, unless a command rebuilt the projection since then (for example a
+        /// checkout or a hard reset). Only then does the apply rebuild it, once.
+        /// </remarks>
+        private void FinishDehydrate(List<(string Path, HeadBlob Blob)> dehydrated, bool indexWritten, EventMetadata metadata)
+        {
+            if (indexWritten)
+            {
+                bool rebuild = dehydrated.Any(file => !this.environment.IsProjectedFile(file.Path, file.Blob.Sha));
+                metadata.Add("ProjectionInvalidated", rebuild);
+                if (rebuild)
+                {
+                    this.environment.InvalidateProjection();
+                }
+
+                return;
+            }
+
+            int restoreFailures = 0;
+            foreach ((string path, HeadBlob _) in dehydrated)
+            {
+                if (this.environment.TryRestoreModifiedPath(path))
+                {
+                    this.cleanPaths.Add(path);
+                }
+                else
+                {
+                    restoreFailures++;
+                }
+            }
+
+            metadata.Add("DehydrateRestoredCount", dehydrated.Count - restoreFailures);
+            if (restoreFailures > 0)
+            {
+                // The next validation of the modified paths adds them: their index entries do
+                // not have the skip-worktree bit.
+                metadata.Add("DehydrateRestoreFailureCount", restoreFailures);
+            }
         }
 
         /// <summary>
@@ -1190,14 +1512,16 @@ namespace GVFS.Common.Sparse
 
             HashSet<string> differing = new HashSet<string>(differingPaths, this.pathComparer);
 
-            // A file is clean when Git reports no difference, and the working tree has it
-            // exactly when the index has it. An untracked file, and a deleted tracked file,
-            // differ from HEAD.
+            // A file is clean when Git reports neither the file nor an untracked folder that
+            // contains it. A deleted tracked file and an untracked file differ from HEAD. The
+            // projection cannot tell whether the index has an entry: it leaves out every entry
+            // without the skip-worktree bit, which is every modified path.
+            List<string> untrackedFolders = differing.Where(IsFolderPath).ToList();
             Dictionary<string, bool> isClean = new Dictionary<string, bool>(candidates.Count, this.pathComparer);
             foreach (string path in candidates)
             {
                 isClean[path] = !differing.Contains(path) &&
-                    this.environment.IsFileInWorkingDirectory(path) == this.environment.IsTracked(path);
+                    !untrackedFolders.Any(folder => path.StartsWith(folder, this.ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
             }
 
             lock (this.coneLock)
@@ -1220,6 +1544,9 @@ namespace GVFS.Common.Sparse
                         // that Git wrote), so it leaves the cone without becoming a clean path.
                         if (this.unconfirmedPaths.Remove(result.Key) || this.cleanPaths.Add(result.Key))
                         {
+                            // An earlier apply could not dehydrate it, because the index or HEAD
+                            // differed. Git changed them, so the next apply tries again.
+                            this.notDehydratablePaths.Remove(result.Key);
                             newlyClean++;
                         }
                     }
@@ -1250,6 +1577,23 @@ namespace GVFS.Common.Sparse
                     // entries, but only an apply writes a wider cone file.
                     this.SetPending();
                     return ConeChange.CleanPathChanged;
+                }
+
+                // The next apply returns the clean files to placeholders. After a blocker such
+                // as a merge ends, the files that it kept are candidates again.
+                if (newlyClean > 0 || this.dehydrateBlocked)
+                {
+                    string blocker = this.environment.GetDehydrateBlocker();
+                    this.dehydrateBlocked = blocker != null;
+                    if (blocker != null)
+                    {
+                        metadata.Add("DehydrateBlocker", blocker);
+                    }
+                    else if (this.HasDehydrateCandidates())
+                    {
+                        metadata.Add("DehydratePending", true);
+                        this.SetPending();
+                    }
                 }
 
                 if (newlyClean == 0)
@@ -1345,7 +1689,7 @@ namespace GVFS.Common.Sparse
             }
 
             // A hidden modified path stays invisible to Git, so it is a warning too.
-            if (IsFailure(change) || exceededWaitBudget || metadata.ContainsKey("DeleteBackupError") || metadata.ContainsKey("HiddenModifiedPathCount"))
+            if (IsFailure(change) || exceededWaitBudget || metadata.ContainsKey("DeleteBackupError") || metadata.ContainsKey("HiddenModifiedPathCount") || metadata.ContainsKey("DehydrateRestoreFailureCount"))
             {
                 this.tracer.RelatedEvent(EventLevel.Warning, eventName, metadata, Keywords.Telemetry);
             }

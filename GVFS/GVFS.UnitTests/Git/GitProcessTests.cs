@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Common.Sparse;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -41,12 +42,53 @@ namespace GVFS.UnitTests.Git
         [TestCase("1 .M N... 100644 100644 100644 0123 0123 d/a.txt", "d/a.txt")]
         [TestCase("1 D. N... 100644 000000 000000 0123 0000 d/with space.txt", "d/with space.txt")]
         [TestCase("u UU N... 100644 100644 100644 100644 0123 0456 0789 d/conflict.txt", "d/conflict.txt")]
-        [TestCase("? d/untracked.txt", null)]
+        [TestCase("? d/untracked.txt", "d/untracked.txt")]
+        [TestCase("? d/untracked folder/", "d/untracked folder/")]
+        [TestCase("! d/ignored.txt", null)]
         [TestCase("# branch.oid 0123", null)]
         [TestCase("1 .M N... 100644", null)]
         public void GetPorcelainV2PathReturnsThePathOfAChangedEntry(string record, string expectedPath)
         {
             GitProcess.GetPorcelainV2Path(record).ShouldEqual(expectedPath);
+        }
+
+        [TestCase("100644 ce013625030ba8dba906f756967f9e9ca394464a 0\td/a file.txt", true)]
+        [TestCase("100755 CE013625030BA8DBA906F756967F9E9CA394464A 0\td/a file.txt", true)]
+        [TestCase("120000 ce013625030ba8dba906f756967f9e9ca394464a 0\td/a file.txt", false)]
+        [TestCase("040000 ce013625030ba8dba906f756967f9e9ca394464a 0\td/", false)]
+        [TestCase("100644 ce013625030ba8dba906f756967f9e9ca394464a 2\td/a file.txt", false)]
+        [TestCase("100644 ce013625 0\td/a file.txt", false)]
+        [TestCase("100644 ce013625030ba8dba906f756967f9e9ca394464a 0", false)]
+        public void TryParseLsFilesStageRecordAcceptsOnlyARegularFileAtStageZero(string record, bool expected)
+        {
+            GitProcess.TryParseLsFilesStageRecord(record, out string path, out string sha).ShouldEqual(expected);
+            if (expected)
+            {
+                path.ShouldEqual("d/a file.txt");
+                sha.ShouldEqual("ce013625030ba8dba906f756967f9e9ca394464a");
+            }
+        }
+
+        [TestCase("100644 blob ce013625030ba8dba906f756967f9e9ca394464a       6\td/a file.txt", true)]
+        [TestCase("100755 blob ce013625030ba8dba906f756967f9e9ca394464a 6\td/a file.txt", true)]
+        [TestCase("120000 blob ce013625030ba8dba906f756967f9e9ca394464a       6\td/a file.txt", false)]
+        [TestCase("040000 tree ce013625030ba8dba906f756967f9e9ca394464a       -\td", false)]
+        [TestCase("160000 commit ce013625030ba8dba906f756967f9e9ca394464a       -\td/sub", false)]
+        public void TryParseLsTreeLongRecordAcceptsOnlyARegularFile(string record, bool expected)
+        {
+            GitProcess.TryParseLsTreeLongRecord(record, out string path, out HeadBlob blob).ShouldEqual(expected);
+            if (expected)
+            {
+                path.ShouldEqual("d/a file.txt");
+                blob.ShouldEqual(new HeadBlob("ce013625030ba8dba906f756967f9e9ca394464a", 6));
+            }
+        }
+
+        [TestCase]
+        public void GetPathspecArgumentsQuotesThePathsAndSplitsALongList()
+        {
+            GitProcess.GetPathspecArguments(new[] { "a b.txt", "c.txt", "dd.txt" }, maxLength: 18)
+                .ShouldMatchInOrder("\"a b.txt\" \"c.txt\"", "\"dd.txt\"");
         }
 
         [TestCase]

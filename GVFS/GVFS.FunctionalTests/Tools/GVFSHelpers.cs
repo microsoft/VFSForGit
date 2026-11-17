@@ -262,7 +262,10 @@ namespace GVFS.FunctionalTests.Tools
         /// <see cref="FileBasedCollection.TryLoadFromDisk"/> does on mount to
         /// observe a consistent state.
         /// </summary>
-        private static HashSet<string> GetCurrentModifiedPaths(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
+        /// <summary>
+        /// Return the modified-paths set after replaying the on-disk A/D log.
+        /// </summary>
+        public static HashSet<string> GetCurrentModifiedPaths(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
         {
             string contents = GetModifiedPathsContents(enlistment, fileSystem);
             HashSet<string> paths = new HashSet<string>(FileSystemHelpers.PathComparer);

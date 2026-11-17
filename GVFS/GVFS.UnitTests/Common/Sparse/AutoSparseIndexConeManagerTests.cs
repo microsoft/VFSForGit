@@ -777,7 +777,8 @@ namespace GVFS.UnitTests.Common.Sparse
             this.ConeFile.ShouldEqual(Header);
             this.environment.DiffCount.ShouldEqual(1);
             this.environment.ConeFilesAtApply.Count.ShouldEqual(1, "Only Git can apply a cone");
-            this.environment.IsPending.ShouldBeFalse();
+            this.environment.IsPending.ShouldBeTrue("The next apply returns the clean files to placeholders");
+            this.environment.DehydrateCalls.ShouldBeEmpty();
             // The root file .gitattributes is clean too.
             this.LastEvent("ConeReconcile").Metadata["NewlyCleanCount"].ShouldEqual(2);
         }
@@ -890,7 +891,7 @@ namespace GVFS.UnitTests.Common.Sparse
             SpinWait.SpinUntil(() => this.tracer.SnapshotRelatedEvents().Any(recorded => recorded.Name == "ConeReconcile"), TimeSpan.FromSeconds(10))
                 .ShouldBeTrue("The check did not run");
             this.ConeFile.ShouldEqual(Header);
-            this.environment.IsPending.ShouldBeFalse();
+            this.environment.IsPending.ShouldBeTrue("The next apply returns the clean file to a placeholder");
         }
 
         [TestCase]
@@ -990,6 +991,331 @@ namespace GVFS.UnitTests.Common.Sparse
                 .ShouldEqual(NamedPipeMessages.ConeManagement.FailureResult);
             AutoSparseIndexConeManager.HandleRequest(null, this.tracer, new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.ApplyRequest, FirstGit.ToString()))
                 .ShouldEqual(NamedPipeMessages.ConeManagement.NotEnabledResult);
+            this.environment.IsPending.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ApplyAfterACheckDehydratesTheCleanFilesAndRunsGitWhenTheConeDoesNotChange()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.ConeFile.ShouldEqual(Header);
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes", "C/c.txt");
+            this.environment.ModifiedPaths.ShouldBeEmpty();
+            this.environment.ConeFilesAtApply.ShouldMatchInOrder(ConeWithC, Header);
+            this.environment.ProjectionInvalidations.ShouldEqual(1);
+            this.environment.RestoredPaths.ShouldBeEmpty();
+            this.environment.IsPending.ShouldBeFalse();
+            this.LastEvent("ConeApply").Metadata["DehydratedCount"].ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void ApplyDoesNotRebuildTheProjectionWhenItStillHasTheDehydratedFiles()
+        {
+            // No command rebuilt the projection while the files were modified paths.
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.ProjectedFiles.UnionWith(new[] { ".gitattributes", "C/c.txt" });
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.ModifiedPaths.ShouldBeEmpty();
+            this.environment.ProjectionInvalidations.ShouldEqual(0);
+            this.LastEvent("ConeApply").Metadata["ProjectionInvalidated"].ShouldEqual(false);
+        }
+
+        [TestCase]
+        public void ApplyRebuildsTheProjectionOnceWhenItDoesNotHaveADehydratedFile()
+        {
+            this.environment.ModifiedPaths.AddRange(new[] { "C/c.txt", "D/d.txt" });
+            this.environment.ProjectedFiles.UnionWith(new[] { ".gitattributes", "C/c.txt" });
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.ProjectionInvalidations.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void ApplyDoesNotDehydrateAFileThatNoCheckFoundClean()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.BlobRequests.ShouldBeEmpty();
+            this.environment.DehydrateCalls.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void WidenDoesNotDehydrateAndKeepsTheDehydratePending()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Widen(SecondGit, "A/B/b.txt").ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldBeEmpty();
+            this.environment.IsPending.ShouldBeTrue("Only an apply dehydrates");
+
+            this.Apply(SecondGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes", "C/c.txt");
+        }
+
+        [TestCase]
+        public void FileThatChangedAfterTheCheckIsNotDehydrated()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.manager.OnWorkingDirectoryPathChanged(@"C\c.txt", isFolder: false);
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes");
+            this.environment.ModifiedPaths.ShouldContain(path => path == "C/c.txt");
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void FileWhoseIndexOrHeadChangedAfterTheCheckIsNotDehydratedAndStaysInTheCone()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            // For example, "git reset --soft HEAD~1" after the check. It writes no file.
+            this.environment.DifferingPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.BlobRequests.Single().ShouldMatchInOrder(".gitattributes", "C/c.txt");
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes");
+            this.ConeFile.ShouldEqual(ConeWithC);
+        }
+
+        [TestCase]
+        public void FileThatIsNotInTheIndexIsNeverDehydrated()
+        {
+            // For example, a created file that Git ignores: Git does not report it.
+            this.environment.ModifiedPaths.Add("D/ignored.txt");
+            this.environment.NotInIndex.Add("D/ignored.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes");
+            this.environment.BlobRequests.Count.ShouldEqual(1, "A file that is not in the index is not tried again until it changes");
+            this.environment.ModifiedPaths.ShouldContain(path => path == "D/ignored.txt");
+            this.ConeFile.ShouldEqual(Header);
+        }
+
+        [TestCase]
+        public void ReconcileKeepsAFileInAnUntrackedFolder()
+        {
+            this.environment.ModifiedPaths.AddRange(new[] { "D/", "D/d.txt" });
+            this.environment.DifferingPaths.Add("D/");
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.ConeFile.ShouldEqual(Header + "/D/\n");
+        }
+
+        [TestCase]
+        public void FolderIsNeverDehydrated()
+        {
+            this.environment.ModifiedPaths.Add("D/");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.BlobRequests.Single().ShouldMatchInOrder(".gitattributes");
+            this.environment.ModifiedPaths.ShouldContain(path => path == "D/");
+        }
+
+        [TestCase]
+        public void DehydrateWaitsUntilAMergeEnds()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateBlocker = "MERGE_HEAD";
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.IsPending.ShouldBeFalse("A blocked dehydrate does not make the next command apply");
+
+            // Another change makes an apply run during the merge.
+            this.environment.ModifiedPaths.Add("D/d.txt");
+            this.manager.OnWorkingDirectoryPathChanged(@"D\d.txt", isFolder: false);
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.BlobRequests.ShouldBeEmpty();
+            this.environment.DehydrateCalls.ShouldBeEmpty();
+            this.LastEvent("ConeApply").Metadata["DehydrateBlocker"].ShouldEqual("MERGE_HEAD");
+            this.environment.IsPending.ShouldBeFalse();
+
+            // The merge commit writes the index, so the next check runs.
+            this.environment.DehydrateBlocker = null;
+            this.environment.RepositoryStamp++;
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes", "C/c.txt", "D/d.txt");
+        }
+
+        [TestCase]
+        public void FileInUseStaysAModifiedPathAndTheNextApplyTriesAgain()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.DehydrateResults["C/c.txt"] = CleanFileDehydrateResult.InUse;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.ModifiedPaths.ShouldContain(path => path == "C/c.txt");
+            this.LastEvent("ConeApply").Metadata["DehydrateSkipped"].ShouldEqual("InUse=1");
+
+            this.environment.DehydrateResults.Remove("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes", "C/c.txt", "C/c.txt");
+            this.environment.ModifiedPaths.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void FileWithOtherBytesIsNotTriedAgainUntilItChanges()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.DehydrateResults["C/c.txt"] = CleanFileDehydrateResult.ContentDiffers;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.Count(path => path == "C/c.txt").ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void LargeFileIsNotDehydrated()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.environment.BlobSizes["C/c.txt"] = AutoSparseIndexConeManager.MaxDehydrateFileSize + 1;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes");
+            this.LastEvent("ConeApply").Metadata["DehydrateSkipped"].ShouldEqual("TooLarge=1");
+        }
+
+        [TestCase]
+        public void ApplyFailureMakesTheDehydratedFilesModifiedPathsAgain()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.environment.ApplyExitCode = 1;
+            this.Apply(FirstGit).ShouldBeFalse();
+
+            this.environment.RestoredPaths.ShouldMatchInOrder(".gitattributes", "C/c.txt");
+            this.environment.ModifiedPaths.ShouldContain(path => path == "C/c.txt");
+            this.environment.ProjectionInvalidations.ShouldEqual(0);
+            this.environment.IsPending.ShouldBeTrue();
+
+            // They are still clean, so the next apply dehydrates them.
+            this.environment.ApplyExitCode = 0;
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.Count(path => path == "C/c.txt").ShouldEqual(2);
+            this.environment.ModifiedPaths.ShouldNotContain(path => path == "C/c.txt");
+        }
+
+        [TestCase]
+        public void ApplyExceptionMakesTheDehydratedFilesModifiedPathsAgain()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.environment.ApplyException = new InvalidOperationException("Injected");
+            this.Apply(FirstGit).ShouldBeFalse();
+
+            this.environment.RestoredPaths.ShouldMatchInOrder(".gitattributes", "C/c.txt");
+        }
+
+        [TestCase]
+        public void BlobReadFailureDehydratesNothing()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.BlobsFail = true;
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldBeEmpty();
+            this.LastEvent("ConeApply").Metadata.ContainsKey("DehydrateBlobError").ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void RequestApplyMakesTheNextGitCommandApplyTheCone()
+        {
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.Widen(SecondGit, "A/B/b.txt").ShouldBeTrue();
+            this.Narrow(SecondGit).ShouldBeTrue();
+            int applies = this.environment.ConeFilesAtApply.Count;
+
+            this.manager.RequestApply();
+
+            this.environment.IsPending.ShouldBeTrue();
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.ConeFilesAtApply.Count.ShouldEqual(applies + 1, "The index still expands A/B after the narrow");
+        }
+
+        [TestCase]
+        public void ApplyStopsAfterTheTimeBudgetButDehydratesAtLeastOneFile()
+        {
+            this.environment.ModifiedPaths.Add("C/c.txt");
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+            this.environment.OnDehydrate = () => Thread.Sleep(AutoSparseIndexConeManager.DehydrateTimeBudgetMs + 50);
+
+            this.Apply(FirstGit).ShouldBeTrue();
+
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes");
+            this.environment.IsPending.ShouldBeTrue("The next Git command continues");
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.ShouldMatchInOrder(".gitattributes", "C/c.txt");
+        }
+
+        [TestCase]
+        public void ApplyDehydratesAtMostTheBatchLimitAndKeepsTheRestPending()
+        {
+            for (int i = 0; i < AutoSparseIndexConeManager.MaxDehydrateFiles; i++)
+            {
+                this.environment.ModifiedPaths.Add("C/" + i.ToString("D5") + ".txt");
+            }
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.manager.TryReconcile().ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.DehydrateCalls.Count.ShouldEqual(AutoSparseIndexConeManager.MaxDehydrateFiles);
+            this.environment.ModifiedPaths.Count.ShouldEqual(1);
+            this.environment.IsPending.ShouldBeTrue();
+
+            this.Apply(FirstGit).ShouldBeTrue();
+            this.environment.ModifiedPaths.ShouldBeEmpty();
             this.environment.IsPending.ShouldBeFalse();
         }
 
@@ -1111,6 +1437,87 @@ namespace GVFS.UnitTests.Common.Sparse
 
             public long RepositoryStamp { get; set; }
 
+            public string DehydrateBlocker { get; set; }
+
+            public HashSet<string> NotInIndex { get; } = new HashSet<string>();
+
+            public bool BlobsFail { get; set; }
+
+            public List<IReadOnlyList<string>> BlobRequests { get; } = new List<IReadOnlyList<string>>();
+
+            public Dictionary<string, CleanFileDehydrateResult> DehydrateResults { get; } = new Dictionary<string, CleanFileDehydrateResult>();
+
+            public Dictionary<string, long> BlobSizes { get; } = new Dictionary<string, long>();
+
+            public List<string> DehydrateCalls { get; } = new List<string>();
+
+            public List<string> RestoredPaths { get; } = new List<string>();
+
+            public int ProjectionInvalidations { get; private set; }
+
+            public Action OnDehydrate { get; set; }
+
+            public string GetDehydrateBlocker()
+            {
+                return this.DehydrateBlocker;
+            }
+
+            public bool TryGetBlobsThatMatchHead(IReadOnlyList<string> gitPaths, out IReadOnlyDictionary<string, HeadBlob> blobs, out IReadOnlyCollection<string> notInIndex, out string error)
+            {
+                this.BlobRequests.Add(gitPaths.ToList());
+                if (this.BlobsFail)
+                {
+                    blobs = null;
+                    notInIndex = null;
+                    error = "fatal: injected failure";
+                    return false;
+                }
+
+                // A path that differs from HEAD in the index has another blob there.
+                notInIndex = gitPaths.Where(path => this.NotInIndex.Contains(path)).ToList();
+                blobs = gitPaths
+                    .Where(path => !this.NotInIndex.Contains(path) && !this.DifferingPaths.Contains(path))
+                    .ToDictionary(path => path, path => new HeadBlob(new string('a', 40), this.BlobSizes.TryGetValue(path, out long size) ? size : 1));
+                error = null;
+                return true;
+            }
+
+            public CleanFileDehydrateResult TryDehydrateCleanFile(string gitPath, HeadBlob blob)
+            {
+                this.DehydrateCalls.Add(gitPath);
+                this.OnDehydrate?.Invoke();
+                if (!this.DehydrateResults.TryGetValue(gitPath, out CleanFileDehydrateResult result))
+                {
+                    result = CleanFileDehydrateResult.Dehydrated;
+                }
+
+                if (result == CleanFileDehydrateResult.Dehydrated)
+                {
+                    this.ModifiedPaths.Remove(gitPath);
+                }
+
+                return result;
+            }
+
+            public bool TryRestoreModifiedPath(string gitPath)
+            {
+                this.RestoredPaths.Add(gitPath);
+                this.ModifiedPaths.Add(gitPath);
+                return true;
+            }
+
+            public HashSet<string> ProjectedFiles { get; } = new HashSet<string>();
+
+            public bool IsProjectedFile(string gitPath, string sha)
+            {
+                return this.ProjectedFiles.Contains(gitPath);
+            }
+
+            public void InvalidateProjection()
+            {
+                this.ProjectionInvalidations++;
+            }
+
             public bool TrySetConeChangePending(bool pending, out Exception error)
             {
                 if (this.PendingFileFails || (!pending && this.PendingFileDeleteFails))
@@ -1140,14 +1547,14 @@ namespace GVFS.UnitTests.Common.Sparse
                     return false;
                 }
 
-                paths = this.DifferingPaths.ToList();
+                // Git reports an untracked file that exists ("? path"), and a tracked file that
+                // was deleted (" D path").
+                paths = this.DifferingPaths
+                    .Concat(this.UntrackedFiles.Where(path => !this.DeletedFiles.Contains(path)))
+                    .Concat(this.DeletedFiles.Where(path => !this.UntrackedFiles.Contains(path)))
+                    .ToList();
                 error = null;
                 return true;
-            }
-
-            public bool IsTracked(string gitPath)
-            {
-                return !this.UntrackedFiles.Contains(gitPath);
             }
 
             public long GetRepositoryStamp()
