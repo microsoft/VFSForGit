@@ -14,6 +14,9 @@ namespace GVFS.Virtualization.Projection
             private const ushort SymLinkFileIndexEntry = 0xA000;
             private const ushort GitLinkFileIndexEntry = 0xE000;
 
+            // Mode 040000: a sparse-directory entry in a sparse index (git index.sparse)
+            private const ushort DirectoryIndexEntry = 0x4000;
+
             public FileTypeAndMode(ushort typeAndModeInIndexFormat)
             {
                 switch (typeAndModeInIndexFormat & FileTypeMask)
@@ -26,6 +29,9 @@ namespace GVFS.Virtualization.Projection
                         break;
                     case GitLinkFileIndexEntry:
                         this.Type = FileType.GitLink;
+                        break;
+                    case DirectoryIndexEntry:
+                        this.Type = FileType.Directory;
                         break;
                     default:
                         this.Type = FileType.Invalid;

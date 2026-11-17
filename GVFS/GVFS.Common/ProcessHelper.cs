@@ -12,27 +12,23 @@ namespace GVFS.Common
         private static string currentProcessVersion = null;
         private static string currentProcessArchitecture = null;
 
+        public static ProcessStartInfo CreateGitStartInfo(string gitBinPath)
+        {
+            ProcessStartInfo processInfo = new ProcessStartInfo(gitBinPath);
+
+            // GVFS parses English Git diagnostics. The C locale also disables LANGUAGE overrides.
+            processInfo.Environment["LC_ALL"] = "C";
+            return processInfo;
+        }
+
+        public static ProcessResult RunGit(string gitBinPath, string args, bool redirectOutput = true)
+        {
+            return RunWithArguments(CreateGitStartInfo(gitBinPath), args, redirectOutput);
+        }
+
         public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(programName);
-            processInfo.UseShellExecute = false;
-            processInfo.RedirectStandardInput = true;
-            processInfo.RedirectStandardOutput = redirectOutput;
-            processInfo.RedirectStandardError = redirectOutput;
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-
-            // CreateNoWindow=false avoids allocating a hidden conhost.exe per child
-            // process. When redirectOutput is true, I/O goes through pipes so no
-            // console is needed. When redirectOutput is false, the child inherits the
-            // parent's console handles — this works when the parent has a console
-            // (e.g., GVFS.Hooks invoked from a terminal), but output is silently lost
-            // when the parent has no console (e.g., service context). This is
-            // acceptable because CreateNoWindow=true would only send that output to
-            // an invisible hidden console instead.
-            processInfo.CreateNoWindow = false;
-            processInfo.Arguments = args;
-
-            return Run(processInfo);
+            return RunWithArguments(new ProcessStartInfo(programName), args, redirectOutput);
         }
 
         public static string GetCurrentProcessLocation()
@@ -178,9 +174,38 @@ namespace GVFS.Common
             }
         }
 
+        private static ProcessResult RunWithArguments(ProcessStartInfo processInfo, string args, bool redirectOutput)
+        {
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardInput = true;
+            processInfo.RedirectStandardOutput = redirectOutput;
+            processInfo.RedirectStandardError = redirectOutput;
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+
+            // CreateNoWindow=false avoids allocating a hidden conhost.exe per child
+            // process. When redirectOutput is true, I/O goes through pipes so no
+            // console is needed. When redirectOutput is false, the child inherits the
+            // parent's console handles — this works when the parent has a console
+            // (e.g., GVFS.Hooks invoked from a terminal), but output is silently lost
+            // when the parent has no console (e.g., service context). This is
+            // acceptable because CreateNoWindow=true would only send that output to
+            // an invisible hidden console instead.
+            processInfo.CreateNoWindow = false;
+            processInfo.Arguments = args;
+
+            return Run(processInfo);
+        }
+
         private static string StartProcess(Process executingProcess)
         {
             executingProcess.Start();
+
+            // No caller writes to stdin. Close it so that a child that reads stdin, such as
+            // git with GIT_CONFIG=-, gets end-of-file instead of waiting forever.
+            if (executingProcess.StartInfo.RedirectStandardInput)
+            {
+                executingProcess.StandardInput.Close();
+            }
 
             if (executingProcess.StartInfo.RedirectStandardError)
             {

@@ -1,5 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
@@ -45,17 +46,17 @@ namespace GVFS.FunctionalTests.Tools
             this.CallGVFS(args, expectedExitCode: SuccessExitCode);
         }
 
-        public void Mount()
+        public void Mount(Dictionary<string, string> environmentVariables = null)
         {
             string output;
-            this.TryMount(out output).ShouldEqual(true, "GVFS did not mount: " + output);
+            this.TryMount(out output, environmentVariables).ShouldEqual(true, "GVFS did not mount: " + output);
             output.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "warning");
         }
 
-        public bool TryMount(out string output)
+        public bool TryMount(out string output, Dictionary<string, string> environmentVariables = null)
         {
             this.IsEnlistmentMounted().ShouldEqual(false, "GVFS is already mounted");
-            output = this.CallGVFS("mount \"" + this.enlistmentRoot + "\"");
+            output = this.CallGVFS("mount \"" + this.enlistmentRoot + "\"", environmentVariables: environmentVariables);
             return this.IsEnlistmentMounted();
         }
 
@@ -249,8 +250,9 @@ namespace GVFS.FunctionalTests.Tools
         /// <param name="trace">What to set the GIT_TRACE environment variable to</param>
         /// <param name="standardInput">What to write to the standard input stream</param>
         /// <param name="internalParameter">The internal parameter to set in the arguments</param>
+        /// <param name="environmentVariables">Environment overrides for the child process</param>
         /// <returns></returns>
-        private string CallGVFS(string args, int expectedExitCode = DoNotCheckExitCode, string trace = null, string standardInput = null, string internalParameter = null)
+        private string CallGVFS(string args, int expectedExitCode = DoNotCheckExitCode, string trace = null, string standardInput = null, string internalParameter = null, Dictionary<string, string> environmentVariables = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
@@ -274,6 +276,14 @@ namespace GVFS.FunctionalTests.Tools
             if (trace != null)
             {
                 processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
+            }
+
+            if (environmentVariables != null)
+            {
+                foreach (string key in environmentVariables.Keys)
+                {
+                    processInfo.EnvironmentVariables[key] = environmentVariables[key];
+                }
             }
 
             Console.Error.WriteLine($"[CI-DEBUG] CallGVFS: {this.pathToGVFS} {processInfo.Arguments}");

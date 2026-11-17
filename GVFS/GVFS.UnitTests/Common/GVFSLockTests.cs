@@ -22,6 +22,58 @@ namespace GVFS.UnitTests.Common
             gitCommandSessionId: "123");
 
         [TestCase]
+        public void PlaceholderCreationLeasesBlockNewOwnersUntilEveryLeaseEnds()
+        {
+            GVFSLock gvfsLock = new GVFSLock(new MockTracer());
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable first, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable second, out _).ShouldBeTrue();
+            try
+            {
+                gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out _).ShouldBeFalse();
+                gvfsLock.TryAcquireLockForGVFS().ShouldBeFalse();
+                gvfsLock.IsLockAvailableForExternalRequestor(out _).ShouldBeFalse();
+                gvfsLock.GetStatus().ShouldEqual("Held by placeholder creation.");
+                first.Dispose();
+                first.Dispose();
+                gvfsLock.TryAcquireLockForGVFS().ShouldBeFalse();
+            }
+            finally
+            {
+                first.Dispose();
+                second.Dispose();
+            }
+
+            gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable duringBackgroundWork, out _).ShouldBeTrue();
+            gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
+            duringBackgroundWork.Dispose();
+            gvfsLock.ReleaseLockHeldByGVFS();
+            gvfsLock.TryAcquirePlaceholderCreation(_ => false, out _, out _).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void PlaceholderLeaseKeepsTheExistingAllowedCommandAsTheReportedOwner()
+        {
+            ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1234);
+            GVFSLock gvfsLock = new GVFSLock(new MockTracer());
+            NamedPipeMessages.LockData owner = new NamedPipeMessages.LockData(1234, false, false, "git status", string.Empty);
+            gvfsLock.TryAcquireLockForExternalRequestor(owner, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation(command => command == "git status", out IDisposable lease, out _).ShouldBeTrue();
+            using (lease)
+            {
+                gvfsLock.IsLockAvailableForExternalRequestor(out NamedPipeMessages.LockData reported).ShouldBeFalse();
+                reported.PID.ShouldEqual(1234);
+                gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out reported).ShouldBeFalse();
+                reported.PID.ShouldEqual(1234);
+                gvfsLock.GetStatus().ShouldEqual("Held by git status (PID:1234)");
+                gvfsLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
+                gvfsLock.GetStatus().ShouldEqual("Held by placeholder creation.");
+            }
+
+            gvfsLock.GetStatus().ShouldEqual("Free");
+        }
+
+        [TestCase]
         public void TryAcquireAndReleaseLockForExternalRequestor()
         {
             Mock<ITracer> mockTracer = new Mock<ITracer>(MockBehavior.Strict);
