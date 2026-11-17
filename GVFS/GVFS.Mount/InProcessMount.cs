@@ -1231,9 +1231,10 @@ namespace GVFS.Mount
 
         /// <summary>
         /// Handles a request to prepare for an unstage operation (e.g., restore --staged).
-        /// Finds index entries that are staged (not in HEAD) with skip-worktree set and adds
-        /// them to ModifiedPaths so that git will clear skip-worktree and process them.
-        /// Also forces a projection update to fix stale placeholders for modified/deleted files.
+        /// Runs git diff --cached for the request's pathspecs and adds the staged files to
+        /// ModifiedPaths so that git will clear skip-worktree and process them. With a
+        /// sparse index, a staged file that the cone does not include makes a cone change
+        /// pending, which the hook applies before git runs.
         /// </summary>
         private void HandlePrepareForUnstageRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {

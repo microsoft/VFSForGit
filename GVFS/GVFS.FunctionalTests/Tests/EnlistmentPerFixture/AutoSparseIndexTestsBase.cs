@@ -87,6 +87,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         /// <summary>
+        /// Return the entry count in the header of the index file on disk.
+        /// </summary>
+        protected int IndexHeaderEntryCount()
+        {
+            // Bytes 8 to 11 of the index file are its entry count (big-endian). A sparse-directory
+            // entry counts as one entry. ls-files cannot show the count on disk, because Git
+            // collapses a full index in memory when it reads it with index.sparse true.
+            byte[] header = new byte[12];
+            using (FileStream stream = new FileStream(this.Enlistment.GetDotGitPath("index"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                stream.ReadExactly(header, 0, header.Length);
+            }
+
+            return (header[8] << 24) | (header[9] << 16) | (header[10] << 8) | header[11];
+        }
+
+        /// <summary>
         /// Return the files of HEAD that are three or more levels deep, grouped by their
         /// two-level directory. Files of different groups are in different directories outside a
         /// root-only cone.

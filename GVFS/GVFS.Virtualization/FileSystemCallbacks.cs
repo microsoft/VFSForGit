@@ -425,9 +425,12 @@ namespace GVFS.Virtualization
         /// Finds index entries that are staged (differ from HEAD) matching the given
         /// pathspec, and adds them to ModifiedPaths. This prepares for an unstage operation
         /// (e.g., restore --staged) by ensuring git will clear skip-worktree for these
-        /// entries so it can detect their working tree state correctly.
-        /// Files that were added (not in HEAD) are also written to disk from the git object
-        /// store as full files, so they persist after projection changes.
+        /// entries so it can detect their working tree state correctly. Each path is also
+        /// reported to the working-tree change observer (see
+        /// <see cref="TryAddStagedFileToModifiedPaths"/>).
+        /// Files that were added (not in HEAD) and were not modified paths yet are also
+        /// written to disk from the git object store as full files, so they persist after
+        /// projection changes.
         /// </summary>
         /// <param name="messageBody">
         /// IPC message body. Formats:
@@ -493,16 +496,17 @@ namespace GVFS.Virtualization
                     return;
                 }
 
-                string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
-                if (this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
+                if (this.TryAddStagedFileToModifiedPaths(gitPath, out bool wasModifiedPath))
                 {
                     added++;
                 }
 
                 // Added files (in index but not in HEAD) are ProjFS placeholders that
                 // would vanish when the projection reverts to HEAD. Collect them for
-                // hydration below.
-                if (status.StartsWith("A"))
+                // hydration below. A path that already was a modified path is a file that
+                // the user or Git owns in the working tree, and it can have unstaged
+                // changes, so it is not overwritten with the staged content.
+                if (!wasModifiedPath && status.StartsWith("A"))
                 {
                     addedFilePaths.Add(gitPath);
                 }
@@ -628,6 +632,41 @@ namespace GVFS.Virtualization
             }
 
             return success;
+        }
+
+        /// <summary>
+        /// Add one staged file to ModifiedPaths, and report it to the working-tree change
+        /// observer.
+        /// </summary>
+        /// <remarks>
+        /// <c>git reset --soft</c> changes which files are staged without a file system write, so
+        /// no callback reports these paths. With a sparse index, Git clears skip-worktree only for
+        /// a path that has its own index entry, so the cone must include the path before Git
+        /// unstages it. The observer makes a cone change pending when the cone does not include
+        /// the path.
+        /// </remarks>
+        /// <param name="gitPath">The path relative to the working-tree root, with forward slashes.</param>
+        /// <param name="wasModifiedPath">
+        /// True when ModifiedPaths already had the path or one of its parent folders before this call.
+        /// </param>
+        /// <returns>True when ModifiedPaths has the path or one of its parent folders.</returns>
+        internal bool TryAddStagedFileToModifiedPaths(string gitPath, out bool wasModifiedPath)
+        {
+            wasModifiedPath = false;
+            if (string.IsNullOrEmpty(gitPath))
+            {
+                return false;
+            }
+
+            string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            wasModifiedPath = this.IsPathOrParentInModifiedPaths(platformPath, isFolder: false);
+            if (!this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _))
+            {
+                return false;
+            }
+
+            this.NotifyWorkingDirectoryChange(platformPath, isFolder: false);
+            return true;
         }
 
         /// <summary>
