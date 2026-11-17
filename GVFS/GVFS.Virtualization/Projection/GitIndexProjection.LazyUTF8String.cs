@@ -75,6 +75,16 @@ namespace GVFS.Virtualization.Projection
                 return bytePool.Size;
             }
 
+            public static int StringPoolObjectsUsed()
+            {
+                return stringPool.ObjectsUsed;
+            }
+
+            public static int BytePoolBytesUsed()
+            {
+                return bytePool.ObjectsUsed;
+            }
+
             public static void ShrinkPool()
             {
                 bytePool.Shrink();
