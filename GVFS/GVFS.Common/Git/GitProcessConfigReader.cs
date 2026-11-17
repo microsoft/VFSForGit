@@ -11,10 +11,71 @@ using System.Threading.Tasks;
 
 namespace GVFS.Common.Git
 {
+    public enum GitConfigBoolScope
+    {
+        Merged,
+        System,
+    }
+
     internal static class GitProcessConfigReader
     {
         private const int MaxOutput = 65536;
         private const int MaxErrors = 4096;
+
+        internal static bool TryReadBool(
+            string key,
+            GitConfigBoolScope scope,
+            Func<string, CancellationToken, GitProcess.Result> readConfig,
+            TimeSpan timeout,
+            ITracer tracer,
+            out bool? value,
+            out string error)
+        {
+            value = null;
+            error = null;
+            tracer = tracer ?? NullTracer.Instance;
+            if (scope != GitConfigBoolScope.System && scope != GitConfigBoolScope.Merged)
+            {
+                throw new ArgumentOutOfRangeException(nameof(scope));
+            }
+
+            string arguments = scope == GitConfigBoolScope.System
+                ? "config --system --includes --type=bool " + key
+                : LibGit2Repo.GetConfigBoolArguments(key);
+
+            using (CancellationTokenSource deadline = new CancellationTokenSource(timeout))
+            {
+                try
+                {
+                    GitProcess.Result result = readConfig(arguments, deadline.Token);
+                    if (result.OutputTruncated || result.ErrorsTruncated)
+                    {
+                        error = $"Error while reading '{key}' from config: output was truncated.";
+                        return false;
+                    }
+
+                    if (result.ExitCode == 1 && !string.IsNullOrWhiteSpace(result.Output))
+                    {
+                        error = $"Error while reading '{key}' from config: unexpected output for an unset value.";
+                        return false;
+                    }
+
+                    return LibGit2Repo.TryParseConfigBoolOutput(key, result.ExitCode, result.Output, result.Errors, out value, out error);
+                }
+                catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+                {
+                    error = $"The Git configuration read for '{key}' timed out.";
+                    tracer.RelatedWarning(error);
+                    return false;
+                }
+                catch (Exception e) when (e is GitConfigProcessException || e is Win32Exception || e is IOException || e is UnauthorizedAccessException)
+                {
+                    error = $"The Git configuration read for '{key}' failed: {e.Message}";
+                    tracer.RelatedWarning($"{error} {e}");
+                    return false;
+                }
+            }
+        }
 
         // If the caller runs Git and returns a result, use Read for retries.
         internal static GitProcess.Result Read(
@@ -160,6 +221,7 @@ namespace GVFS.Common.Git
                         {
                             killTree();
                         }
+
                     }
                     catch (Exception cleanupFailure) when (failure != null || readFailure != null)
                     {

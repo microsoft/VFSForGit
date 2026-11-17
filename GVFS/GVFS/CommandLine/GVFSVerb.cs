@@ -584,8 +584,12 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                 GitProcess git = string.IsNullOrEmpty(gitBinPath) ? null : new GitProcess(gitBinPath, enlistmentRoot);
+                LibGit2Repo.TryReadConfigBoolWithGit reader = git == null
+                    ? null
+                    : (string key, out bool? value, out string readError) =>
+                        git.TryGetBoolFromConfig(key, GitConfigBoolScope.Merged, DevDriveFilterConfig.ReadTimeout, tracer, out value, out readError);
                 request.AutoAllowDevDriveFilter = DevDriveFilterConfig.IsEnabled(
-                    git == null ? null : git.TryGetBoolFromConfig,
+                    reader,
                     clientValue: null,
                     source: "enlistment",
                     tracer,

@@ -201,22 +201,6 @@ namespace GVFS.Common.Git
                 settingName);
         }
 
-        public static bool TryGetBoolFromSystemConfig(string gitBinPath, string settingName, out bool? value, out string error)
-        {
-            GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
-            return TryGetBoolFromSystemConfig(
-                settingName,
-                arguments => git.InvokeConfigRead(settingName, () => git.InvokeGitOutsideEnlistment(arguments)),
-                out value,
-                out error);
-        }
-
-        internal static bool TryGetBoolFromSystemConfig(string settingName, Func<string, Result> readConfig, out bool? value, out string error)
-        {
-            Result result = readConfig("config --system --includes --type=bool " + settingName);
-            return LibGit2Repo.TryParseConfigBoolOutput(settingName, result.ExitCode, result.Output, result.Errors, out value, out error);
-        }
-
         public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
             GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
@@ -670,6 +654,49 @@ namespace GVFS.Common.Git
         {
             Result result = this.ReadConfig(settingName, LibGit2Repo.GetConfigBoolArguments(settingName), forceOutsideEnlistment: false, fileSystem: null);
             return LibGit2Repo.TryParseConfigBoolOutput(settingName, result.ExitCode, result.Output, result.Errors, out value, out error);
+        }
+
+        /// <summary>
+        /// Reads a boolean with Git within one deadline for all attempts and retry delays.
+        /// Returns null for an unset key and reports read errors without choosing a default.
+        /// </summary>
+        public bool TryGetBoolFromConfig(
+            string settingName,
+            GitConfigBoolScope scope,
+            TimeSpan timeout,
+            ITracer tracer,
+            out bool? value,
+            out string error)
+        {
+            tracer = tracer ?? NullTracer.Instance;
+            bool useRepository = scope == GitConfigBoolScope.Merged && this.workingDirectoryRoot != null;
+            if (useRepository && !Directory.Exists(this.workingDirectoryRoot))
+            {
+                value = null;
+                error = $"Cannot read '{settingName}': the enlistment directory is unavailable.";
+                tracer.RelatedWarning(error);
+                return false;
+            }
+
+            return GitProcessConfigReader.TryReadBool(
+                settingName,
+                scope,
+                (arguments, cancellation) => GitProcessConfigReader.ReadRaw(
+                    settingName,
+                    () => this.GetGitProcess(
+                        arguments,
+                        Environment.SystemDirectory,
+                        useRepository ? this.gitDirPath : null,
+                        useReadObjectHook: false,
+                        gitObjectsDirectory: null,
+                        usePreCommandHook: !useRepository),
+                    string.Empty,
+                    cancellation,
+                    tracer),
+                timeout,
+                tracer,
+                out value,
+                out error);
         }
 
         public ConfigResult GetFromLocalConfig(string settingName)

@@ -1,10 +1,13 @@
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using System;
 
 namespace GVFS.Common
 {
     public static class DevDriveFilterConfig
     {
+        public static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(5);
+
         public static bool IsEnabled(
             LibGit2Repo.TryReadConfigBoolWithGit readConfig,
             bool? clientValue,

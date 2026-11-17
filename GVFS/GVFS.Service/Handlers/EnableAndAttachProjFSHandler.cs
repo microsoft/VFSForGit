@@ -205,8 +205,9 @@ namespace GVFS.Service.Handlers
             LibGit2Repo.TryReadConfigBoolWithGit reader = null;
             if (!string.IsNullOrEmpty(gitBinPath))
             {
+                GitProcess git = new GitProcess(gitBinPath, workingDirectoryRoot: null);
                 reader = (string key, out bool? value, out string readError) =>
-                    GitProcess.TryGetBoolFromSystemConfig(gitBinPath, key, out value, out readError);
+                    git.TryGetBoolFromConfig(key, GitConfigBoolScope.System, DevDriveFilterConfig.ReadTimeout, this.tracer, out value, out readError);
             }
 
             return DevDriveFilterConfig.IsEnabled(reader, this.request.AutoAllowDevDriveFilter, "system", this.tracer, out disabledReason);
