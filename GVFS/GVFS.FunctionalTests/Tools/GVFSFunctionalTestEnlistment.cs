@@ -309,9 +309,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.IsEnlistmentMounted();
         }
 
-        public void MountGVFS()
+        public void MountGVFS(Dictionary<string, string> environmentVariables = null)
         {
-            this.gvfsProcess.Mount();
+            this.gvfsProcess.Mount(environmentVariables);
         }
 
         public bool TryMountGVFS()

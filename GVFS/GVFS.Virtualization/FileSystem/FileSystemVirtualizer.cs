@@ -79,7 +79,7 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
-        public void PrepareToStop()
+        public virtual void PrepareToStop()
         {
             this.fileAndNetworkRequests.CompleteAdding();
             foreach (Thread t in this.fileAndNetworkWorkerThreads)
@@ -119,7 +119,7 @@ namespace GVFS.Virtualization.FileSystem
         {
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             if (this.fileAndNetworkRequests != null)
             {
@@ -149,7 +149,12 @@ namespace GVFS.Virtualization.FileSystem
         /// </remarks>
         protected bool CanCreatePlaceholder()
         {
-            GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+            return CanCreatePlaceholderForCommand(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+        }
+
+        protected static bool CanCreatePlaceholderForCommand(string command)
+        {
+            GitCommandLineParser gitCommand = new GitCommandLineParser(command);
             return
                 !gitCommand.IsValidGitCommand ||
                 gitCommand.IsVerb(FileSystemVirtualizer.CanCreatePlaceholderVerbs);
