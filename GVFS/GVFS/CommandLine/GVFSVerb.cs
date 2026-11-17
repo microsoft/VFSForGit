@@ -191,7 +191,7 @@ namespace GVFS.CommandLine
                 initialDelayMs: 0);
         }
 
-        protected bool ShowStatusWhileRunning(
+        protected virtual bool ShowStatusWhileRunning(
             Func<bool> action,
             Func<string> getMessage,
             string message,
