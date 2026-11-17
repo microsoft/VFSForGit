@@ -5,6 +5,7 @@ using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
 using System;
+using System.Globalization;
 
 namespace GVFS.UnitTests.Windows.Mock
 {
@@ -20,10 +21,21 @@ namespace GVFS.UnitTests.Windows.Mock
         {
         }
 
+        public WindowsFileSystemVirtualizerTester(CommonRepoSetup repo, bool enablePlaceholderLockWait)
+            : this(repo, enablePlaceholderLockWait ? 2000 : 0)
+        {
+        }
+
+        public WindowsFileSystemVirtualizerTester(CommonRepoSetup repo, int placeholderLockWaitMs)
+            : base(ConfigurePlaceholderLockWait(repo, placeholderLockWaitMs))
+        {
+            this.GitIndexProjection.ProjectionParseComplete = true;
+        }
+
         public MockVirtualizationInstance MockVirtualization { get; private set; }
         public WindowsFileSystemVirtualizer WindowsVirtualizer { get; private set; }
 
-        public void InvokeGetFileDataCallback(HResult expectedResult = HResult.Pending, byte[] providerId = null, ulong byteOffset = 0, byte[] contentId = null, string relativePath = "test.txt")
+        public void InvokeGetFileDataCallback(HResult expectedResult = HResult.Pending, byte[] providerId = null, ulong byteOffset = 0, byte[] contentId = null, string relativePath = "test.txt", int commandId = 1)
         {
             if (providerId == null)
             {
@@ -36,7 +48,7 @@ namespace GVFS.UnitTests.Windows.Mock
             }
 
             this.MockVirtualization.RequiredCallbacks.GetFileDataCallback(
-                commandId: 1,
+                commandId: commandId,
                 relativePath: relativePath,
                 byteOffset: byteOffset,
                 length: MockGVFSGitObjects.DefaultFileLength,
@@ -50,8 +62,21 @@ namespace GVFS.UnitTests.Windows.Mock
         protected override FileSystemVirtualizer CreateVirtualizer(CommonRepoSetup repo)
         {
             this.MockVirtualization = new MockVirtualizationInstance();
-            this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads);
+            this.WindowsVirtualizer = new WindowsFileSystemVirtualizer(
+                repo.Context, repo.GitObjects, this.MockVirtualization, FileSystemVirtualizerTester.NumberOfWorkThreads,
+                placeholderLockWaitMs: WindowsFileSystemVirtualizer.ReadPlaceholderLockWaitMs(
+                    repo.Context.Tracer,
+                    () => repo.Context.Repository.TryGetConfigValue(GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWaitMs, out string value) ? value : null))
+            {
+                IsRequestDescendant = (_, _, _) => false,
+            };
             return this.WindowsVirtualizer;
+        }
+
+        private static CommonRepoSetup ConfigurePlaceholderLockWait(CommonRepoSetup repo, int milliseconds)
+        {
+            repo.Repository.ConfigValues[GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWaitMs] = milliseconds.ToString(CultureInfo.InvariantCulture);
+            return repo;
         }
     }
 }
