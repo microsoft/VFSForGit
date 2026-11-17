@@ -19,6 +19,7 @@ namespace GVFS.UnitTests.Windows.Platform
             "Filters allowed on any developer volume, by group policy:\r\n    MsSecFlt\r\n\r\n";
         private const string Machine = "Filters allowed on any developer volume:\r\n    DfmFlt\r\n\r\n";
         private const string VolumeHeader = "Filters allowed on this developer volume:\r\n";
+        private const string Attached = "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt, WdFilter\r\n";
 
         [TestCase]
         public void ParserSeparatesVolumeAllowancesFromInheritedAndAttachedFilters()
@@ -35,7 +36,7 @@ namespace GVFS.UnitTests.Windows.Platform
         public void ParserPreservesEveryLineOfVolumeAllowances()
         {
             DevDriveFilterPolicy.TryParseAllowedFilters(
-                Preamble + VolumeHeader + "    bindflt,\r\n    wcifs, DfmFlt\r\n",
+                Preamble + VolumeHeader + "    bindflt,\r\n    wcifs, DfmFlt\r\n" + Attached,
                 out DevDriveFilterPolicy.Allowances parsed).ShouldBeTrue();
             parsed.Volume.ShouldMatchInOrder("bindflt", "wcifs", "DfmFlt");
         }
@@ -50,6 +51,15 @@ namespace GVFS.UnitTests.Windows.Platform
         [TestCase(Preamble + VolumeHeader + "    DfmFlt\r\n    unrecognized continuation text\r\n")]
         [TestCase(Preamble + VolumeHeader + "    DfmFlt\r\n\r\n" + VolumeHeader + "    wcifs\r\n")]
         [TestCase(Preamble + VolumeHeader + "    PrjFl\u0442\r\n")]
+        [TestCase(Preamble)]
+        [TestCase(Preamble + VolumeHeader + "    bindflt\r\n")]
+        [TestCase(Preamble + VolumeHeader + "    bindflt,\r\n" + Attached)]
+        [TestCase(Preamble + VolumeHeader + "    bindflt,\r\n\r\n    wcifs\r\n" + Attached)]
+        [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n")]
+        [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt")]
+        [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt,\r\n")]
+        [TestCase(Preamble + Attached + "\r\n" + VolumeHeader + "    bindflt\r\n")]
+        [TestCase(Preamble + Preamble + Attached)]
         [TestCase("Developer volumes are enabled.\r\n")]
         [TestCase("This is a trusted developer volume.\r" + VolumeHeader + "    DfmFlt\r")]
         public void ParserRejectsAmbiguousOrUnrecognizedOutput(string output)
@@ -58,12 +68,91 @@ namespace GVFS.UnitTests.Windows.Platform
             parsed.ShouldBeNull();
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ParserRejectsEveryTruncatedPrefixOfCapturedVolumeOutput(bool hasVolumeAllowance)
+        {
+            string volume = hasVolumeAllowance ? VolumeHeader + "    bindflt\r\n" : string.Empty;
+            string complete = Preamble + Enterprise + Machine + volume + Attached;
+            DevDriveFilterPolicy.TryParseAllowedFilters(complete, out DevDriveFilterPolicy.Allowances parsed).ShouldBeTrue();
+            if (hasVolumeAllowance)
+            {
+                parsed.Volume.ShouldMatchInOrder("bindflt");
+            }
+            else
+            {
+                parsed.Volume.ShouldBeEmpty();
+            }
+
+            for (int length = 0; length < complete.Length; ++length)
+            {
+                bool accepted = DevDriveFilterPolicy.TryParseAllowedFilters(complete.Substring(0, length), out DevDriveFilterPolicy.Allowances _);
+                Assert.That(accepted, Is.False, $"Accepted output truncated at character {length}.");
+            }
+        }
+
+        [TestCase(1)]
+        [TestCase(2)]
+        public void AllowFilterNeverWritesAfterAnIncompleteQuery(int incompleteQuery)
+        {
+            int calls = 0;
+            DevDriveFilterPolicy.TryAllowFilter(
+                Root,
+                command =>
+                {
+                    command.ShouldEqual(@"devdrv query mock:\volume\");
+                    ++calls;
+                    return Query(calls == incompleteQuery
+                        ? Preamble + Enterprise + Machine
+                        : Preamble + Enterprise + Machine + VolumeHeader + "    bindflt\r\n" + Attached);
+                },
+                NullTracer.Instance,
+                out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.PolicyUnreadable);
+            calls.ShouldEqual(incompleteQuery);
+            error.ShouldContain("not recognized");
+        }
+
+        [TestCase]
+        public void AllowFilterDoesNotWriteWhenAQueryReportsAnErrorDespiteSuccessExit()
+        {
+            DevDriveFilterPolicy.TryAllowFilter(
+                Root,
+                command =>
+                {
+                    command.ShouldEqual(@"devdrv query mock:\volume\");
+                    return new ProcessResult(Preamble + Enterprise + Machine + Attached, "query warning", 0);
+                },
+                NullTracer.Instance,
+                out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.PolicyUnreadable);
+            error.ShouldContain("query warning");
+        }
+
+        [TestCase]
+        public void AllowFilterReportsAnUnverifiedWriteWhenTheReadbackReportsAnError()
+        {
+            int calls = 0;
+            string output = Preamble + Enterprise + Machine + VolumeHeader + "    bindflt\r\n" + Attached;
+            DevDriveFilterPolicy.TryAllowFilter(
+                Root,
+                command =>
+                {
+                    ++calls;
+                    return calls == 4
+                        ? new ProcessResult(output, "readback warning", 0)
+                        : Query(output);
+                },
+                NullTracer.Instance,
+                out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.Failed);
+            calls.ShouldEqual(4);
+            error.ShouldContain("update was attempted", "verification failed", "readback warning");
+        }
+
         [TestCase(0, DevDriveFilterPolicy.AllowFilterResult.Added)]
         [TestCase(5, DevDriveFilterPolicy.AllowFilterResult.RemountRequired)]
         [TestCase(-1, DevDriveFilterPolicy.AllowFilterResult.RemountRequired)]
         public void AllowFilterPreservesOnlyVolumeEntriesAndVerifiesBusyWrites(int writeExit, DevDriveFilterPolicy.AllowFilterResult expected)
         {
-            string before = Preamble + Enterprise + Machine + VolumeHeader + "    bindflt\r\n";
+            string before = Preamble + Enterprise + Machine + VolumeHeader + "    bindflt\r\n" + Attached;
             Queue<string> commands = new Queue<string>(new[]
             {
                 @"devdrv query mock:\volume\",
@@ -76,7 +165,7 @@ namespace GVFS.UnitTests.Windows.Platform
                 Query(before),
                 Query(before),
                 new ProcessResult("Volume is in use.", string.Empty, writeExit),
-                Query(Preamble + Enterprise + Machine + VolumeHeader + "    bindflt,prjflt\r\n"),
+                Query(Preamble + Enterprise + Machine + VolumeHeader + "    bindflt,prjflt\r\n" + Attached),
             });
             MockTracer tracer = new MockTracer();
 
@@ -98,9 +187,9 @@ namespace GVFS.UnitTests.Windows.Platform
             tracer.RelatedWarningEvents.Count.ShouldEqual(writeExit == 0 ? 0 : 1);
         }
 
-        [TestCase(Preamble + Enterprise + "Filters allowed on any developer volume:\r\n    PrjFlt,DfmFlt\r\n")]
-        [TestCase(Preamble + "Filters allowed on any developer volume, by group policy:\r\n    PrjFlt\r\n")]
-        [TestCase(Preamble + VolumeHeader + "    prjflt\r\n")]
+        [TestCase(Preamble + Enterprise + "Filters allowed on any developer volume:\r\n    PrjFlt,DfmFlt\r\n" + Attached)]
+        [TestCase(Preamble + "Filters allowed on any developer volume, by group policy:\r\n    PrjFlt\r\n" + Attached)]
+        [TestCase(Preamble + VolumeHeader + "    prjflt\r\n" + Attached)]
         public void AllowFilterDoesNotWriteWhenAnyApplicableListAlreadyAllowsFilter(string output)
         {
             DevDriveFilterPolicy.TryAllowFilter(
@@ -120,10 +209,10 @@ namespace GVFS.UnitTests.Windows.Platform
         {
             Queue<ProcessResult> results = new Queue<ProcessResult>(new[]
             {
-                Query(Preamble + Enterprise + Machine),
-                Query(Preamble + Enterprise + Machine),
+                Query(Preamble + Enterprise + Machine + Attached),
+                Query(Preamble + Enterprise + Machine + Attached),
                 Query(string.Empty),
-                Query(Preamble + Enterprise + Machine + VolumeHeader + "    PrjFlt\r\n"),
+                Query(Preamble + Enterprise + Machine + VolumeHeader + "    PrjFlt\r\n" + Attached),
             });
             DevDriveFilterPolicy.TryAllowFilter(
                 Root,
@@ -151,7 +240,7 @@ namespace GVFS.UnitTests.Windows.Platform
                 command =>
                 {
                     command.ShouldEqual(@"devdrv query mock:\volume\");
-                    return Query(++calls == 1 ? Preamble : Preamble + VolumeHeader + "    wcifs\r\n");
+                    return Query(++calls == 1 ? Preamble + Attached : Preamble + VolumeHeader + "    wcifs\r\n" + Attached);
                 },
                 NullTracer.Instance,
                 out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.Failed);
@@ -178,13 +267,14 @@ namespace GVFS.UnitTests.Windows.Platform
 
         [TestCase(5, "Access denied.", "verification failed")]
         [TestCase(0, "Unrecognized output.", "verification failed")]
-        [TestCase(0, Preamble, "does not contain")]
+        [TestCase(0, Preamble + Enterprise + Machine, "verification failed")]
+        [TestCase(0, Preamble + Attached, "does not contain")]
         public void AllowFilterDoesNotReportAnUnverifiedWriteAsSuccess(int verifyExit, string output, string message)
         {
             int calls = 0;
             DevDriveFilterPolicy.TryAllowFilter(
                 Root,
-                command => ++calls < 4 ? Query(Preamble) : new ProcessResult(output, string.Empty, verifyExit),
+                command => ++calls < 4 ? Query(Preamble + Attached) : new ProcessResult(output, string.Empty, verifyExit),
                 NullTracer.Instance,
                 out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.Failed);
             calls.ShouldEqual(4);

@@ -150,7 +150,7 @@ namespace GVFS.Platform.Windows
         internal static bool TryParseAllowedFilters(string queryOutput, out Allowances allowances)
         {
             allowances = null;
-            if (string.IsNullOrWhiteSpace(queryOutput))
+            if (string.IsNullOrWhiteSpace(queryOutput) || !queryOutput.EndsWith("\n", StringComparison.Ordinal))
             {
                 return false;
             }
@@ -158,28 +158,37 @@ namespace GVFS.Platform.Windows
             Dictionary<string, List<string>> sections = new Dictionary<string, List<string>>(StringComparer.Ordinal);
             List<string> currentSection = null;
             bool developerVolume = false;
+            bool awaitingContinuation = false;
+            bool attachedSectionStarted = false;
             foreach (string rawLine in queryOutput.Split('\n'))
             {
                 string line = rawLine.Trim();
                 if (line.Length == 0)
                 {
+                    if (awaitingContinuation)
+                    {
+                        return false;
+                    }
+
                     currentSection = null;
                     continue;
                 }
 
                 if (line == VolumeHeader || line == MachineHeader || line == GroupPolicyHeader || line == AttachedHeader)
                 {
-                    if (sections.ContainsKey(line))
+                    if (!developerVolume || awaitingContinuation || attachedSectionStarted || sections.ContainsKey(line))
                     {
                         return false;
                     }
 
                     currentSection = new List<string>();
                     sections.Add(line, currentSection);
+                    attachedSectionStarted = line == AttachedHeader;
                 }
                 else if (currentSection != null)
                 {
-                    string filterLine = line.EndsWith(",", StringComparison.Ordinal) ? line.Substring(0, line.Length - 1) : line;
+                    awaitingContinuation = line.EndsWith(",", StringComparison.Ordinal);
+                    string filterLine = awaitingContinuation ? line.Substring(0, line.Length - 1) : line;
                     foreach (string token in filterLine.Split(','))
                     {
                         string name = token.Trim();
@@ -193,16 +202,26 @@ namespace GVFS.Platform.Windows
                 }
                 else if (line == "This is a trusted developer volume." || line == "This is an untrusted developer volume.")
                 {
+                    if (developerVolume || sections.Count != 0)
+                    {
+                        return false;
+                    }
+
                     developerVolume = true;
                 }
-                else if (line != "Developer volumes are protected by antivirus filter, by group policy."
-                    && line != "Developer volumes are protected by antivirus filter.")
+                else if (!developerVolume || attachedSectionStarted
+                    || (line != "Developer volumes are protected by antivirus filter, by group policy."
+                        && line != "Developer volumes are protected by antivirus filter."))
                 {
                     return false;
                 }
             }
 
-            if (!developerVolume || sections.Any(section => section.Key != AttachedHeader && section.Value.Count == 0))
+            // fsutil omits an empty volume allowance section. Require the final attached-filter
+            // section before treating that omission as empty; an early EOF is not an empty list.
+            // Text parsing cannot detect a missing middle section in otherwise complete output.
+            if (!developerVolume || !attachedSectionStarted || awaitingContinuation
+                || sections.Any(section => section.Value.Count == 0))
             {
                 return false;
             }
@@ -225,6 +244,10 @@ namespace GVFS.Platform.Windows
             if (result.ExitCode != 0)
             {
                 error = $"The Dev Drive query failed with exit {result.ExitCode}: {result.Output} {result.Errors}".Trim();
+            }
+            else if (!string.IsNullOrWhiteSpace(result.Errors))
+            {
+                error = $"The Dev Drive query reported an error: {result.Errors.Trim()}";
             }
             else if (!TryParseAllowedFilters(result.Output, out allowances))
             {
