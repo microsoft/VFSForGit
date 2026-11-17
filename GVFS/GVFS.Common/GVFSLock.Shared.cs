@@ -32,15 +32,9 @@ namespace GVFS.Common
             {
                 case NamedPipeMessages.AcquireLock.AcceptResult:
                 case NamedPipeMessages.AcquireLock.AvailableResult:
-                    return CheckAcceptResponse(response, checkAvailabilityOnly, out result);
-
                 case NamedPipeMessages.AcquireLock.MountNotReadyResult:
-                    result = "GVFS has not finished initializing, please wait a few seconds and try again.";
-                    return false;
-
                 case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
-                    result = "GVFS is unmounting.";
-                    return false;
+                    return CheckLockResponse(response, checkAvailabilityOnly, out result);
 
                 case NamedPipeMessages.AcquireLock.DenyGVFSResult:
                     message = response.DenyGVFSMessage;
@@ -55,6 +49,7 @@ namespace GVFS.Common
                     return false;
             }
 
+            string retryResult = null;
             Func<bool> waitForLock =
                 () =>
                 {
@@ -67,10 +62,9 @@ namespace GVFS.Common
                         {
                             case NamedPipeMessages.AcquireLock.AcceptResult:
                             case NamedPipeMessages.AcquireLock.AvailableResult:
-                                return CheckAcceptResponse(response, checkAvailabilityOnly, out _);
-
+                            case NamedPipeMessages.AcquireLock.MountNotReadyResult:
                             case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
-                                return false;
+                                return CheckLockResponse(response, checkAvailabilityOnly, out retryResult);
 
                             default:
                                 break;
@@ -93,7 +87,7 @@ namespace GVFS.Common
                     gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
             }
 
-            result = null;
+            result = retryResult;
             return isSuccessfulLockResult;
         }
 
@@ -140,10 +134,18 @@ namespace GVFS.Common
             }
         }
 
-        private static bool CheckAcceptResponse(NamedPipeMessages.AcquireLock.Response response, bool checkAvailabilityOnly, out string message)
+        private static bool CheckLockResponse(NamedPipeMessages.AcquireLock.Response response, bool checkAvailabilityOnly, out string message)
         {
             switch (response.Result)
             {
+                case NamedPipeMessages.AcquireLock.MountNotReadyResult:
+                    message = "GVFS has not finished initializing, please wait a few seconds and try again.";
+                    return false;
+
+                case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
+                    message = "GVFS is unmounting.";
+                    return false;
+
                 case NamedPipeMessages.AcquireLock.AcceptResult:
                     if (!checkAvailabilityOnly)
                     {

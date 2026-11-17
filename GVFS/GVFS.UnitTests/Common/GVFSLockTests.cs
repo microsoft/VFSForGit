@@ -21,6 +21,104 @@ namespace GVFS.UnitTests.Common
             parsedCommand: "git command",
             gitCommandSessionId: "123");
 
+        [TestCase("LockDeniedGVFS", "MountNotReady", "not finished initializing", true)]
+        [TestCase("LockDeniedGit", "MountNotReady", "not finished initializing", true)]
+        [TestCase("LockDeniedGVFS", "UnmountInProgress", "unmounting", true)]
+        [TestCase("LockDeniedGit", "UnmountInProgress", "unmounting", true)]
+        [TestCase("LockDeniedGVFS", "MountNotReady", "not finished initializing", false)]
+        [TestCase("LockDeniedGit", "MountNotReady", "not finished initializing", false)]
+        [TestCase("LockDeniedGVFS", "UnmountInProgress", "unmounting", false)]
+        [TestCase("LockDeniedGit", "UnmountInProgress", "unmounting", false)]
+        public void MountStateChangeStopsLockRetriesAndReportsError(string denial, string mountState, string expectedError, bool unattended)
+        {
+            int responsesRead = 0;
+            NamedPipeMessages.Message[] responses =
+            {
+                new NamedPipeMessages.AcquireLock.Response(denial, DefaultLockData).CreateMessage(),
+                new NamedPipeMessages.Message(mountState, null),
+            };
+
+            using (MockNamedPipeClient pipe = new MockNamedPipeClient
+            {
+                ReadResponseCallback = () =>
+                {
+                    Assert.That(responsesRead, Is.LessThan(responses.Length), "The hook retried after the mount state changed.");
+                    return responses[responsesRead++];
+                },
+            })
+            {
+                GVFSLock.TryAcquireGVFSLockForProcess(
+                    unattended, pipe, "git status --serialize=mock:\\status", 123, false, true,
+                    checkAvailabilityOnly: true, gvfsEnlistmentRoot: null, gitCommandSessionId: string.Empty,
+                    out string error).ShouldBeFalse();
+
+                error.ShouldContain(expectedError);
+                responsesRead.ShouldEqual(2);
+            }
+        }
+
+        [TestCase("LockAcquired", false, true, null)]
+        [TestCase("LockAvailable", true, true, null)]
+        [TestCase("LockAcquired", true, false, "Unexpected response")]
+        [TestCase("LockAvailable", false, false, "Unexpected response")]
+        public void LockRetryPreservesAcceptanceChecksAndErrors(string response, bool checkAvailabilityOnly, bool expectedSuccess, string expectedError)
+        {
+            int responsesRead = 0;
+            using (MockNamedPipeClient pipe = new MockNamedPipeClient
+            {
+                ReadResponseCallback = () => ++responsesRead == 1
+                    ? new NamedPipeMessages.AcquireLock.Response("LockDeniedGVFS", denyGVFSMessage: "Waiting for GVFS").CreateMessage()
+                    : new NamedPipeMessages.Message(response, null),
+            })
+            {
+                GVFSLock.TryAcquireGVFSLockForProcess(
+                    unattended: true, pipe, "git status", 123, false, true,
+                    checkAvailabilityOnly, gvfsEnlistmentRoot: null, gitCommandSessionId: string.Empty,
+                    out string error).ShouldEqual(expectedSuccess);
+
+                responsesRead.ShouldEqual(2);
+                if (expectedError == null)
+                {
+                    error.ShouldBeNull();
+                }
+                else
+                {
+                    error.ShouldContain(expectedError);
+                }
+            }
+        }
+
+        [TestCase("LockDeniedGVFS", "LockDeniedGit")]
+        [TestCase("LockDeniedGit", "LockDeniedGVFS")]
+        public void LockRetriesContinueWhileAnotherOwnerHoldsTheLock(string firstDenial, string secondDenial)
+        {
+            int responsesRead = 0;
+            NamedPipeMessages.Message[] responses =
+            {
+                new NamedPipeMessages.AcquireLock.Response(firstDenial, DefaultLockData).CreateMessage(),
+                new NamedPipeMessages.AcquireLock.Response(secondDenial, DefaultLockData).CreateMessage(),
+                new NamedPipeMessages.Message("LockAvailable", null),
+            };
+
+            using (MockNamedPipeClient pipe = new MockNamedPipeClient
+            {
+                ReadResponseCallback = () =>
+                {
+                    Assert.That(responsesRead, Is.LessThan(responses.Length));
+                    return responses[responsesRead++];
+                },
+            })
+            {
+                GVFSLock.TryAcquireGVFSLockForProcess(
+                    unattended: true, pipe, "git status", 123, false, true,
+                    checkAvailabilityOnly: true, gvfsEnlistmentRoot: null, gitCommandSessionId: string.Empty,
+                    out string error).ShouldBeTrue();
+
+                error.ShouldBeNull();
+                responsesRead.ShouldEqual(3);
+            }
+        }
+
         [TestCase]
         public void PlaceholderCreationLeasesBlockNewOwnersUntilEveryLeaseEnds()
         {
