@@ -40,6 +40,14 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
+        /// <summary>The result of <see cref="IsOpenFileAtPath"/>.</summary>
+        public bool OpenFileIsAtPath { get; set; } = true;
+
+        public override bool IsOpenFileAtPath(Stream stream, string path)
+        {
+            return this.OpenFileIsAtPath;
+        }
+
         public override void DeleteDirectory(string path, bool recursive = true, bool ignoreDirectoryDeleteExceptions = false)
         {
             if (!recursive)

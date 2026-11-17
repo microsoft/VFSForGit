@@ -1,6 +1,7 @@
 using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
@@ -16,11 +17,13 @@ using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.Background;
+using GVFS.Virtualization.FileSystem;
 using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.UnitTests.Virtualization
@@ -515,6 +518,159 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
+        public void DehydrateCleanFileConvertsTheFileThenAddsThePlaceholderThenRemovesTheModifiedPath()
+        {
+            List<string> steps = new List<string>();
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, steps, "hello\n"))
+            {
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) =>
+                {
+                    path.ShouldEqual(@"Out\clean.txt");
+                    sha.ShouldEqual(CleanFileFixture.HelloSha);
+                    size.ShouldEqual(6);
+                    flags.HasFlag(UpdatePlaceholderType.AllowDirtyData).ShouldBeTrue();
+                    fixture.IsModifiedPath().ShouldBeTrue("The file must stay a modified path until it is a placeholder");
+                    steps.Add("convert");
+                    return FSResult.Ok;
+                };
+                fixture.PlaceholderDb
+                    .Setup(x => x.AddFile(@"Out\clean.txt", CleanFileFixture.HelloSha))
+                    .Callback(() =>
+                    {
+                        fixture.IsModifiedPath().ShouldBeTrue("The placeholder must be added before the modified path is removed");
+                        steps.Add("placeholder");
+                    });
+
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+
+                steps.ShouldMatchInOrder("convert", "placeholder");
+                fixture.IsModifiedPath().ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void DehydrateCleanFileKeepsTheTimesAndTheReadOnlyAttribute()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                DateTime written = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+                fixture.CleanFile.FileProperties = new FileProperties(FileAttributes.ReadOnly, written.AddDays(-1), written, written, 6);
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) => FSResult.Ok;
+                fixture.PlaceholderDb.Setup(x => x.AddFile(@"Out\clean.txt", CleanFileFixture.HelloSha));
+
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+
+                fixture.Virtualizer.LastAttributes.ShouldEqual(FileAttributes.ReadOnly);
+                fixture.Virtualizer.LastCreationTime.ShouldEqual(written.AddDays(-1));
+                fixture.Virtualizer.LastWriteTime.ShouldEqual(written);
+            }
+        }
+
+        [TestCase]
+        public void DehydrateCleanFileDoesNotConvertAFileThatThePathNoLongerNames()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                // For example, a process renamed another file over the path after the hash.
+                this.Repo.FileSystem.OpenFileIsAtPath = false;
+
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Replaced);
+
+                fixture.Virtualizer.UpdateCount.ShouldEqual(0);
+                fixture.IsModifiedPath().ShouldBeTrue();
+                fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void DehydratedFileIsReportedOnceAsADehydratedPlaceholder()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) =>
+                {
+                    // A write right after the conversion must find the path.
+                    fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeTrue();
+                    return FSResult.Ok;
+                };
+                fixture.PlaceholderDb.Setup(x => x.AddFile(@"Out\clean.txt", CleanFileFixture.HelloSha));
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+                fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeFalse("The check above took the path");
+
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) => FSResult.Ok;
+                fixture.Callbacks.TryRestoreModifiedPath("Out/clean.txt").ShouldBeTrue();
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+                fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeTrue();
+                fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeFalse();
+            }
+        }
+
+        [TestCase("hellO\n")]
+        [TestCase("hello\n\n")]
+        [TestCase("hell\n")]
+        public void DehydrateCleanFileDoesNotConvertAFileWithOtherBytes(string content)
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), content))
+            {
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.ContentDiffers);
+
+                fixture.Virtualizer.UpdateCount.ShouldEqual(0);
+                fixture.IsModifiedPath().ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
+        public void DehydrateCleanFileKeepsTheModifiedPathWhenTheFileIsNotConverted()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                // For example, the file became dirty, or a process holds it open.
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) => FSResult.VirtualizationInvalidOperation;
+
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.PlaceholderUpdateFailed);
+
+                fixture.IsModifiedPath().ShouldBeTrue();
+                fixture.Callbacks.IsDehydratedPlaceholder(@"Out\clean.txt").ShouldBeFalse();
+                fixture.PlaceholderDb.Verify(x => x.AddFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+            }
+        }
+
+        [TestCase]
+        public void DehydrateCleanFileDoesNothingForAPathThatIsNotAModifiedPath()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                fixture.Callbacks.TryDehydrateCleanFile("Out/other.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.NotModifiedPath);
+
+                fixture.Virtualizer.UpdateCount.ShouldEqual(0);
+            }
+        }
+
+        [TestCase]
+        public void RestoreModifiedPathAddsTheFileBack()
+        {
+            using (CleanFileFixture fixture = new CleanFileFixture(this.Repo, new List<string>(), "hello\n"))
+            {
+                fixture.Virtualizer.OnUpdate = (path, sha, size, flags) => FSResult.Ok;
+                fixture.PlaceholderDb.Setup(x => x.AddFile(@"Out\clean.txt", CleanFileFixture.HelloSha));
+                fixture.Callbacks.TryDehydrateCleanFile("Out/clean.txt", new HeadBlob(CleanFileFixture.HelloSha, 6))
+                    .ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+
+                fixture.Callbacks.TryRestoreModifiedPath("Out/clean.txt").ShouldBeTrue();
+
+                fixture.IsModifiedPath().ShouldBeTrue();
+            }
+        }
+
+        [TestCase]
         public void FileAndFolderCallbacksScheduleBackgroundTasks()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
@@ -693,6 +849,95 @@ namespace GVFS.UnitTests.Virtualization
             public void OnWorkingDirectoryPathChanged(string relativePath, bool isFolder)
             {
                 this.Changes.Add(isFolder ? relativePath + Path.DirectorySeparatorChar : relativePath);
+            }
+        }
+
+        /// <summary>
+        /// File system callbacks with one modified file, "Out\clean.txt", and a virtualizer that
+        /// records placeholder updates.
+        /// </summary>
+        private sealed class CleanFileFixture : IDisposable
+        {
+            // The object id of the blob "hello\n".
+            public const string HelloSha = "ce013625030ba8dba906f756967f9e9ca394464a";
+
+            private readonly MockBackgroundFileSystemTaskRunner backgroundTaskRunner;
+            private readonly Mock<ISparseCollection> sparseDb;
+
+            public CleanFileFixture(CommonRepoSetup repo, List<string> steps, string content)
+            {
+                this.PlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+                this.PlaceholderDb.Setup(x => x.GetCount()).Returns(0);
+                this.sparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+                this.sparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+                this.backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner();
+                this.Virtualizer = new RecordingVirtualizer(repo.Context, repo.GitObjects);
+
+                string folder = Path.Combine(repo.Context.Enlistment.WorkingDirectoryBackingRoot, "Out");
+                repo.Context.FileSystem.CreateDirectory(folder);
+                repo.Context.FileSystem.WriteAllText(Path.Combine(folder, "clean.txt"), content);
+                this.CleanFile = ((MockFileSystem)repo.Context.FileSystem).RootDirectory.FindFile(Path.Combine(folder, "clean.txt"));
+
+                this.Callbacks = new FileSystemCallbacks(
+                    repo.Context,
+                    repo.GitObjects,
+                    RepoMetadata.Instance,
+                    new MockBlobSizes(),
+                    gitIndexProjection: null,
+                    backgroundFileSystemTaskRunner: this.backgroundTaskRunner,
+                    fileSystemVirtualizer: this.Virtualizer,
+                    placeholderDatabase: this.PlaceholderDb.Object,
+                    sparseCollection: this.sparseDb.Object);
+                this.Callbacks.TryRestoreModifiedPath("Out/clean.txt").ShouldBeTrue();
+            }
+
+            public Mock<IPlaceholderCollection> PlaceholderDb { get; }
+
+            public MockFile CleanFile { get; }
+
+            public RecordingVirtualizer Virtualizer { get; }
+
+            public FileSystemCallbacks Callbacks { get; }
+
+            public bool IsModifiedPath()
+            {
+                return this.Callbacks.GetAllModifiedPaths().Contains("Out/clean.txt");
+            }
+
+            public void Dispose()
+            {
+                this.Callbacks.Dispose();
+                this.Virtualizer.Dispose();
+                this.backgroundTaskRunner.Dispose();
+            }
+        }
+
+        private sealed class RecordingVirtualizer : MockFileSystemVirtualizer
+        {
+            public RecordingVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
+                : base(context, gitObjects)
+            {
+            }
+
+            public Func<string, string, long, UpdatePlaceholderType, FSResult> OnUpdate { get; set; }
+
+            public int UpdateCount { get; private set; }
+
+            public FileAttributes LastAttributes { get; private set; }
+
+            public DateTime LastCreationTime { get; private set; }
+
+            public DateTime LastWriteTime { get; private set; }
+
+            public override FileSystemResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, FileAttributes fileAttributes, long endOfFile, string shaContentId, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
+            {
+                this.UpdateCount++;
+                this.LastAttributes = fileAttributes;
+                this.LastCreationTime = creationTime;
+                this.LastWriteTime = lastWriteTime;
+                failureReason = UpdateFailureReason.NoFailure;
+                FSResult result = this.OnUpdate(relativePath, shaContentId, endOfFile, updateFlags);
+                return new FileSystemResult(result, rawResult: result == FSResult.Ok ? 0 : -1);
             }
         }
     }

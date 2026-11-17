@@ -20,6 +20,10 @@ namespace GVFS.Common
         private const int ERROR_FILE_NOT_FOUND = 0x2;
         private const int ERROR_PATH_NOT_FOUND = 0x3;
 
+        // FILE_INFO_BY_HANDLE_CLASS values.
+        private const int FileStandardInfoClass = 1;
+        private const int FileIdInfoClass = 18;
+
         [Flags]
         public enum MoveFileFlags : uint
         {
@@ -202,6 +206,55 @@ namespace GVFS.Common
             return DateTime.Now - uptime;
         }
 
+        /// <summary>
+        /// Return true when <paramref name="path"/> names the file that <paramref name="openHandle"/>
+        /// refers to, and no delete of that file is pending. Return false when this is not known.
+        /// </summary>
+        public static bool IsOpenFileAtPath(SafeFileHandle openHandle, string path)
+        {
+            if (!GetFileInformationByHandleEx(openHandle, FileStandardInfoClass, out FileStandardInfo standardInfo, (uint)Marshal.SizeOf<FileStandardInfo>()) ||
+                standardInfo.DeletePending != 0 ||
+                !GetFileInformationByHandleEx(openHandle, FileIdInfoClass, out FileIdInfo openId, (uint)Marshal.SizeOf<FileIdInfo>()))
+            {
+                return false;
+            }
+
+            // The prefix allows a path longer than MAX_PATH. FILE_FLAG_OPEN_REPARSE_POINT: a link
+            // at the path is not the file that it points to.
+            using (SafeFileHandle pathHandle = CreateFile(
+                ToExtendedLengthPath(path),
+                FileAccess.FILE_READ_ATTRIBUTES,
+                FileShare.ReadWrite | FileShare.Delete,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
+                IntPtr.Zero))
+            {
+                if (pathHandle.IsInvalid ||
+                    !GetFileInformationByHandleEx(pathHandle, FileIdInfoClass, out FileIdInfo pathId, (uint)Marshal.SizeOf<FileIdInfo>()))
+                {
+                    return false;
+                }
+
+                return openId.VolumeSerialNumber == pathId.VolumeSerialNumber &&
+                    openId.FileIdLow == pathId.FileIdLow &&
+                    openId.FileIdHigh == pathId.FileIdHigh;
+            }
+        }
+
+        private static string ToExtendedLengthPath(string path)
+        {
+            string fullPath = Path.GetFullPath(path);
+            if (fullPath.StartsWith(@"\\?\", StringComparison.Ordinal))
+            {
+                return fullPath;
+            }
+
+            return fullPath.StartsWith(@"\\", StringComparison.Ordinal)
+                ? @"\\?\UNC\" + fullPath.Substring(2)
+                : @"\\?\" + fullPath;
+        }
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(
             string existingFileName,
@@ -210,6 +263,14 @@ namespace GVFS.Common
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FlushFileBuffers(SafeFileHandle hFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetFileInformationByHandleEx(SafeFileHandle hFile, int fileInformationClass, out FileStandardInfo fileInformation, uint bufferSize);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetFileInformationByHandleEx(SafeFileHandle hFile, int fileInformationClass, out FileIdInfo fileInformation, uint bufferSize);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool GetVolumeInformation(
@@ -335,6 +396,24 @@ namespace GVFS.Common
 
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
             public string CSDVersion;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileStandardInfo
+        {
+            public long AllocationSize;
+            public long EndOfFile;
+            public uint NumberOfLinks;
+            public byte DeletePending;
+            public byte Directory;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileIdInfo
+        {
+            public ulong VolumeSerialNumber;
+            public ulong FileIdLow;
+            public ulong FileIdHigh;
         }
     }
 }

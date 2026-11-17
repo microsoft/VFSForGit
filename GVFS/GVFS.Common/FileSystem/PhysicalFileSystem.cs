@@ -174,6 +174,15 @@ namespace GVFS.Common.FileSystem
             GVFSPlatform.Instance.FileSystem.FlushFileBuffers(path);
         }
 
+        /// <summary>
+        /// Return true when <paramref name="path"/> names the file that <paramref name="stream"/>
+        /// has open, and no delete of that file is pending. Return false when this is not known.
+        /// </summary>
+        public virtual bool IsOpenFileAtPath(Stream stream, string path)
+        {
+            return stream is FileStream fileStream && NativeMethods.IsOpenFileAtPath(fileStream.SafeFileHandle, path);
+        }
+
         public virtual void CreateDirectory(string path)
         {
             Directory.CreateDirectory(path);

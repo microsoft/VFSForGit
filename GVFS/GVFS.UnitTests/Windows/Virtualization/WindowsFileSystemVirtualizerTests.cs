@@ -21,6 +21,8 @@ using GVFS.Common.Git;
 using GVFS.UnitTests.Mock.Virtualization.BlobSize;
 using GVFS.Virtualization.Projection;
 using System.Reflection;
+using GVFS.Virtualization.Background;
+using GVFS.Common.Sparse;
 
 namespace GVFS.UnitTests.Windows.Virtualization
 {
@@ -1612,6 +1614,28 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"NeverSeen\"")).ShouldBeTrue();
                 mockTracker.RelatedErrorEvents.Any(
                     e => e.Contains("Failed to find active enumeration ID") && e.Contains("\"EnumerationFailureReason\":\"EndedRecently\"")).ShouldBeFalse();
+            }
+        }
+
+        [TestCase]
+        public void ConversionToFullOfADehydratedFileThatIsNotProjectedMakesItAModifiedPath()
+        {
+            const string HelloSha = "ce013625030ba8dba906f756967f9e9ca394464a";
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo))
+            {
+                // Git sets the skip-worktree bit, and the projection gets the file, only after
+                // the dehydrate.
+                this.Repo.Context.FileSystem.WriteAllText(Path.Combine(this.Repo.Context.Enlistment.WorkingDirectoryBackingRoot, "dehydrated.txt"), "hello\n");
+                tester.MockPlaceholderDb.Setup(x => x.AddFile("dehydrated.txt", HelloSha));
+                tester.FileSystemCallbacks.TryRestoreModifiedPath("dehydrated.txt").ShouldBeTrue();
+                tester.FileSystemCallbacks.TryDehydrateCleanFile("dehydrated.txt", new HeadBlob(HelloSha, 6)).ShouldEqual(CleanFileDehydrateResult.Dehydrated);
+
+                tester.MockVirtualization.OnNotifyFilePreConvertToFull("dehydrated.txt", TriggeringProcessId, TriggeringProcessImageFileName);
+                tester.BackgroundTaskShouldBeScheduled("dehydrated.txt", FileSystemTask.OperationType.OnFileConvertedToFull);
+
+                // Another file that the projection does not have is not tracked by Git.
+                tester.MockVirtualization.OnNotifyFilePreConvertToFull("other.txt", TriggeringProcessId, TriggeringProcessImageFileName);
+                tester.BackgroundTaskRunner.Count.ShouldEqual(1);
             }
         }
 

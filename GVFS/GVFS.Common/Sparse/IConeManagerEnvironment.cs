@@ -71,8 +71,52 @@ namespace GVFS.Common.Sparse
 
         /// <summary>
         /// Return a value that changes when Git writes the index or moves HEAD, so that the
-        /// manager can skip a check when nothing changed.
+        /// manager can skip a check when nothing changed, and can tell whether a blob that a
+        /// check read is still the blob of the index entry and HEAD.
         /// </summary>
         long GetRepositoryStamp();
+
+        /// <summary>
+        /// Return why modified files cannot return to placeholders now, or null when they can.
+        /// For example, a merge, rebase, cherry-pick, or revert is in progress, or
+        /// <c>gvfs dehydrate</c> is working on folders.
+        /// </summary>
+        string GetDehydrateBlocker();
+
+        /// <summary>
+        /// Read the blob of each path in the index and in HEAD. Return in <paramref name="blobs"/>
+        /// only the paths that have the same blob in both, and in <paramref name="notInIndex"/>
+        /// the paths that the index does not have. The caller does not hold the GVFS lock, so it
+        /// compares <see cref="GetRepositoryStamp"/> before and after the lookup. Fail after
+        /// <paramref name="timeoutMs"/>.
+        /// </summary>
+        bool TryGetBlobsThatMatchHead(IReadOnlyList<string> gitPaths, int timeoutMs, out IReadOnlyDictionary<string, HeadBlob> blobs, out IReadOnlyCollection<string> notInIndex, out string error);
+
+        /// <summary>
+        /// Return the modified file <paramref name="gitPath"/> to a placeholder for
+        /// <paramref name="blob"/>, and remove it from the modified paths. This happens only when
+        /// the bytes on disk are exactly the blob, because the conversion discards them.
+        /// </summary>
+        CleanFileDehydrateResult TryDehydrateCleanFile(string gitPath, HeadBlob blob);
+
+        /// <summary>
+        /// Add a file that <see cref="TryDehydrateCleanFile"/> removed back to the modified paths,
+        /// so that Git sees it again when the index cannot change.
+        /// </summary>
+        bool TryRestoreModifiedPath(string gitPath);
+
+        /// <summary>
+        /// Return true when the projection has the file <paramref name="gitPath"/> for the blob
+        /// <paramref name="sha"/>. The projection leaves out every index entry without the
+        /// skip-worktree bit. It still has a file that had the bit when the projection was last
+        /// parsed, also after the file became a modified path.
+        /// </summary>
+        bool IsProjectedFile(string gitPath, string sha);
+
+        /// <summary>
+        /// Make the mount read the index again, because Git set the skip-worktree bit of files
+        /// that the projection does not have. Returns at once.
+        /// </summary>
+        void InvalidateProjection();
     }
 }

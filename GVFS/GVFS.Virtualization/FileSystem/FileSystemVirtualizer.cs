@@ -310,7 +310,8 @@ namespace GVFS.Virtualization.FileSystem
                 bool isFolder;
                 string fileName;
                 bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
-                if (isPathProjected)
+                bool wasDehydrated = this.FileSystemCallbacks.IsDehydratedPlaceholder(relativePath);
+                if (isPathProjected || wasDehydrated)
                 {
                     this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
                 }
