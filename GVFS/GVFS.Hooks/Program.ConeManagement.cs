@@ -14,7 +14,6 @@ namespace GVFS.Hooks
     /// </summary>
     public partial class Program
     {
-        private const string CoreIgnoreCaseConfig = "core.ignorecase";
         private const string GitPrefixEnvironmentVariable = "GIT_PREFIX";
 
         // A cone file larger than this is not read. The hook then does not widen, and Git
@@ -71,7 +70,7 @@ namespace GVFS.Hooks
                         return false;
                     }
 
-                    ignoreCase = repo.GetConfigBool(CoreIgnoreCaseConfig) ?? false;
+                    ignoreCase = repo.GetConfigBool(GitConfigSetting.CoreIgnoreCaseName) ?? false;
                     return true;
                 }
             }

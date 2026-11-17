@@ -6,6 +6,7 @@ using GVFS.Common.Http;
 using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Prefetch;
+using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -52,6 +53,10 @@ namespace GVFS.Mount
         private readonly string primaryEnlistmentId;
 
         private FileSystemCallbacks fileSystemCallbacks;
+
+        // Handles cone widen and narrow requests. Null when gvfs.auto-sparse-index was false
+        // when the projection was created.
+        private AutoSparseIndexConeManager coneManager;
         private GVFSDatabase gvfsDatabase;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
@@ -944,6 +949,11 @@ namespace GVFS.Mount
                         this.HandleGetHydrationStatusRequest(connection);
                         break;
 
+                    case NamedPipeMessages.ConeManagement.WidenRequest:
+                    case NamedPipeMessages.ConeManagement.NarrowRequest:
+                        this.HandleConeRequest(message, connection);
+                        break;
+
                     default:
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Area", "Mount");
@@ -984,6 +994,15 @@ namespace GVFS.Mount
 
             connection.TrySendResponse(
                 new NamedPipeMessages.Message(NamedPipeMessages.HydrationStatus.SuccessResult, response.ToBody(info)));
+        }
+
+        private void HandleConeRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            string result = this.currentState == MountState.Ready
+                ? AutoSparseIndexConeManager.HandleRequest(this.coneManager, this.tracer, message)
+                : NamedPipeMessages.MountNotReadyResult;
+
+            connection.TrySendResponse(result);
         }
 
         private void HandleDehydrateFolders(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
@@ -1770,8 +1789,58 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());
             }
 
+            this.coneManager = this.CreateConeManagerIfEnabled();
+
             this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
+        }
+
+        private AutoSparseIndexConeManager CreateConeManagerIfEnabled()
+        {
+            // Use the value that the projection read, so that the mount never makes the index
+            // sparser than the projection can parse.
+            if (!this.fileSystemCallbacks.GitIndexProjection.IsSparseIndexSupportEnabled)
+            {
+                return null;
+            }
+
+            // Without these settings, "git sparse-checkout reapply" fails or writes a full index.
+            if (!this.context.Repository.GetConfigBoolOrDefault(GitConfigSetting.CoreSparseCheckoutName, defaultValue: false) ||
+                !this.context.Repository.GetConfigBoolOrDefault(GitConfigSetting.IndexSparseName, defaultValue: false))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add(
+                    TracingConstants.MessageKey.WarningMessage,
+                    $"{GVFSConstants.GitConfig.AutoSparseIndex} is true, but {GitConfigSetting.CoreSparseCheckoutName} or {GitConfigSetting.IndexSparseName} is not true. The mount does not change the sparse-checkout cone.");
+                this.tracer.RelatedEvent(EventLevel.Warning, nameof(this.CreateConeManagerIfEnabled), metadata, Keywords.Telemetry);
+                return null;
+            }
+
+            // A Git without the feature runs "git sparse-checkout reapply" but leaves a full index
+            // full, so the cone change would not make the index smaller.
+            GitProcess.Result buildOptions = new GitProcess(this.enlistment).VersionBuildOptions();
+            if (!AutoSparseIndexConeManager.GitSupportsSparseIndex(buildOptions))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add("GitBinPath", this.enlistment.GitBinPath);
+                metadata.Add("ExitCode", buildOptions.ExitCode);
+                metadata.Add(
+                    TracingConstants.MessageKey.WarningMessage,
+                    $"{GVFSConstants.GitConfig.AutoSparseIndex} is true, but 'git version --build-options' does not show '{AutoSparseIndexConeManager.SparseIndexFeature}'. The mount does not change the sparse-checkout cone.");
+                this.tracer.RelatedEvent(EventLevel.Warning, nameof(this.CreateConeManagerIfEnabled), metadata, Keywords.Telemetry);
+                return null;
+            }
+
+            string sparseCheckoutPath = SparseCheckoutPathResolver.GetSparseCheckoutFilePath(this.enlistment);
+            bool ignoreCase = this.context.Repository.GetConfigBoolOrDefault(GitConfigSetting.CoreIgnoreCaseName, defaultValue: false);
+            return new AutoSparseIndexConeManager(
+                this.tracer,
+                this.context.FileSystem,
+                sparseCheckoutPath,
+                ignoreCase,
+                new MountConeManagerEnvironment(this.context, this.fileSystemCallbacks, sparseCheckoutPath));
         }
 
         private void ValidateGitVersion()
@@ -2201,6 +2270,8 @@ namespace GVFS.Mount
                 this.heartbeat.Stop();
                 this.heartbeat = null;
             }
+
+            this.coneManager = null;
 
             if (this.fileSystemCallbacks != null)
             {

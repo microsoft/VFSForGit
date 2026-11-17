@@ -831,6 +831,99 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot($"reset {target} {paths}", useReadObjectHook: false);
         }
 
+        /// <summary>
+        /// Make the sparse-directory entries of the index match the cone file with
+        /// <c>git sparse-checkout reapply</c>. Git expands each sparse-directory entry that the
+        /// cone now includes, and collapses each directory that the cone no longer includes.
+        /// </summary>
+        /// <remarks>
+        /// For a mounted enlistment:
+        /// <list type="bullet">
+        /// <item>The virtual file system stays on. Git then keeps the skip-worktree bits that
+        /// the mount reports, and it does not write working-tree files.</item>
+        /// <item>The hooks path stays as it is, because Git asks the virtual file system hook
+        /// which paths are present.</item>
+        /// <item>The read-object hook stays on, because Git can read tree objects that are not
+        /// local yet when it expands a directory.</item>
+        /// <item><c>COMMAND_HOOK_LOCK</c> makes Git skip the pre-command and post-command hooks,
+        /// so this process does not ask for the GVFS lock or for a cone change.</item>
+        /// <item><c>index.deleteSparseDirectories=false</c> stops Git from deleting the
+        /// working-tree directories that leave the cone.</item>
+        /// </list>
+        /// Git does not do the same with <c>update-index --force-write-index</c>: it does not
+        /// expand a sparse-directory entry that the cone now includes.
+        /// </remarks>
+        public Result ReapplySparseCheckout()
+        {
+            return this.InvokeGitImpl(
+                "-c index.deleteSparseDirectories=false sparse-checkout reapply",
+                workingDirectory: this.workingDirectoryRoot,
+                dotGitDirectory: null,
+                useReadObjectHook: true,
+                writeStdIn: null,
+                parseStdOutLine: null,
+                timeoutMs: -1,
+                usePreCommandHook: false);
+        }
+
+        /// <summary>
+        /// List the sparse-directory entries of the index with <c>git ls-files --sparse</c>.
+        /// </summary>
+        /// <remarks>
+        /// <c>ls-files --sparse</c> reads a sparse index without expanding it. The virtual file
+        /// system stays on, so Git keeps the skip-worktree bits that the mount reports.
+        /// <c>COMMAND_HOOK_LOCK</c> makes Git skip the pre-command and post-command hooks.
+        /// </remarks>
+        public Result ListSparseDirectories(Action<string> onSparseDirectory)
+        {
+            ArgumentNullException.ThrowIfNull(onSparseDirectory);
+
+            return this.InvokeGitImpl(
+                "ls-files --sparse -z",
+                workingDirectory: this.workingDirectoryRoot,
+                dotGitDirectory: null,
+                useReadObjectHook: false,
+                writeStdIn: null,
+                parseStdOutLine: null,
+                timeoutMs: -1,
+                usePreCommandHook: false,
+                parseStdOutToken: path =>
+                {
+                    if (path.EndsWith(GVFSConstants.GitPathSeparatorString, StringComparison.Ordinal))
+                    {
+                        onSparseDirectory(path);
+                    }
+                });
+        }
+
+        /// <summary>Run <c>git version --build-options</c>.</summary>
+        public Result VersionBuildOptions()
+        {
+            return this.InvokeGitOutsideEnlistment("version --build-options");
+        }
+
+        /// <summary>
+        /// Return true when the output of <c>git version --build-options</c> has a line that is
+        /// exactly <paramref name="option"/>, apart from white space at the ends.
+        /// </summary>
+        internal static bool HasBuildOption(string buildOptionsOutput, string option)
+        {
+            if (buildOptionsOutput == null)
+            {
+                return false;
+            }
+
+            foreach (string line in buildOptionsOutput.Split('\n'))
+            {
+                if (string.Equals(line.Trim(), option, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public Result Status(bool allowObjectDownloads, bool useStatusCache, bool showUntracked = false)
         {
             string command = "status";

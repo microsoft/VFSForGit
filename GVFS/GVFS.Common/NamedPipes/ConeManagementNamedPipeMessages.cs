@@ -16,8 +16,9 @@ namespace GVFS.Common.NamedPipes
         /// it added for that command.
         /// <para>
         /// The hook treats every reply other than <see cref="SuccessResult"/> as "not applied"
-        /// and lets Git run. This includes <see cref="UnknownRequest"/> from a mount that does
-        /// not handle these messages, <see cref="MountNotReadyResult"/>, no reply within the
+        /// and lets Git run. This includes <see cref="FailureResult"/> and
+        /// <see cref="NotEnabledResult"/>, <see cref="UnknownRequest"/> from an older mount that
+        /// does not handle these messages, <see cref="MountNotReadyResult"/>, no reply within the
         /// wait budget, and no mount. Git then expands the sparse index in memory.
         /// </para>
         /// <para>
@@ -28,11 +29,12 @@ namespace GVFS.Common.NamedPipes
         /// </para>
         /// <para>
         /// The mount owns the lifetime of the entries that it adds. A narrow can be missing
-        /// (the Git process was killed) or late (it timed out). Two Git commands can widen the
-        /// same directory at the same time, because commands that do not take the GVFS lock
-        /// (for example <c>git diff -- &lt;path&gt;</c>) also send widen requests. The command id
-        /// is the Git process id, so the mount can count the commands that need an entry and
-        /// remove the entries of a process that no longer runs.
+        /// (the Git process was killed) or late (it timed out). Commands that do not take the
+        /// GVFS lock (for example <c>git diff -- &lt;path&gt;</c>) also send widen requests. The
+        /// mount applies a widen only for the Git process that holds the GVFS lock (see
+        /// <c>AutoSparseIndexConeManager</c>). The command id is the Git process id, so the mount
+        /// can count the commands that need an entry and remove the entries of a process that
+        /// no longer runs.
         /// </para>
         /// <para>
         /// A body is a list of fields separated by NUL. The header and the body split on the
