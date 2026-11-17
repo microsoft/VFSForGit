@@ -122,6 +122,7 @@ namespace GVFS.UnitTests.Virtualization
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 0);
+                metadata.ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ShouldContain("IsSendingAnonymousRequests", true);
             }
@@ -164,7 +165,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(9);
+                metadata.Count.ShouldEqual(10);
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
                 metadata.TryGetValue("FilePlaceholderCreation", out object fileNestedMetadata);
                 GVFSJsonOptions.Serialize(fileNestedMetadata).ShouldContain("\"ProcessName1\":\"GVFS.UnitTests.exe\"");
@@ -172,6 +173,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 1);
                 metadata.ShouldContain("FolderPlaceholderCount", 0);
+                metadata.ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
                 metadata.ShouldContain("IsSendingAnonymousRequests", true);
@@ -188,7 +190,7 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel = writeToLogFile2 ? EventLevel.Informational : EventLevel.Verbose;
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(9);
+                metadata.Count.ShouldEqual(10);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ContainsKey("FilePlaceholderCreation").ShouldBeTrue();
@@ -206,6 +208,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("FilePlaceholderCount", 3);
                 metadata.ShouldContain("FolderPlaceholderCount", 1);
+                metadata.ShouldContain("FilePlaceholderCreationBlockedForGit", 0L);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
                 metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
                 metadata.ShouldContain("IsSendingAnonymousRequests", true);

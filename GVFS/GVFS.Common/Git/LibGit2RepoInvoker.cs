@@ -1,5 +1,7 @@
 ﻿using GVFS.Common.Tracing;
 using System;
+using System.Collections;
+using System.IO;
 using System.Threading;
 
 namespace GVFS.Common.Git
@@ -7,21 +9,25 @@ namespace GVFS.Common.Git
     public class LibGit2RepoInvoker : IDisposable
     {
         private readonly Func<LibGit2Repo> createRepo;
+        private readonly LibGit2Repo.TryReadConfigBoolWithGit readBoolWithGit;
+        private readonly IDictionary environment;
         private readonly ITracer tracer;
         private readonly Lock sharedRepoLock = new Lock();
         private volatile bool disposing;
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;
 
-        public LibGit2RepoInvoker(ITracer tracer, string repoPath)
-            : this(tracer, () => new LibGit2Repo(tracer, repoPath))
-        {
-        }
-
-        public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo)
+        /// <param name="readBoolWithGit">
+        /// Reads a key with git.exe. <see cref="GetConfigBoolOrDefault"/> uses it instead of libgit2
+        /// when <see cref="LibGit2Repo.EnvironmentChangesGitConfig()"/> is true.
+        /// </param>
+        /// <param name="environment">The environment to check. Null selects the process environment.</param>
+        public LibGit2RepoInvoker(ITracer tracer, Func<LibGit2Repo> createRepo, LibGit2Repo.TryReadConfigBoolWithGit readBoolWithGit, IDictionary environment = null)
         {
             this.tracer = tracer;
             this.createRepo = createRepo;
+            this.readBoolWithGit = readBoolWithGit ?? throw new ArgumentNullException(nameof(readBoolWithGit));
+            this.environment = environment;
 
             this.InitializeSharedRepo();
         }
@@ -87,8 +93,22 @@ namespace GVFS.Common.Git
             this.GetSharedRepo()?.ObjectExists("30380be3963a75e4a34e10726795d644659e1129");
         }
 
+        /// <summary>
+        /// Returns <paramref name="defaultValue"/> when the key is unset. Throws when the read fails,
+        /// so that a malformed kill switch does not silently select the default.
+        /// </summary>
         public bool GetConfigBoolOrDefault(string key, bool defaultValue)
         {
+            if (LibGit2Repo.EnvironmentChangesGitConfig(this.environment ?? Environment.GetEnvironmentVariables()))
+            {
+                if (!this.readBoolWithGit(key, out bool? gitValue, out string error))
+                {
+                    throw new InvalidDataException(error);
+                }
+
+                return gitValue ?? defaultValue;
+            }
+
             bool? value = defaultValue;
             if (this.TryInvoke(repo => repo.GetConfigBool(key), out value))
             {

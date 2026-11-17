@@ -408,7 +408,8 @@ namespace GVFS.Common.Prefetch
                 this.Tracer,
                 this.Enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.PrefetchUseIdx,
-                GVFSConstants.GitConfig.PrefetchUseIdxDefault);
+                GVFSConstants.GitConfig.PrefetchUseIdxDefault,
+                this.Enlistment.CreateGitProcess(this.Tracer).TryGetBoolFromConfig);
 
             if (usePackIdx)
             {

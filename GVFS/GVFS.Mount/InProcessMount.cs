@@ -10,6 +10,7 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
+using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -565,7 +566,8 @@ namespace GVFS.Mount
                 this.tracer,
                 this.enlistment.WorkingDirectoryBackingRoot,
                 GVFSConstants.GitConfig.BackgroundCacheAuth,
-                GVFSConstants.GitConfig.BackgroundCacheAuthDefault);
+                GVFSConstants.GitConfig.BackgroundCacheAuthDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void ValidateMountPoints()
@@ -703,23 +705,17 @@ namespace GVFS.Mount
 
         private bool ShouldReportMountProgress()
         {
-            // Read via a transient LibGit2Repo rather than the context's shared
-            // LibGit2RepoInvoker: the invoker isn't created until CreateContext (after the
-            // pipe starts), and its constructor force-loads the object store, which we must
-            // not do on the pre-pipe critical path. A raw LibGit2Repo opens only the repo
-            // handle + config (no object store) and gives native git-bool parsing.
-            try
-            {
-                using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryBackingRoot))
-                {
-                    return repo.GetConfigBool(GVFSConstants.GitConfig.MountProgress) ?? GVFSConstants.GitConfig.MountProgressDefault;
-                }
-            }
-            catch (Exception e)
-            {
-                this.tracer.RelatedWarning($"Failed to read {GVFSConstants.GitConfig.MountProgress} config, using default: {e.Message}");
-                return GVFSConstants.GitConfig.MountProgressDefault;
-            }
+            // Do not use the context's shared LibGit2RepoInvoker: the invoker isn't created
+            // until CreateContext (after the pipe starts), and its constructor force-loads the
+            // object store, which we must not do on the pre-pipe critical path. The static
+            // helper opens only the repo handle + config (no object store), or runs git config
+            // when the environment changes git config.
+            return LibGit2Repo.GetConfigBoolOrDefault(
+                this.tracer,
+                this.enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.MountProgress,
+                GVFSConstants.GitConfig.MountProgressDefault,
+                this.enlistment.CreateGitProcess(this.tracer).TryGetBoolFromConfig);
         }
 
         private void FailMountAndExit(string error, params object[] args)
@@ -1758,6 +1754,11 @@ namespace GVFS.Mount
                 {
                     this.FailMountAndExit("Error: {0}. \r\nPlease confirm that gvfs clone completed without error.", error);
                 }
+            }
+            catch (SparseIndexNotSupportedException e)
+            {
+                // The message tells the user how to recover. GitIndexProjection already logged the stack trace.
+                this.FailMountAndExit("Error: {0}", e.Message);
             }
             catch (Exception e)
             {

@@ -1,12 +1,16 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Threading;
 
 namespace GVFS.Common
 {
     public static class ConsoleHelper
     {
+        private static readonly FieldInfo ConsoleOutRedirected = GetConsoleRedirectionField("s_isOutTextWriterRedirected");
+        private static readonly FieldInfo ConsoleErrorRedirected = GetConsoleRedirectionField("s_isErrorTextWriterRedirected");
+
         public enum ActionResult
         {
             Success,
@@ -33,7 +37,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Runs an action while displaying a dynamic status message with a spinner.
+        /// Runs an action with a status message. A spinner requires an unredirected console destination.
         /// The <paramref name="getMessage"/> delegate is called on each spinner tick
         /// and may return a sub-status string (e.g. "Authenticating") that is appended
         /// to <paramref name="message"/> in parentheses. When null or returning null,
@@ -86,6 +90,8 @@ namespace GVFS.Common
             string gvfsLogEnlistmentRoot,
             int initialDelayMs)
         {
+            showSpinner = ShouldShowSpinner(showSpinner, output, Console.IsOutputRedirected, Console.IsErrorRedirected);
+
             ActionResult result = ActionResult.Failure;
             bool initialMessageWritten = false;
 
@@ -207,6 +213,43 @@ namespace GVFS.Common
         public static string GetGVFSLogMessage(string enlistmentRoot)
         {
             return "Run 'gvfs log " + enlistmentRoot + "' for more info.";
+        }
+
+        internal static bool ShouldShowSpinner(bool showSpinner, TextWriter output, bool isOutputRedirected, bool isErrorRedirected)
+        {
+            return ShouldShowSpinner(
+                showSpinner,
+                output,
+                Console.Out,
+                Console.Error,
+                isOutputRedirected || IsConsoleWriterReplaced(ConsoleOutRedirected),
+                isErrorRedirected || IsConsoleWriterReplaced(ConsoleErrorRedirected));
+        }
+
+        internal static bool ShouldShowSpinner(
+            bool showSpinner,
+            TextWriter output,
+            TextWriter consoleOut,
+            TextWriter consoleError,
+            bool isOutputRedirected,
+            bool isErrorRedirected)
+        {
+            return showSpinner
+                && ((ReferenceEquals(output, consoleOut) && !isOutputRedirected)
+                    || (ReferenceEquals(output, consoleError) && !isErrorRedirected));
+        }
+
+        internal static bool IsConsoleWriterReplaced(FieldInfo redirectedField)
+        {
+            // Console redirection properties describe OS handles, not Console.SetOut/SetError.
+            // If the runtime cannot identify its original writers, keep status output static.
+            return redirectedField == null || redirectedField.FieldType != typeof(bool) || (bool)redirectedField.GetValue(null);
+        }
+
+        [DynamicDependency(DynamicallyAccessedMemberTypes.NonPublicFields, typeof(Console))]
+        private static FieldInfo GetConsoleRedirectionField(string name)
+        {
+            return typeof(Console).GetField(name, BindingFlags.Static | BindingFlags.NonPublic);
         }
     }
 }

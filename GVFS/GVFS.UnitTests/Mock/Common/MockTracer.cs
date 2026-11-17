@@ -31,6 +31,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public MockTracer StartActivityTracer { get; private set; }
         public string WaitRelatedEventName { get; set; }
+        public Action<string, EventMetadata> RelatedEventCallback { get; set; }
 
         public List<string> RelatedInfoEvents { get; }
         public List<string> RelatedWarningEvents { get; }
@@ -97,6 +98,8 @@ namespace GVFS.UnitTests.Mock.Common
                     this.waitEvent.Set();
                 }
             }
+
+            this.RelatedEventCallback?.Invoke(eventName, metadata);
         }
 
         public sealed class RecordedEvent
