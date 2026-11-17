@@ -39,18 +39,13 @@ namespace GVFS.Hooks
 
         /// <summary>
         /// Before Git reads the index, make sure that the cone includes every working-tree change
-        /// that the mount saw. A widen that the mount applied already includes them.
+        /// that the mount saw. See <see cref="PreCommandConeRequests"/> for when the hook calls this.
         /// </summary>
-        private static void TryApplyPendingConeChange(string[] args, bool wasPending, ConeRequestOutcome widenOutcome)
+        private static ConeRequestOutcome TryApplyPendingConeChange(string[] args)
         {
-            if (!wasPending || widenOutcome == ConeRequestOutcome.Applied)
-            {
-                return;
-            }
-
             try
             {
-                new PendingConeChangeHook(IsConeChangePending, DeleteConeChangePendingFile, () => new NamedPipeClient(enlistmentPipename), TraceConeDiagnostic)
+                return new PendingConeChangeHook(IsConeChangePending, DeleteConeChangePendingFile, () => new NamedPipeClient(enlistmentPipename), TraceConeDiagnostic)
                     .TryApply(
                         args,
                         commandHoldsGVFSLock,
@@ -64,6 +59,7 @@ namespace GVFS.Hooks
             catch (Exception e)
             {
                 TraceConeDiagnostic($"apply failed: {e.Message}");
+                return ConeRequestOutcome.Failed;
             }
         }
 
@@ -114,6 +110,23 @@ namespace GVFS.Hooks
             catch (Exception e)
             {
                 TraceConeDiagnostic($"narrow failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Return true when GVFS manages a sparse-index cone for this worktree. See
+        /// <see cref="ConeManagementHook.IsSparseIndexConeManaged"/>.
+        /// </summary>
+        private static bool IsSparseIndexConeManaged()
+        {
+            try
+            {
+                return CreateConeManagementHook().IsSparseIndexConeManaged();
+            }
+            catch (Exception e)
+            {
+                TraceConeDiagnostic($"cannot check for a sparse-index cone: {e.Message}");
+                return false;
             }
         }
 

@@ -473,6 +473,45 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
+        public void StagedFilesReachModifiedPathsAndTheObserver()
+        {
+            // "git reset --soft" stages files without a file system write, so no callback reports
+            // them. The unstage preparation must report them, so that the cone includes them.
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection: null,
+                backgroundFileSystemTaskRunner: backgroundTaskRunner,
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object,
+                sparseCollection: mockSparseDb.Object))
+            {
+                RecordingObserver observer = new RecordingObserver();
+                fileSystemCallbacks.SetWorkingDirectoryChangeObserver(observer);
+
+                fileSystemCallbacks.TryAddStagedFileToModifiedPaths("Out/Inc/staged.h", out bool wasModifiedPath).ShouldBeTrue();
+                wasModifiedPath.ShouldBeFalse();
+                fileSystemCallbacks.TryAddStagedFileToModifiedPaths(string.Empty, out _).ShouldBeFalse();
+
+                fileSystemCallbacks.GetAllModifiedPaths().ShouldContain(path => path == "Out/Inc/staged.h");
+                observer.Changes.ShouldMatchInOrder(@"Out\Inc\staged.h");
+
+                // A path that already is a modified path is reported again, so that a staged file
+                // that left the cone comes back into it. The caller must not overwrite it.
+                fileSystemCallbacks.TryAddStagedFileToModifiedPaths("Out/Inc/staged.h", out wasModifiedPath).ShouldBeTrue();
+                wasModifiedPath.ShouldBeTrue();
+                observer.Changes.ShouldMatchInOrder(@"Out\Inc\staged.h", @"Out\Inc\staged.h");
+            }
+        }
+
+        [TestCase]
         public void FileAndFolderCallbacksScheduleBackgroundTasks()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
