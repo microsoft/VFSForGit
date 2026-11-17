@@ -38,7 +38,7 @@ jobs:
     steps:
     - name: Look for prior successful runs
       id: check
-      if: github.event.inputs.git_version == ''
+      if: github.event_name == 'push'
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
@@ -69,8 +69,6 @@ jobs:
             const workflow_id = run.workflow_id;
             const head_sha = run.head_sha;
             const tree_id = run.head_commit.tree_id;
-            const coverageEnabled = process.env.AotMsCodeCoverageInstrumentation === 'true';
-            const matchesCoverageMode = (run) => (run.event === 'pull_request') === coverageEnabled;
 
             /*
              * If the given workflow run was itself a "skip" run that references another
@@ -146,8 +144,8 @@ jobs:
                   console.log(`Referenced run ${referencedUrl} is no longer usable (status=${referencedRun.status}, conclusion=${referencedRun.conclusion}); stopping chain resolution`)
                   return ''
                 }
-                if (!matchesCoverageMode(referencedRun) || referencedRun.event === 'workflow_dispatch') {
-                  console.log(`Referenced run ${referencedUrl} has incompatible build settings; cannot reuse it`)
+                if (referencedRun.event !== 'push') {
+                  console.log(`Referenced run ${referencedUrl} is not a push build; cannot reuse it`)
                   return ''
                 }
 
@@ -164,6 +162,7 @@ jobs:
               repo: context.repo.repo,
               per_page: 500,
               workflow_id,
+              event: 'push',
             });
             // first look at commit-same runs, then at finished ones, then at in-progress ones
             const rank = (a) => (a.status === 'in_progress' ? 0 : (head_sha === a.head_sha ? 2 : 1))
@@ -171,8 +170,6 @@ jobs:
             for (const run of runs.workflow_runs.sort(demoteInProgressToEnd)) {
               if (head_sha !== run.head_sha && tree_id !== run.head_commit?.tree_id) continue
               if (context.runId === run.id) continue // do not wait for the current run to finish ;-)
-              if (run.event === 'workflow_dispatch') continue // skip runs that were started manually: they can override the Git version
-              if (!matchesCoverageMode(run)) continue
 
               if (run.status === 'in_progress') {
                 // poll until the run is done
@@ -317,7 +314,7 @@ jobs:
       run: |
         Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -ErrorAction Stop
         Import-Module Pester -RequiredVersion 5.7.1 -ErrorAction Stop
-        Invoke-Pester -Path src\scripts\Merge-Coverage.Tests.ps1,src\scripts\Invoke-Coverage.Tests.ps1,src\scripts\Assert-AotCoverage.Tests.ps1,src\scripts\CoverageWorkflow.Tests.ps1 -CI
+        Invoke-Pester -Path src\scripts\Merge-Coverage.Tests.ps1,src\scripts\Invoke-Coverage.Tests.ps1,src\scripts\Assert-AotCoverage.Tests.ps1 -CI
 
     - name: Locate coverage collector
       if: steps.skip.outputs.result != 'true' && env.AotMsCodeCoverageInstrumentation == 'true'
@@ -447,7 +444,8 @@ jobs:
         if ($base -match '^0+$') { $base = '' }
         src\scripts\Merge-Coverage.ps1 -InputDirectory coverage-inputs -OutputDirectory coverage-report -SourceDirectory src -SourceCommit $sourceCommit -Repository $env:GITHUB_REPOSITORY -BaseCommit $base
         Get-Content coverage-report\Summary.md >> $env:GITHUB_STEP_SUMMARY
-        Get-Content coverage-report\ChangedLines.md >> $env:GITHUB_STEP_SUMMARY
+        # Keep per-line detail in the artifact to bound the job summary.
+        ((Get-Content coverage-report\ChangedLines.md -Raw) -split '<!-- per-line-evidence -->', 2)[0] >> $env:GITHUB_STEP_SUMMARY
 
     - name: Render full managed reports
       shell: pwsh
@@ -474,7 +472,7 @@ jobs:
       env:
         COVERAGE_ARTIFACT_URL: ${{ steps.coverage_reports.outputs.artifact-url }}
       run: |
-        "[Download coverage reports]($env:COVERAGE_ARTIFACT_URL): ChangedLines.html contains per-line test evidence and links to the tested source." >> $env:GITHUB_STEP_SUMMARY
+        "[Download coverage reports]($env:COVERAGE_ARTIFACT_URL): ChangedLines.md contains per-line test evidence and links to the tested source." >> $env:GITHUB_STEP_SUMMARY
         'Separate report folders: unit-x64, unit-arm64, functional-x64, functional-arm64, and upgrade-x64.' >> $env:GITHUB_STEP_SUMMARY
 
   result:

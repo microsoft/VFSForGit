@@ -143,7 +143,6 @@ Describe 'Managed-source coverage aggregation integrity' {
         $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
         $changed.Available | Should -BeFalse
         (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw) | Should -Match 'unavailable because BaseCommit is absent'
-        (Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.html') -Raw) | Should -Match 'unavailable because BaseCommit is absent'
         $before = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw
         Invoke-Merge
         (Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw) | Should -BeExactly $before
@@ -201,7 +200,7 @@ Describe 'Managed-source coverage aggregation integrity' {
         $summary = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json
         $summary.Complete | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $outputPath 'Summary.md') | Should -BeFalse
-        Test-Path -LiteralPath (Join-Path $outputPath 'ChangedLines.html') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $outputPath 'ChangedLines.md') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $outputPath 'normalized') | Should -BeFalse
     }
 
@@ -444,9 +443,14 @@ Describe 'Managed-source coverage aggregation integrity' {
         $markdown = Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw
         $markdown | Should -Match '\*\*Combined: 66.67% \(4/6 measured changed lines\)'
         $markdown | Should -Match 'Separate product and unit'
-        $html = Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.html') -Raw
-        $html | Should -Match "https://github.com/microsoft/VFSForGit/blob/$commit/GVFS/GVFS.Common/Policy.cs#L6"
-        $html | Should -Match 'No-entry \(coverage unknown\)'
+        $detail = ($markdown -split '<!-- per-line-evidence -->', 2)[1]
+        foreach ($line in $combined.Lines) {
+            $row = "| [GVFS/GVFS.Common/Policy.cs:$($line.Line)](https://github.com/microsoft/VFSForGit/blob/$commit/GVFS/GVFS.Common/Policy.cs#L$($line.Line)) | $($line.State) |"
+            $detail | Should -Match ([regex]::Escape($row))
+        }
+        $summaryMarkdown = ($markdown -split '<!-- per-line-evidence -->', 2)[0]
+        $summaryMarkdown | Should -Match '\*\*Combined: 66.67%'
+        $summaryMarkdown | Should -Not -Match '#L6'
     }
 
     It 'Selects only new-side lines across deletion, rename, and multiple hunks without a final newline' {

@@ -670,13 +670,8 @@ try {
     $changedMarkdown = [System.Collections.Generic.List[string]]::new()
     $changedMarkdown.Add('# Combined changed-line coverage')
     $changedMarkdown.Add('')
-    $changedHtml = [System.Collections.Generic.List[string]]::new()
-    $changedHtml.Add('<!doctype html><html lang="en"><meta charset="utf-8"><title>Combined changed-line coverage</title>')
-    $changedHtml.Add('<style>body{font-family:system-ui;margin:2em}table{border-collapse:collapse}td,th{padding:.4em;border:1px solid #bbb;text-align:left}</style>')
-    $changedHtml.Add('<h1>Combined changed-line coverage</h1>')
     if (-not $BaseCommit) {
         $changedMarkdown.Add($changed.Reason)
-        $changedHtml.Add("<p>$([System.Net.WebUtility]::HtmlEncode($changed.Reason))</p>")
     } else {
         $changedMarkdown.Add("Diff: ``$BaseCommit`` to tested commit ``$SourceCommit``.")
         $total = $changed.Measurements.COMBINED
@@ -688,31 +683,14 @@ try {
         $changedMarkdown.Add('')
         $changedMarkdown.Add('| File at tested commit | Measured | Product + unit | Product only | Unit only | Uncovered | No-entry | Combined | Classification |')
         $changedMarkdown.Add('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
-        $changedHtml.Add("<p>Tested commit: $SourceCommit. Base: $BaseCommit.</p>")
-        $changedHtml.Add("<p>Combined: $(Format-Percentage $total.Percentage) ($($total.Hit)/$($total.Measured) measured changed lines). Uncovered: $($total.Uncovered). No-entry: $($total.NoEntry).</p>")
-        $changedHtml.Add('<p>Each source line counts once. No-entry means unmeasured or non-executable, not covered. Unit-only execution does not prove product execution. Native C++ is unsupported.</p>')
-        $evidenceLabels = @{
-            'product-and-unit' = 'Product + unit'; 'product-only' = 'Product only'; 'unit-only' = 'Unit only'
-            'uncovered' = 'Uncovered'; 'no-entry/unmeasured-or-non-executable' = 'No-entry (coverage unknown)'
-        }
         foreach ($file in $changed.Files) {
             $measurement = $file.COMBINED
             $displayPath = $file.Path.Replace('|', '\|').Replace('[', '\[').Replace(']', '\]').Replace("`n", ' ').Replace("`r", ' ')
             $sourceLink = Get-SourceLink $file.Path
             $changedMarkdown.Add("| [$displayPath]($sourceLink) | $($measurement.Measured) | $($measurement.Both) | $($measurement.ProductOnly) | $($measurement.UnitOnly) | $($measurement.Uncovered) | $($measurement.NoEntry) | $(Format-Percentage $measurement.Percentage) | $($file.Classification) |")
-            $changedHtml.Add("<h2>$([System.Net.WebUtility]::HtmlEncode($file.Path))</h2><p>$($file.Classification)</p>")
-            if ($file.Classification -eq 'managed-source' -and $measurement.Lines.Count -gt 0) {
-                $changedHtml.Add('<table><tr><th>Changed source line</th><th>Test evidence</th></tr>')
-                foreach ($line in $measurement.Lines) {
-                    $lineLink = [System.Net.WebUtility]::HtmlEncode((Get-SourceLink $file.Path $line.Line))
-                    $label = $evidenceLabels[$line.State]
-                    $changedHtml.Add("<tr><td><a href=`"$lineLink`">$($line.Line)</a></td><td>$label</td></tr>")
-                }
-                $changedHtml.Add('</table>')
-            }
         }
         $changedMarkdown.Add('')
-        $changedMarkdown.Add('ChangedLines.html provides per-line evidence and links to the tested source. The artifact also retains the separate reports.')
+        $changedMarkdown.Add('Download the artifact for per-line evidence in ChangedLines.md and the separate full HTML reports.')
         $changedMarkdown.Add('')
         $changedMarkdown.Add('<details><summary>Separate product and unit changed-line measurements</summary>')
         $changedMarkdown.Add('')
@@ -728,8 +706,20 @@ try {
         $changedMarkdown.Add('')
         $changedMarkdown.Add('</details>')
         $changedMarkdown.Add('changed-lines.json lists new-side line numbers, per-line states, and source/module/worker provenance.')
+        $changedMarkdown.Add('')
+        $changedMarkdown.Add('<!-- per-line-evidence -->')
+        $changedMarkdown.Add('## Per-line test evidence')
+        $changedMarkdown.Add('')
+        $changedMarkdown.Add('| Changed source line | Test evidence |')
+        $changedMarkdown.Add('| --- | --- |')
+        foreach ($file in $changed.Files | Where-Object Classification -eq 'managed-source') {
+            $displayPath = $file.Path.Replace('|', '\|').Replace('[', '\[').Replace(']', '\]').Replace("`n", ' ').Replace("`r", ' ')
+            foreach ($line in $file.COMBINED.Lines) {
+                $sourceLink = Get-SourceLink $file.Path $line.Line
+                $changedMarkdown.Add("| [$displayPath`:$($line.Line)]($sourceLink) | $($line.State) |")
+            }
+        }
     }
-    $changedHtml.Add('</html>')
     foreach ($worker in @($workers | Sort-Object WorkerId)) {
         $path = Join-Path $OutputDirectory $worker.NormalizedReport
         [void][System.IO.Directory]::CreateDirectory((Split-Path -Parent $path))
@@ -737,7 +727,6 @@ try {
     }
     $changed | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'changed-lines.json') -Encoding utf8
     $changedMarkdown | Set-Content -LiteralPath (Join-Path $OutputDirectory 'ChangedLines.md') -Encoding utf8
-    $changedHtml | Set-Content -LiteralPath (Join-Path $OutputDirectory 'ChangedLines.html') -Encoding utf8
     $markdown | Set-Content -LiteralPath (Join-Path $OutputDirectory 'Summary.md') -Encoding utf8
     $summary | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $summaryPath -Encoding utf8
 }
