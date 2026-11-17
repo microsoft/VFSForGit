@@ -31,12 +31,51 @@ namespace GVFS.Hooks
         }
 
         /// <summary>
+        /// Return true when the pre-command hook must send PrepareForUnstage for this command.
+        /// </summary>
+        /// <remarks>
+        /// With a full index, Git prepares the files of a mixed reset itself (it clears
+        /// skip-worktree and writes missing files under a virtual file system). With a sparse
+        /// index, Git can do that only for a path that has its own index entry, so the cone must
+        /// include the staged files first. Thus a reset needs the preparation only when GVFS
+        /// manages a sparse-index cone. A reset whose pathspecs the hook cannot read (for example
+        /// --pathspec-from-file=-) runs without the preparation, as before.
+        /// </remarks>
+        /// <param name="isSparseIndexConeManaged">Returns true when GVFS manages a sparse-index cone.</param>
+        public static bool ShouldPrepareForUnstage(string command, string[] args, Func<bool> isSparseIndexConeManaged)
+        {
+            if (!IsUnstageOperation(command, args))
+            {
+                return false;
+            }
+
+            if (command != "reset")
+            {
+                return true;
+            }
+
+            return !GetRestorePathspec(command, args).Failed && isSparseIndexConeManaged();
+        }
+
+        /// <summary>
         /// Detects whether the git command is an unstage operation that may need
         /// special handling for VFS projections.
-        /// Matches: "restore --staged", "restore -S", "checkout HEAD --"
+        /// Matches: "restore --staged", "restore -S", "checkout HEAD --", and a mixed
+        /// "reset" (not --soft, --hard, --merge, --keep, or the interactive --patch)
         /// </summary>
         public static bool IsUnstageOperation(string command, string[] args)
         {
+            if (command == "reset")
+            {
+                return !args.Any(arg =>
+                    arg == "--soft" ||
+                    arg == "--hard" ||
+                    arg == "--merge" ||
+                    arg == "--keep" ||
+                    arg == "--patch" ||
+                    arg == "-p");
+            }
+
             if (command == "restore")
             {
                 return args.Any(arg =>
@@ -63,13 +102,17 @@ namespace GVFS.Hooks
         }
 
         /// <summary>
-        /// Extracts pathspec arguments from a restore/checkout unstage command.
+        /// Extracts pathspec arguments from a restore/checkout/reset unstage command.
         /// Returns a <see cref="PathspecResult"/> containing either inline pathspecs,
         /// a --pathspec-from-file reference, or a failure indicator.
         ///
         /// When --pathspec-from-file is specified, the file path is returned so the
         /// caller can forward it through IPC to the mount process, which passes it
         /// to git diff --cached --pathspec-from-file.
+        ///
+        /// For reset, the argument before "--" is the tree-ish. Without "--", only
+        /// "HEAD" is taken as the tree-ish, and any other argument is a pathspec. An
+        /// extra pathspec only adds staged files to ModifiedPaths.
         /// </summary>
         public static PathspecResult GetRestorePathspec(string command, string[] args)
         {
@@ -78,6 +121,8 @@ namespace GVFS.Hooks
             bool pastDashDash = false;
             bool skipNext = false;
             bool isCheckout = command == "checkout";
+            bool isReset = command == "reset";
+            bool resetHasDashDash = isReset && args.Skip(2).Contains("--");
 
             // For checkout, the first non-option arg before -- is the tree-ish (e.g. HEAD),
             // not a pathspec. Track whether we've consumed it.
@@ -136,7 +181,7 @@ namespace GVFS.Hooks
                 if (!pastDashDash && arg.StartsWith("-"))
                 {
                     // For restore: --source and -s take a following argument
-                    if (!isCheckout &&
+                    if (command == "restore" &&
                         (arg == "--source" || arg == "-s"))
                     {
                         skipNext = true;
@@ -147,6 +192,13 @@ namespace GVFS.Hooks
 
                 // For checkout, the first positional arg before -- is the tree-ish
                 if (isCheckout && !pastDashDash && !treeishConsumed)
+                {
+                    treeishConsumed = true;
+                    continue;
+                }
+
+                if (isReset && !pastDashDash && !treeishConsumed &&
+                    (resetHasDashDash || arg == "HEAD"))
                 {
                     treeishConsumed = true;
                     continue;

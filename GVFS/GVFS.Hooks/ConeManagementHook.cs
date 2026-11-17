@@ -175,9 +175,44 @@ namespace GVFS.Hooks
             return string.Empty;
         }
 
+        /// <summary>
+        /// Return true when GVFS manages a sparse-index cone for this worktree: the cone file is in
+        /// cone mode, and <c>gvfs.auto-sparse-index</c> is true. A widen and a narrow use the same
+        /// checks.
+        /// </summary>
+        public bool IsSparseIndexConeManaged()
+        {
+            return this.GetUnmanagedOutcome(out _, out _) == null;
+        }
+
         private static bool IsStash(ParsedGitCommand parsed)
         {
             return string.Equals(parsed.Command, StashCommand, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Return null when GVFS manages a sparse-index cone, or the outcome that ends a request
+        /// when it does not.
+        /// </summary>
+        private ConeRequestOutcome? GetUnmanagedOutcome(out string coneFileContent, out bool ignoreCase)
+        {
+            ignoreCase = false;
+
+            // Check the cone file before the config. Git can use a sparse index only in cone
+            // mode, and a file read costs much less than the repository open that a config
+            // read needs. GVFS does not write a cone-mode file unless the feature is on.
+            coneFileContent = this.readConeFile();
+            if (!ConeCoverage.HasConeHeader(coneFileContent))
+            {
+                return ConeRequestOutcome.NoConeFile;
+            }
+
+            if (!this.readConfig(out ignoreCase))
+            {
+                return ConeRequestOutcome.FeatureDisabled;
+            }
+
+            return null;
         }
 
         private ConeRequestOutcome Widen(string[] args, int waitBudgetMs, int replyCeilingMs)
@@ -188,18 +223,10 @@ namespace GVFS.Hooks
                 return ConeRequestOutcome.NoPathsNamed;
             }
 
-            // Check the cone file before the config. Git can use a sparse index only in cone
-            // mode, and a file read costs much less than the repository open that a config
-            // read needs. GVFS does not write a cone-mode file unless the feature is on.
-            string coneFileContent = this.readConeFile();
-            if (!ConeCoverage.HasConeHeader(coneFileContent))
+            ConeRequestOutcome? unmanaged = this.GetUnmanagedOutcome(out string coneFileContent, out bool ignoreCase);
+            if (unmanaged != null)
             {
-                return ConeRequestOutcome.NoConeFile;
-            }
-
-            if (!this.readConfig(out bool ignoreCase))
-            {
-                return ConeRequestOutcome.FeatureDisabled;
+                return unmanaged.Value;
             }
 
             // Measured on a large repository: git stash push with a pathspec still expanded the
@@ -264,14 +291,10 @@ namespace GVFS.Hooks
                 return ConeRequestOutcome.NoPathsNamed;
             }
 
-            if (!ConeCoverage.HasConeHeader(this.readConeFile()))
+            ConeRequestOutcome? unmanaged = this.GetUnmanagedOutcome(out _, out _);
+            if (unmanaged != null)
             {
-                return ConeRequestOutcome.NoConeFile;
-            }
-
-            if (!this.readConfig(out _))
-            {
-                return ConeRequestOutcome.FeatureDisabled;
+                return unmanaged.Value;
             }
 
             if (IsStash(parsed))

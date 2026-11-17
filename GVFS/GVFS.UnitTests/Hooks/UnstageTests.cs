@@ -92,6 +92,72 @@ namespace GVFS.UnitTests.Hooks
                 .ShouldBeFalse();
         }
 
+        [TestCase("reset")]
+        [TestCase("reset", "--mixed")]
+        [TestCase("reset", "--", "file.txt")]
+        [TestCase("reset", "HEAD", "file.txt")]
+        public void IsUnstageOperation_MixedReset(params string[] gitArgs)
+        {
+            UnstageCommandParser.IsUnstageOperation("reset", PreCommandArgs(gitArgs)).ShouldBeTrue();
+        }
+
+        [TestCase("reset", "--soft", "HEAD~1")]
+        [TestCase("reset", "--hard")]
+        [TestCase("reset", "--merge")]
+        [TestCase("reset", "--keep", "HEAD~1")]
+        [TestCase("reset", "-p")]
+        [TestCase("reset", "--patch", "--", "file.txt")]
+        public void IsUnstageOperation_ResetThatDoesNotUnstage(params string[] gitArgs)
+        {
+            UnstageCommandParser.IsUnstageOperation("reset", PreCommandArgs(gitArgs)).ShouldBeFalse();
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void ShouldPrepareForUnstage_ResetOnlyWhenTheConeIsManaged(bool managed, bool expected)
+        {
+            int checks = 0;
+            UnstageCommandParser.ShouldPrepareForUnstage("reset", PreCommandArgs(new[] { "reset" }), () => { checks++; return managed; })
+                .ShouldEqual(expected);
+            checks.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void ShouldPrepareForUnstage_RestoreDoesNotCheckTheCone()
+        {
+            UnstageCommandParser.ShouldPrepareForUnstage("restore", PreCommandArgs(new[] { "restore", "--staged", "." }), () => throw new AssertionException("checked the cone"))
+                .ShouldBeTrue();
+        }
+
+        [TestCase("reset", "--pathspec-from-file=-")]
+        [TestCase("reset", "--soft", "HEAD~1")]
+        public void ShouldPrepareForUnstage_SkipsResetThatItCannotPrepare(params string[] gitArgs)
+        {
+            UnstageCommandParser.ShouldPrepareForUnstage("reset", PreCommandArgs(gitArgs), () => true).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ShouldPrepareForUnstage_OtherCommand()
+        {
+            UnstageCommandParser.ShouldPrepareForUnstage("status", PreCommandArgs(new[] { "status" }), () => true).ShouldBeFalse();
+        }
+
+        [TestCase(new[] { "reset" }, "")]
+        [TestCase(new[] { "reset", "-q" }, "")]
+        [TestCase(new[] { "reset", "HEAD" }, "")]
+        [TestCase(new[] { "reset", "-q", "HEAD", "--", "a.txt" }, "a.txt")]
+        [TestCase(new[] { "reset", "--", "a.txt", "b.txt" }, "a.txt\0b.txt")]
+        [TestCase(new[] { "reset", "HEAD", "a.txt" }, "a.txt")]
+        [TestCase(new[] { "reset", "HEAD", "--", "a.txt" }, "a.txt")]
+        [TestCase(new[] { "reset", "main", "--", "a.txt" }, "a.txt")]
+        [TestCase(new[] { "reset", "a.txt" }, "a.txt")]
+        public void GetRestorePathspec_ResetStripsTreeish(string[] gitArgs, string expectedPathspecs)
+        {
+            UnstageCommandParser.PathspecResult result = UnstageCommandParser.GetRestorePathspec("reset", PreCommandArgs(gitArgs));
+            result.Failed.ShouldBeFalse();
+            result.InlinePathspecs.ShouldEqual(expectedPathspecs);
+        }
+
         // ── GetRestorePathspec: inline pathspecs ────────────────────────
 
         [TestCase]
@@ -281,6 +347,15 @@ namespace GVFS.UnitTests.Hooks
             result.Failed.ShouldBeFalse();
             result.PathspecFromFile.ShouldEqual("list.txt");
             result.InlinePathspecs.ShouldEqual("extra.txt");
+        }
+
+        private static string[] PreCommandArgs(string[] gitArgs)
+        {
+            string[] args = new string[gitArgs.Length + 2];
+            args[0] = "pre-command";
+            gitArgs.CopyTo(args, 1);
+            args[args.Length - 1] = "--git-pid=1234";
+            return args;
         }
     }
 }
