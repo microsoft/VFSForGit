@@ -1959,7 +1959,7 @@ namespace GVFS.Platform.Windows
                     }
                     else
                     {
-                        this.FileSystemCallbacks.InvalidateGitStatusCache();
+                        this.FileSystemCallbacks.OnFileModified(virtualPath);
                     }
                 }
                 else if (isFileDeleted)
