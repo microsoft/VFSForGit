@@ -34,6 +34,9 @@
     <Compile Include="..\GVFS.Hooks\ConeRequestOutcome.cs">
       <Link>Hooks\ConeRequestOutcome.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Hooks\PendingConeChangeHook.cs">
+      <Link>Hooks\PendingConeChangeHook.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Hooks\GitCommandLock.cs">
       <Link>Hooks\GitCommandLock.cs</Link>
     </Compile>

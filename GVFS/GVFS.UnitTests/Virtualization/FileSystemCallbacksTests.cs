@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.Database;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -427,6 +428,54 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
+        public void WorkingDirectoryChangesReachTheObserver()
+        {
+            Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
+            mockPlaceholderDb.Setup(x => x.GetCount()).Returns(1);
+            Mock<ISparseCollection> mockSparseDb = new Mock<ISparseCollection>(MockBehavior.Strict);
+            mockSparseDb.Setup(x => x.GetAll()).Returns(new HashSet<string>());
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection: null,
+                backgroundFileSystemTaskRunner: backgroundTaskRunner,
+                fileSystemVirtualizer: null,
+                placeholderDatabase: mockPlaceholderDb.Object,
+                sparseCollection: mockSparseDb.Object))
+            {
+                RecordingObserver observer = new RecordingObserver();
+                fileSystemCallbacks.SetWorkingDirectoryChangeObserver(observer);
+
+                fileSystemCallbacks.OnFileModified(@"A\modified.txt");
+                fileSystemCallbacks.OnFileConvertedToFull(@"A\full.txt");
+                fileSystemCallbacks.OnFileCreated(@"A\created.txt");
+                fileSystemCallbacks.OnFileDeleted(@"A\deleted.txt");
+                fileSystemCallbacks.OnFileRenamed(@"A\old.txt", @"B\new.txt");
+                fileSystemCallbacks.OnFolderRenamed(@"A\OldFolder", @"B\NewFolder");
+                fileSystemCallbacks.OnFolderDeleted(@"A\DeletedFolder");
+                fileSystemCallbacks.OnFileModified(@".git\config");
+
+                observer.Changes.ShouldMatchInOrder(
+                    @"A\modified.txt",
+                    @"A\full.txt",
+                    @"A\created.txt",
+                    @"A\deleted.txt",
+                    @"A\old.txt",
+                    @"B\new.txt",
+                    @"A\OldFolder\",
+                    @"B\NewFolder\",
+                    @"A\DeletedFolder\");
+
+                fileSystemCallbacks.SetWorkingDirectoryChangeObserver(null);
+                fileSystemCallbacks.OnFileModified(@"A\after.txt");
+                observer.Changes.Count.ShouldEqual(9);
+            }
+        }
+
+        [TestCase]
         public void FileAndFolderCallbacksScheduleBackgroundTasks()
         {
             Mock<IPlaceholderCollection> mockPlaceholderDb = new Mock<IPlaceholderCollection>(MockBehavior.Strict);
@@ -596,6 +645,16 @@ namespace GVFS.UnitTests.Virtualization
             backgroundTaskRunner.BackgroundTasks[0].OldVirtualPath.ShouldEqual(oldPath);
             backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(newPath);
             backgroundTaskRunner.BackgroundTasks.Clear();
+        }
+
+        private sealed class RecordingObserver : IWorkingDirectoryChangeObserver
+        {
+            public List<string> Changes { get; } = new List<string>();
+
+            public void OnWorkingDirectoryPathChanged(string relativePath, bool isFolder)
+            {
+                this.Changes.Add(isFolder ? relativePath + Path.DirectorySeparatorChar : relativePath);
+            }
         }
     }
 }
