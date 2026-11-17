@@ -21,6 +21,37 @@ namespace GVFS.UnitTests.Common
             parsedCommand: "git command",
             gitCommandSessionId: "123");
 
+        [TestCase("MountNotReady", true, false, "not finished initializing")]
+        [TestCase("MountNotReady", false, false, "not finished initializing")]
+        [TestCase("UnmountInProgress", true, false, "unmounting")]
+        [TestCase("UnmountInProgress", false, false, "unmounting")]
+        [TestCase("LockAcquired", false, true, null)]
+        [TestCase("LockAvailable", true, true, null)]
+        [TestCase("LockAcquired", true, false, "Unexpected response")]
+        [TestCase("LockAvailable", false, false, "Unexpected response")]
+        public void InitialLockResponsePreservesMountErrorsAndAcceptanceChecks(string response, bool checkAvailabilityOnly, bool expectedSuccess, string expectedError)
+        {
+            using (MockNamedPipeClient pipe = new MockNamedPipeClient
+            {
+                Response = new NamedPipeMessages.Message(response, null),
+            })
+            {
+                GVFSLock.TryAcquireGVFSLockForProcess(
+                    unattended: true, pipe, "git status", 123, false, true,
+                    checkAvailabilityOnly, gvfsEnlistmentRoot: null, gitCommandSessionId: string.Empty,
+                    out string error).ShouldEqual(expectedSuccess);
+
+                if (expectedError == null)
+                {
+                    error.ShouldBeNull();
+                }
+                else
+                {
+                    error.ShouldContain(expectedError);
+                }
+            }
+        }
+
         [TestCase("LockDeniedGVFS", "MountNotReady", "not finished initializing", true)]
         [TestCase("LockDeniedGit", "MountNotReady", "not finished initializing", true)]
         [TestCase("LockDeniedGVFS", "UnmountInProgress", "unmounting", true)]
@@ -34,7 +65,7 @@ namespace GVFS.UnitTests.Common
             int responsesRead = 0;
             NamedPipeMessages.Message[] responses =
             {
-                new NamedPipeMessages.AcquireLock.Response(denial, DefaultLockData).CreateMessage(),
+                CreateLockDenialResponse(denial),
                 new NamedPipeMessages.Message(mountState, null),
             };
 
@@ -54,6 +85,39 @@ namespace GVFS.UnitTests.Common
 
                 error.ShouldContain(expectedError);
                 responsesRead.ShouldEqual(2);
+            }
+        }
+
+        [TestCase("LockDeniedGVFS", true)]
+        [TestCase("LockDeniedGit", true)]
+        [TestCase("LockDeniedGVFS", false)]
+        [TestCase("LockDeniedGit", false)]
+        public void LockAcquisitionWaitsThroughTemporaryRemount(string denial, bool unattended)
+        {
+            int responsesRead = 0;
+            NamedPipeMessages.Message[] responses =
+            {
+                CreateLockDenialResponse(denial),
+                new NamedPipeMessages.Message("MountNotReady", null),
+                new NamedPipeMessages.Message("LockAcquired", null),
+            };
+
+            using (MockNamedPipeClient pipe = new MockNamedPipeClient
+            {
+                ReadResponseCallback = () =>
+                {
+                    Assert.That(responsesRead, Is.LessThan(responses.Length));
+                    return responses[responsesRead++];
+                },
+            })
+            {
+                GVFSLock.TryAcquireGVFSLockForProcess(
+                    unattended, pipe, "git checkout branch", 123, false, true,
+                    checkAvailabilityOnly: false, gvfsEnlistmentRoot: null, gitCommandSessionId: string.Empty,
+                    out string error).ShouldBeTrue();
+
+                error.ShouldBeNull();
+                responsesRead.ShouldEqual(3);
             }
         }
 
@@ -95,8 +159,8 @@ namespace GVFS.UnitTests.Common
             int responsesRead = 0;
             NamedPipeMessages.Message[] responses =
             {
-                new NamedPipeMessages.AcquireLock.Response(firstDenial, DefaultLockData).CreateMessage(),
-                new NamedPipeMessages.AcquireLock.Response(secondDenial, DefaultLockData).CreateMessage(),
+                CreateLockDenialResponse(firstDenial),
+                CreateLockDenialResponse(secondDenial),
                 new NamedPipeMessages.Message("LockAvailable", null),
             };
 
@@ -527,6 +591,14 @@ namespace GVFS.UnitTests.Common
             mockPlatform.ProcessStartTimes.Remove(newLockData.PID);
             mockPlatform.ProcessStartTimeResults.Remove(DefaultLockData.PID);
             mockTracer.VerifyAll();
+        }
+
+        private static NamedPipeMessages.Message CreateLockDenialResponse(string denial)
+        {
+            return new NamedPipeMessages.AcquireLock.Response(
+                denial,
+                responseData: denial == NamedPipeMessages.AcquireLock.DenyGitResult ? DefaultLockData : null,
+                denyGVFSMessage: "Waiting for GVFS").CreateMessage();
         }
 
         private GVFSLock AcquireDefaultLock(MockPlatform mockPlatform, ITracer mockTracer)

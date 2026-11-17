@@ -62,7 +62,7 @@ namespace GVFS.Common
                         {
                             case NamedPipeMessages.AcquireLock.AcceptResult:
                             case NamedPipeMessages.AcquireLock.AvailableResult:
-                            case NamedPipeMessages.AcquireLock.MountNotReadyResult:
+                            case NamedPipeMessages.AcquireLock.MountNotReadyResult when checkAvailabilityOnly:
                             case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
                                 return CheckLockResponse(response, checkAvailabilityOnly, out retryResult);
 
