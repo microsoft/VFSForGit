@@ -48,8 +48,10 @@ namespace GVFS.Common.Sparse
     /// does not change. Only a dehydrate (see below) can make the manager invalidate it.
     /// </para>
     /// <para>
-    /// Every failure lets Git run, because the hook treats any reply other than success as
-    /// "not applied". Git then expands the index in memory, which is slower but correct.
+    /// A failure does not change the cone or the index. The hook then lets a read-only command
+    /// run, and Git expands the index in memory, which is slower but correct. The hook stops a
+    /// command that writes the index before Git runs, because Git would not see a path or a
+    /// change outside the cone (see <c>PreCommandConeRequests</c> in the hooks).
     /// </para>
     /// <para>
     /// Working-tree changes: Git sees a change to a file only when the index has an entry for
@@ -342,7 +344,6 @@ namespace GVFS.Common.Sparse
                 return NamedPipeMessages.ConeManagement.NotEnabledResult;
             }
 
-            bool succeeded;
             switch (message.Header)
             {
                 case NamedPipeMessages.ConeManagement.WidenRequest:
@@ -352,8 +353,7 @@ namespace GVFS.Common.Sparse
                         return NamedPipeMessages.ConeManagement.FailureResult;
                     }
 
-                    succeeded = manager.TryWiden(widen);
-                    break;
+                    return ToReply(manager.HandleWiden(widen));
 
                 case NamedPipeMessages.ConeManagement.NarrowRequest:
                     if (!NamedPipeMessages.ConeManagement.NarrowParameters.TryParse(message.Body, out NamedPipeMessages.ConeManagement.NarrowParameters narrow))
@@ -362,8 +362,7 @@ namespace GVFS.Common.Sparse
                         return NamedPipeMessages.ConeManagement.FailureResult;
                     }
 
-                    succeeded = manager.TryNarrow(narrow);
-                    break;
+                    return manager.TryNarrow(narrow) ? NamedPipeMessages.ConeManagement.SuccessResult : NamedPipeMessages.ConeManagement.FailureResult;
 
                 case NamedPipeMessages.ConeManagement.ApplyRequest:
                     if (!NamedPipeMessages.ConeManagement.ApplyParameters.TryParse(message.Body, out NamedPipeMessages.ConeManagement.ApplyParameters apply))
@@ -372,14 +371,11 @@ namespace GVFS.Common.Sparse
                         return NamedPipeMessages.ConeManagement.FailureResult;
                     }
 
-                    succeeded = manager.TryApply(apply);
-                    break;
+                    return ToReply(manager.HandleApply(apply));
 
                 default:
                     throw new ArgumentException($"'{message.Header}' is not a cone request.", nameof(message));
             }
-
-            return succeeded ? NamedPipeMessages.ConeManagement.SuccessResult : NamedPipeMessages.ConeManagement.FailureResult;
         }
 
         /// <summary>
@@ -388,6 +384,44 @@ namespace GVFS.Common.Sparse
         /// </summary>
         /// <returns>True when the cone and the index include the paths.</returns>
         public bool TryWiden(NamedPipeMessages.ConeManagement.WidenParameters parameters)
+        {
+            return IsApplied(this.HandleWiden(parameters));
+        }
+
+        /// <summary>
+        /// Apply the pending working-tree changes to the cone and the index before a Git command
+        /// reads the index. The hook waits for the result before Git runs.
+        /// </summary>
+        /// <returns>True when the cone and the index include every pending change.</returns>
+        public bool TryApply(NamedPipeMessages.ConeManagement.ApplyParameters parameters)
+        {
+            return IsApplied(this.HandleApply(parameters));
+        }
+
+        private static bool IsApplied(ConeChange change)
+        {
+            return change == ConeChange.Applied || change == ConeChange.ConeUnchanged;
+        }
+
+        /// <summary>
+        /// Return the reply to a widen or an apply. A hook stops a command that writes the index
+        /// when the reply is not <see cref="NamedPipeMessages.ConeManagement.SuccessResult"/>, and
+        /// <see cref="NamedPipeMessages.ConeManagement.NotLockHolderResult"/> lets it tell the
+        /// user that another Git command holds the GVFS lock.
+        /// </summary>
+        private static string ToReply(ConeChange change)
+        {
+            if (IsApplied(change))
+            {
+                return NamedPipeMessages.ConeManagement.SuccessResult;
+            }
+
+            return change == ConeChange.NotLockHolder
+                ? NamedPipeMessages.ConeManagement.NotLockHolderResult
+                : NamedPipeMessages.ConeManagement.FailureResult;
+        }
+
+        private ConeChange HandleWiden(NamedPipeMessages.ConeManagement.WidenParameters parameters)
         {
             ArgumentNullException.ThrowIfNull(parameters);
 
@@ -398,20 +432,14 @@ namespace GVFS.Common.Sparse
             ApplyAttempt attempt = new ApplyAttempt();
             ConeChange change = this.RunAndCatch(() => this.Widen(parameters, attempt, stopwatch, metadata), metadata);
             this.RearmPendingAfterAttempt(attempt, change, requestHasPaths: true, metadata);
-            bool succeeded = change == ConeChange.Applied || change == ConeChange.ConeUnchanged;
 
             // A widen slower than WidenWaitBudgetMs is a warning. The hook waits for the reply up
             // to WidenReplyCeilingMs, so the user's Git command waits for the widen.
             this.TraceResult(WidenEventName, change, stopwatch.ElapsedMilliseconds, NamedPipeMessages.ConeManagement.WidenWaitBudgetMs, metadata);
-            return succeeded;
+            return change;
         }
 
-        /// <summary>
-        /// Apply the pending working-tree changes to the cone and the index before a Git command
-        /// reads the index. The hook waits for the result before Git runs.
-        /// </summary>
-        /// <returns>True when the cone and the index include every pending change.</returns>
-        public bool TryApply(NamedPipeMessages.ConeManagement.ApplyParameters parameters)
+        private ConeChange HandleApply(NamedPipeMessages.ConeManagement.ApplyParameters parameters)
         {
             ArgumentNullException.ThrowIfNull(parameters);
 
@@ -425,10 +453,9 @@ namespace GVFS.Common.Sparse
                     : ConeChange.NoCommandId,
                 metadata);
             this.RearmPendingAfterAttempt(attempt, change, requestHasPaths: false, metadata);
-            bool succeeded = change == ConeChange.Applied || change == ConeChange.ConeUnchanged;
 
             this.TraceResult(ApplyEventName, change, stopwatch.ElapsedMilliseconds, NamedPipeMessages.ConeManagement.ApplyWaitBudgetMs, metadata);
-            return succeeded;
+            return change;
         }
 
         /// <summary>

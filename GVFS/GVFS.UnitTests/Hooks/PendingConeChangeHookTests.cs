@@ -172,6 +172,16 @@ namespace GVFS.UnitTests.Hooks
         }
 
         [TestCase]
+        public void ApplyForACommandThatDoesNotHoldTheLockKeepsThePendingFile()
+        {
+            this.clients.Enqueue(ReplyWith(NamedPipeMessages.ConeManagement.NotLockHolderResult));
+
+            this.Apply(holdsLock: true, "add").ShouldEqual(ConeRequestOutcome.NotLockHolder);
+
+            this.pendingFileDeleted.ShouldBeFalse();
+        }
+
+        [TestCase]
         public void UnlockedIndexReaderWithoutAProcessIdSendsNothing()
         {
             this.CreateHook().TryApply(new[] { "pre-command", "diff" }, holdsLock: false, this.CreateLockRequest, ReplyBudgetMs)

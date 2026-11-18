@@ -17,9 +17,11 @@ namespace GVFS.Hooks
     /// runs. Otherwise Git expands the whole sparse index in memory to find those paths.
     /// The post-command hook asks the mount to narrow the cone again.
     /// <para>
-    /// Cone management must never fail a Git command. Every failure, including no mount, a
-    /// mount that does not know the request, a slow mount, and an exception, lets Git run.
-    /// Git is then slower, but correct. The hook waits at most
+    /// This class never fails a Git command itself. Every failure, including no mount, a mount
+    /// that does not know the request, a slow mount, and an exception, gives an outcome, and
+    /// <see cref="PreCommandConeRequests"/> decides with it: a command that writes the index
+    /// stops before Git runs, and other commands run (Git is then slower, but correct).
+    /// The hook waits at most
     /// <see cref="NamedPipeMessages.ConeManagement.WidenWaitBudgetMs"/> to connect and send
     /// a widen. After it sent a widen, it waits for the reply, at most
     /// <see cref="NamedPipeMessages.ConeManagement.WidenReplyCeilingMs"/>: the mount applies
@@ -273,6 +275,13 @@ namespace GVFS.Hooks
                 }
             }
 
+            // The mount refuses such a widen every time. Git then expands the index in memory, and
+            // a command that writes the index is not stopped for a widen that cannot succeed.
+            if (paths.Count > AutoSparseIndexConeManager.MaxWidenPaths)
+            {
+                return ConeRequestOutcome.TooManyPaths;
+            }
+
             NamedPipeMessages.ConeManagement.WidenParameters parameters =
                 new NamedPipeMessages.ConeManagement.WidenParameters(GetCommandId(args), paths);
 
@@ -325,6 +334,7 @@ namespace GVFS.Hooks
                 case ConeRequestOutcome.SkippedStash:
                 case ConeRequestOutcome.SkippedInCone:
                 case ConeRequestOutcome.NoResolvablePaths:
+                case ConeRequestOutcome.TooManyPaths:
                     this.trace($"{request} skipped: {outcome}");
                     break;
 
@@ -378,9 +388,17 @@ namespace GVFS.Hooks
                     sending.TrySetResult(true);
                     pipeClient.SendRequest(new NamedPipeMessages.Message(header, body));
                     NamedPipeMessages.Message response = pipeClient.ReadResponse();
-                    return response.Header == NamedPipeMessages.ConeManagement.SuccessResult
-                        ? ConeRequestOutcome.Applied
-                        : ConeRequestOutcome.Rejected;
+                    switch (response.Header)
+                    {
+                        case NamedPipeMessages.ConeManagement.SuccessResult:
+                            return ConeRequestOutcome.Applied;
+
+                        case NamedPipeMessages.ConeManagement.NotLockHolderResult:
+                            return ConeRequestOutcome.NotLockHolder;
+
+                        default:
+                            return ConeRequestOutcome.Rejected;
+                    }
                 }
             });
 

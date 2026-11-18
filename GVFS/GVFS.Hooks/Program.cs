@@ -111,7 +111,6 @@ namespace GVFS.Hooks
         private static void RunPreCommands(string[] args)
         {
             string command = GetGitCommand(args);
-            bool isUnstage = false;
             switch (command)
             {
                 case "fetch":
@@ -126,31 +125,35 @@ namespace GVFS.Hooks
                         TryDisplayCachedHydrationStatus();
                     }
                     break;
-                case "restore":
-                case "checkout":
-                case "reset":
-                    isUnstage = UnstageCommandParser.ShouldPrepareForUnstage(command, args, IsSparseIndexConeManaged);
-                    break;
                 case "worktree":
                     RunWorktreePreCommand(args);
                     break;
             }
 
-            string unsafeRequest = PreCommandConeRequests.Send(
-                isUnstage,
+            ConeCommandKind kind = ConeCommandClassifier.Classify(command, args, IsSparseIndexConeManaged);
+            ConeRequestFailure failure = PreCommandConeRequests.Send(
+                kind,
                 IsConeChangePending,
                 () => TrySendConeWiden(args),
                 () => SendPrepareForUnstageMessage(command, args),
-                () => TryApplyPendingConeChange(args));
+                () => TryApplyPendingConeChange(args),
+                IsSparseIndexConeManaged);
 
-            if (unsafeRequest != null)
+            if (failure == null)
+            {
+                return;
+            }
+
+            if (kind == ConeCommandKind.Unstage)
             {
                 ExitWithError(
-                    "VFS for Git could not add the staged files to the sparse-index cone (" + unsafeRequest + ").",
+                    "VFS for Git could not add the staged files to the sparse-index cone (" + failure + ").",
                     "Without them in the cone, Git would not show the changes that this command unstages.",
                     "",
                     "Run the command again. If it fails again, run 'gvfs unmount' and 'gvfs mount', and then run it again.");
             }
+
+            ExitWithError(failure.GetIndexWriteStoppedMessage());
         }
 
         private static bool ArgsBlockHydrationStatus(string[] args)

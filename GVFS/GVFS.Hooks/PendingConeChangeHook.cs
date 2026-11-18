@@ -24,7 +24,8 @@ namespace GVFS.Hooks
     /// applied yet, as it can miss any change that a concurrent command makes.
     /// </para>
     /// <para>
-    /// As for the other cone requests, every failure lets Git run. When the mount replies that
+    /// This class returns every failure as an outcome, and <see cref="PreCommandConeRequests"/>
+    /// decides if Git runs. When the mount replies that
     /// the feature is off, or does not know the request, the hook deletes the pending file,
     /// because that mount never applies the change.
     /// </para>
@@ -258,6 +259,9 @@ namespace GVFS.Hooks
                     {
                         case NamedPipeMessages.ConeManagement.SuccessResult:
                             return ConeRequestOutcome.Applied;
+
+                        case NamedPipeMessages.ConeManagement.NotLockHolderResult:
+                            return ConeRequestOutcome.NotLockHolder;
 
                         case NamedPipeMessages.ConeManagement.NotEnabledResult:
                         case NamedPipeMessages.UnknownRequest:

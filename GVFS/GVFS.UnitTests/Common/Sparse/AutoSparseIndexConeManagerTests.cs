@@ -531,17 +531,6 @@ namespace GVFS.UnitTests.Common.Sparse
         }
 
         [TestCase]
-        public void HandleRequestRepliesFailureForARefusedWiden()
-        {
-            this.environment.LockHolder = SecondGit;
-            NamedPipeMessages.Message widen = new NamedPipeMessages.Message(
-                NamedPipeMessages.ConeManagement.WidenRequest,
-                new NamedPipeMessages.ConeManagement.WidenParameters(FirstGit.ToString(), new[] { "A/B/b.txt" }).ToBody());
-
-            AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, widen).ShouldEqual(NamedPipeMessages.ConeManagement.FailureResult);
-        }
-
-        [TestCase]
         public void ConcurrentWidensAndNarrowsEndWithTheConeOfTheModifiedPaths()
         {
             const int CommandCount = 16;
@@ -587,6 +576,32 @@ namespace GVFS.UnitTests.Common.Sparse
             AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.NarrowRequest, FirstGit.ToString()))
                 .ShouldEqual(NamedPipeMessages.ConeManagement.SuccessResult);
             this.ConeFile.ShouldEqual(Header);
+        }
+
+        [TestCase(NamedPipeMessages.ConeManagement.WidenRequest)]
+        [TestCase(NamedPipeMessages.ConeManagement.ApplyRequest)]
+        public void HandleRequestRepliesNotLockHolderForACommandThatDoesNotHoldTheGVFSLock(string header)
+        {
+            this.environment.LockHolder = SecondGit;
+            string body = header == NamedPipeMessages.ConeManagement.WidenRequest
+                ? new NamedPipeMessages.ConeManagement.WidenParameters(FirstGit.ToString(), new[] { "A/B/b.txt" }).ToBody()
+                : new NamedPipeMessages.ConeManagement.ApplyParameters(FirstGit.ToString()).ToBody();
+
+            AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, new NamedPipeMessages.Message(header, body))
+                .ShouldEqual(NamedPipeMessages.ConeManagement.NotLockHolderResult);
+
+            this.ConeFile.ShouldEqual(Header);
+        }
+
+        [TestCase]
+        public void HandleRequestRepliesFailureForARefusedWiden()
+        {
+            string[] paths = Enumerable.Range(0, AutoSparseIndexConeManager.MaxWidenPaths + 1).Select(i => $"D{i}/f.txt").ToArray();
+            NamedPipeMessages.Message widen = new NamedPipeMessages.Message(
+                NamedPipeMessages.ConeManagement.WidenRequest,
+                new NamedPipeMessages.ConeManagement.WidenParameters(FirstGit.ToString(), paths).ToBody());
+
+            AutoSparseIndexConeManager.HandleRequest(this.manager, this.tracer, widen).ShouldEqual(NamedPipeMessages.ConeManagement.FailureResult);
         }
 
         [TestCase("100\0C:\\outside.txt")]
