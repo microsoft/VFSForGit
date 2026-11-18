@@ -31,14 +31,15 @@ namespace GVFS.Common.Git
             string repositoryUrl,
             Func<string, Process> createProcess,
             Dictionary<string, string> credentialFillEnvironment = null,
-            ITracer tracer = null)
+            ITracer tracer = null,
+            int timeoutMs = TimeoutMilliseconds)
         {
             EventMetadata metadata = new EventMetadata
             {
                 { "SnapshotTiming", "after-failed-credential-fill" },
                 { "EnvironmentTiming", credentialFillEnvironment == null ? "diagnostic-process" : "credential-fill-process" },
             };
-            using (CancellationTokenSource deadline = new CancellationTokenSource(TimeoutMilliseconds))
+            using (CancellationTokenSource deadline = new CancellationTokenSource(timeoutMs))
             {
                 try
                 {

@@ -19,6 +19,9 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
     public class AuthenticationConfigurationTests
     {
         private const string Secret = "SecretSentinelNotForTelemetry";
+        private const int FixtureTimeoutMilliseconds = 30000;
+        private const string SystemConfigQuery = "config --system --null --name-only --list";
+        private const string UrlMatchQuery = "config --file - --no-includes --null --get-urlmatch authdiagnostic";
         private string root;
         private string gitPath;
         private IsolatedGitEnvironment environment;
@@ -131,44 +134,27 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         }
 
         [TestCase(AuthenticationConfiguration.ReadCommand, 1, 2, "collected", 1)]
-        [TestCase("config --system --null --name-only --list", 1, 2, "collected", 1)]
-        [TestCase("config --file - --no-includes --null --get-urlmatch authdiagnostic", 1, 2, "collected", 1)]
+        [TestCase(SystemConfigQuery, 1, 2, "collected", 1)]
+        [TestCase(UrlMatchQuery, 1, 2, "collected", 1)]
         [TestCase(AuthenticationConfiguration.ReadCommand, 5, 5, "config-query-error", 5)]
         public void DiagnosticReadsUseSharedRetriesWithoutTracingConfiguration(
             string query, int failures, int expectedAttempts, string expectedStatus, int expectedWarnings)
         {
-            File.WriteAllText(Path.Combine(this.root, "global"), "[credential \"https://example.com/org\"]\nhelper = manager\n");
-            string systemConfig = Path.Combine(this.root, "system");
-            File.WriteAllText(systemConfig, string.Empty);
-            int attempts = 0;
-            MockTracer tracer = new MockTracer();
+            this.AssertDiagnosticReadRetries(query, failures, expectedAttempts, expectedStatus, expectedWarnings);
+        }
 
-            EventMetadata snapshot = this.Collect("https://example.com/org", info =>
+        [Test]
+        public void SystemConfigRetryCompletesWithSlowStartupInOtherQueries()
+        {
+            this.AssertDiagnosticReadRetries(SystemConfigQuery, 1, 2, "collected", 1, info =>
             {
-                info.Environment.Remove("GIT_CONFIG_NOSYSTEM");
-                info.Environment["GIT_CONFIG_SYSTEM"] = systemConfig;
-                if (info.Arguments.Contains(query, StringComparison.Ordinal) && ++attempts <= failures)
+                if (info.Arguments.Contains(AuthenticationConfiguration.ReadCommand, StringComparison.Ordinal) ||
+                    info.Arguments.Contains(UrlMatchQuery, StringComparison.Ordinal))
                 {
-                    info.FileName = Environment.GetEnvironmentVariable("ComSpec");
-                    info.Arguments = "/d /c \"findstr . >nul & echo warning: unable to access '" + Secret + "': Permission denied 1>&2 & exit /b 128\"";
+                    // The two delays exceed the production deadline, but not the fixture deadline.
+                    Thread.Sleep(1200);
                 }
-            }, tracer: tracer);
-
-            Assert.That(attempts, Is.EqualTo(expectedAttempts));
-            Assert.That(snapshot["Status"], Is.EqualTo(expectedStatus));
-            Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(expectedWarnings));
-            Assert.That(string.Join("\n", tracer.RelatedWarningEvents), Does.Not.Contain(Secret));
-            if (expectedStatus == "collected")
-            {
-                Assert.That(snapshot["HelperChain"], Is.EqualTo("manager"));
-                Assert.That(snapshot["SystemConfigState"], Is.EqualTo("readable-no-auth-settings"));
-            }
-            else
-            {
-                Assert.That(snapshot.ContainsKey("HelperChain"), Is.False);
-            }
-
-            this.AssertNoSecret(snapshot);
+            });
         }
 
         [Test]
@@ -545,6 +531,51 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
             this.AssertNoSecret(snapshot);
         }
 
+        private void AssertDiagnosticReadRetries(
+            string query,
+            int failures,
+            int expectedAttempts,
+            string expectedStatus,
+            int expectedWarnings,
+            Action<ProcessStartInfo> beforeStart = null)
+        {
+            File.WriteAllText(Path.Combine(this.root, "global"), "[credential \"https://example.com/org\"]\nhelper = manager\n");
+            string systemConfig = Path.Combine(this.root, "system");
+            File.WriteAllText(systemConfig, string.Empty);
+            int attempts = 0;
+            MockTracer tracer = new MockTracer();
+
+            EventMetadata snapshot = this.Collect("https://example.com/org", info =>
+            {
+                info.Environment.Remove("GIT_CONFIG_NOSYSTEM");
+                info.Environment["GIT_CONFIG_SYSTEM"] = systemConfig;
+                beforeStart?.Invoke(info);
+                if (info.Arguments.Contains(query, StringComparison.Ordinal) && ++attempts <= failures)
+                {
+                    info.FileName = Environment.GetEnvironmentVariable("ComSpec");
+                    info.Arguments = "/d /c \"findstr . >nul & echo warning: unable to access '" + Secret + "': Permission denied 1>&2 & exit /b 128\"";
+                }
+            }, tracer: tracer);
+
+            object status = snapshot["Status"];
+            string diagnostic = $"Status: {status}. System config state: {snapshot.GetValueOrDefault("SystemConfigState", "not reported")}.";
+            Assert.That(attempts, Is.EqualTo(expectedAttempts), diagnostic);
+            Assert.That(status, Is.EqualTo(expectedStatus), diagnostic);
+            Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(expectedWarnings));
+            Assert.That(string.Join("\n", tracer.RelatedWarningEvents), Does.Not.Contain(Secret));
+            if (expectedStatus == "collected")
+            {
+                Assert.That(snapshot["HelperChain"], Is.EqualTo("manager"));
+                Assert.That(snapshot["SystemConfigState"], Is.EqualTo("readable-no-auth-settings"));
+            }
+            else
+            {
+                Assert.That(snapshot.ContainsKey("HelperChain"), Is.False);
+            }
+
+            this.AssertNoSecret(snapshot);
+        }
+
         private string GetGitPath()
         {
             if (!File.Exists(this.gitPath))
@@ -575,7 +606,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 process.StartInfo.Environment["GIT_CONFIG_GLOBAL"] = Path.Combine(this.root, "global");
                 customize?.Invoke(process.StartInfo);
                 return process;
-            }, credentialFillEnvironment, tracer);
+            }, credentialFillEnvironment, tracer, timeoutMs: FixtureTimeoutMilliseconds);
         }
 
         private void AssertNoSecret(EventMetadata metadata)
