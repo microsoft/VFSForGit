@@ -39,6 +39,13 @@ BeforeAll {
         }
         [xml]$xml = "<coverage lines-covered='999' lines-valid='999' line-rate='1'><sources><source>$runnerRoot</source></sources><packages>$($packages -join '')</packages></coverage>"
         $xml.Save((Join-Path $directory 'coverage.cobertura.xml'))
+        if ($Suite -eq 'Functional') {
+            $component = Get-Content -LiteralPath (Join-Path $directory 'metadata.json') -Raw | ConvertFrom-Json
+            $component.Suite = 'Component'
+            $component.SessionId += '-component'
+            $component | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'component-metadata.json')
+            $xml.Save((Join-Path $directory 'component.cobertura.xml'))
+        }
         if ($Suite -ne 'Upgrade') {
             @'
 <test-run result="Passed" total="2" passed="1" failed="0" skipped="1" inconclusive="0">
@@ -74,6 +81,12 @@ BeforeAll {
         $metadata = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
         $metadata[$Field] = $Value
         $metadata | ConvertTo-Json | Set-Content -LiteralPath $path
+        $componentPath = Join-Path $inputPath "$Id\component-metadata.json"
+        if ($Field -eq 'SourceCommit' -and (Test-Path -LiteralPath $componentPath)) {
+            $component = Get-Content -LiteralPath $componentPath -Raw | ConvertFrom-Json
+            $component.SourceCommit = $Value
+            $component | ConvertTo-Json | Set-Content -LiteralPath $componentPath
+        }
     }
 
     function Edit-WorkerCoverage {
@@ -113,7 +126,8 @@ Describe 'Managed-source coverage aggregation integrity' {
         $summary.Complete | Should -BeTrue
         $summary.Workers | Should -Be 32
         $summary.ExpectedWorkers | Should -Be 32
-        $summary.Groups.Count | Should -Be 5
+        $summary.Groups.Count | Should -Be 7
+        $summary.ComponentReports.Count | Should -Be 24
         foreach ($group in @($summary.Groups | Where-Object Suite -eq 'Functional')) {
             $group.Workers | Should -Be 12
             $group.ExpectedWorkers | Should -Be 12
@@ -134,7 +148,7 @@ Describe 'Managed-source coverage aggregation integrity' {
         ($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').CollectorVersion | Should -Be '18.8.0'
         $completedUtc = [datetime]($summary.WorkerReports | Where-Object WorkerId -eq 'unit-x64').CompletedUtc
         $completedUtc.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') | Should -Be '2026-11-05T20:01:00Z'
-        @(Get-ChildItem -LiteralPath (Join-Path $outputPath 'normalized') -Filter '*.xml' -Recurse).Count | Should -Be 32
+        @(Get-ChildItem -LiteralPath (Join-Path $outputPath 'normalized') -Filter '*.xml' -Recurse).Count | Should -Be 56
         [xml]$unit = Get-Content -LiteralPath (Join-Path $outputPath 'normalized\unit-x64\unit-x64.cobertura.xml') -Raw
         @($unit.coverage.packages.package.name) | Should -Contain 'GVFS.UnitTests'
         $unit.coverage.'lines-valid' | Should -Be '4'
@@ -160,7 +174,7 @@ Describe 'Managed-source coverage aggregation integrity' {
                 $summary.Complete | Should -BeTrue
                 $summary.Workers | Should -Be 32
                 $summary.SourceDirectory | Should -Be $sourcePath
-                @(Get-ChildItem -LiteralPath (Join-Path $resolvedOutput 'normalized') -Filter '*.xml' -Recurse).Count | Should -Be 32
+                @(Get-ChildItem -LiteralPath (Join-Path $resolvedOutput 'normalized') -Filter '*.xml' -Recurse).Count | Should -Be 56
                 [xml]$normalized = Get-Content -LiteralPath (Join-Path $resolvedOutput 'normalized\unit-x64\unit-x64.cobertura.xml') -Raw
                 $normalized.SelectSingleNode('//class').filename | Should -Be (Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs')
             }
@@ -177,6 +191,12 @@ Describe 'Managed-source coverage aggregation integrity' {
             if ($metadata.Suite -ne 'Upgrade') {
                 $metadata.Scenario = ''
                 $metadata | ConvertTo-Json | Set-Content -LiteralPath $file.FullName
+                $componentPath = Join-Path $file.DirectoryName 'component-metadata.json'
+                if (Test-Path -LiteralPath $componentPath) {
+                    $component = Get-Content -LiteralPath $componentPath -Raw | ConvertFrom-Json
+                    $component.Scenario = ''
+                    $component | ConvertTo-Json | Set-Content -LiteralPath $componentPath
+                }
             }
         }
         $testPath = Join-Path $inputPath 'functional-arm64-shard-0\tests.xml'
@@ -226,6 +246,35 @@ Describe 'Managed-source coverage aggregation integrity' {
         { & $mergeScript -InputDirectory $inputPath -OutputDirectory $sourcePath -SourceDirectory $sourcePath `
             -SourceCommit $commit -Repository $repository } | Should -Throw '*OutputDirectory must not contain*'
         (Get-Content -LiteralPath $sentinel -Raw).Trim() | Should -Be 'preserve source'
+    }
+
+    It 'Rejects missing, incomplete, mismatched, or empty supplementary component evidence' {
+        $directory = Join-Path $inputPath 'functional-x64-shard-0'
+        $path = Join-Path $directory 'component-metadata.json'
+        $original = Get-Content -LiteralPath $path -Raw
+        foreach ($mutation in @(
+            @{ Field = 'SourceCommit'; Value = 'b' * 40; Error = '*SourceCommit mismatch*' },
+            @{ Field = 'Architecture'; Value = 'arm64'; Error = '*Component Architecture mismatch*' },
+            @{ Field = 'Shard'; Value = 1; Error = '*Component Shard mismatch*' },
+            @{ Field = 'SessionId'; Value = 'another-session'; Error = '*Invalid component session identity*' },
+            @{ Field = 'Complete'; Value = $false; Error = '*Incomplete component coverage*' },
+            @{ Field = 'TestOutcome'; Value = 'failure'; Error = '*Component TestOutcome mismatch*' }
+        )) {
+            $metadata = $original | ConvertFrom-Json -AsHashtable
+            $metadata[$mutation.Field] = $mutation.Value
+            $metadata | ConvertTo-Json | Set-Content -LiteralPath $path
+            { Invoke-Merge } | Should -Throw $mutation.Error
+        }
+        $original | Set-Content -LiteralPath $path
+        $reportPath = Join-Path $directory 'component.cobertura.xml'
+        [xml]$report = Get-Content -LiteralPath $reportPath -Raw
+        foreach ($line in $report.SelectNodes('//class/lines/line')) { $line.SetAttribute('hits', '0') }
+        $report.Save($reportPath)
+        { Invoke-Merge } | Should -Throw '*No executed repository source coverage*'
+        Remove-Item -LiteralPath $reportPath
+        { Invoke-Merge } | Should -Throw '*Missing coverage report*component*'
+        Remove-Item -LiteralPath $path
+        { Invoke-Merge } | Should -Throw '*Missing component coverage metadata*'
     }
 
     It 'Rejects duplicate worker identities instead of treating them as another shard' {
@@ -376,7 +425,7 @@ Describe 'Managed-source coverage aggregation integrity' {
 
     It 'Combines unique changed source lines with distinct evidence and a union denominator' {
         $policyPath = Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs'
-        1..7 | ForEach-Object { "old$_" } | Set-Content -LiteralPath $policyPath
+        1..9 | ForEach-Object { "old$_" } | Set-Content -LiteralPath $policyPath
         Invoke-TestGit @('init', '--quiet') | Out-Null
         Invoke-TestGit @('config', 'user.email', 'fixture@example.invalid') | Out-Null
         Invoke-TestGit @('config', 'user.name', 'Coverage fixture') | Out-Null
@@ -385,7 +434,7 @@ Describe 'Managed-source coverage aggregation integrity' {
         Invoke-TestGit @('add', '.') | Out-Null
         Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Base fixture') | Out-Null
         $base = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
-        1..7 | ForEach-Object { "new$_" } | Set-Content -LiteralPath $policyPath
+        1..9 | ForEach-Object { "new$_" } | Set-Content -LiteralPath $policyPath
         Invoke-TestGit @('add', '.') | Out-Null
         Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Tested fixture') | Out-Null
         $commit = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
@@ -409,19 +458,25 @@ Describe 'Managed-source coverage aggregation integrity' {
                 }
             }
         }
+        $componentPath = Join-Path $inputPath 'functional-x64-shard-0\component.cobertura.xml'
+        [xml]$componentXml = Get-Content -LiteralPath $componentPath -Raw
+        foreach ($class in $componentXml.SelectNodes('//class')) {
+            $class.SelectSingleNode('./lines').InnerXml = "<line number='1' hits='1'/><line number='8' hits='1'/><line number='9' hits='0'/>"
+        }
+        $componentXml.Save($componentPath)
         Invoke-Merge -Base $base
         $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
         $combined = $changed.Files[0].COMBINED
-        $combined.Measured | Should -Be 6
-        $combined.Hit | Should -Be 4
-        $combined.Percentage | Should -Be 66.67
+        $combined.Measured | Should -Be 8
+        $combined.Hit | Should -Be 5
+        $combined.Percentage | Should -Be 62.5
         $combined.Both | Should -Be 1
         $combined.ProductOnly | Should -Be 1
-        $combined.UnitOnly | Should -Be 2
-        $combined.Uncovered | Should -Be 2
+        $combined.TestOnly | Should -Be 3
+        $combined.Uncovered | Should -Be 3
         $combined.NoEntry | Should -Be 1
-        @($combined.Lines.State) | Should -Be @('product-and-unit', 'product-only', 'unit-only', 'uncovered', 'no-entry/unmeasured-or-non-executable', 'unit-only', 'uncovered')
-        foreach ($scope in @('PRODUCT', 'UNIT', 'COMBINED')) {
+        @($combined.Lines.State) | Should -Be @('product-and-tests', 'product-only', 'test-only', 'uncovered', 'no-entry/unmeasured-or-non-executable', 'test-only', 'uncovered', 'test-only', 'uncovered')
+        foreach ($scope in @('PRODUCT', 'UNIT', 'COMPONENT', 'COMBINED')) {
             foreach ($line in $changed.Files[0].$scope.Lines) {
                 ($line.Provenance -is [array]) | Should -BeTrue
                 @($line.Provenance | Where-Object { $null -eq $_ }).Count | Should -Be 0
@@ -435,22 +490,61 @@ Describe 'Managed-source coverage aggregation integrity' {
         $combined.Lines[2].Provenance.Module | Should -Contain 'GVFS.UnitTests'
         $changed.Files[0].PRODUCT.Hit | Should -Be 2
         $changed.Files[0].UNIT.Hit | Should -Be 3
-        $changed.Measurements.COMBINED.Hit | Should -Be 4
+        $changed.Files[0].COMPONENT.Lines[7].State | Should -Be 'hit'
+        $combined.Lines[7].Provenance.Suite | Should -Contain 'Component'
+        $changed.Files[0].PRODUCT.Lines[7].State | Should -Be 'no-entry/unmeasured-or-non-executable'
+        $changed.Files[0].UNIT.Lines[7].State | Should -Be 'no-entry/unmeasured-or-non-executable'
+        $changed.Files[0].COMPONENT.Lines[8].State | Should -Be 'uncovered'
+        $combined.Lines[8].Provenance.Suite | Should -Contain 'Component'
+        $changed.Measurements.COMBINED.Hit | Should -Be 5
         $changed.Measurements.COMBINED.NoEntry | Should -Be 1
         $summary = Get-Content -LiteralPath (Join-Path $outputPath 'summary.json') -Raw | ConvertFrom-Json
-        $summary.Measurements.COMBINED.Measured | Should -Be 6
-        $summary.Measurements.COMBINED.Hit | Should -Be 4
+        $summary.Measurements.COMBINED.Measured | Should -Be 8
+        $summary.Measurements.COMBINED.Hit | Should -Be 5
         $markdown = Get-Content -LiteralPath (Join-Path $outputPath 'ChangedLines.md') -Raw
-        $markdown | Should -Match '\*\*Combined: 66.67% \(4/6 measured changed lines\)'
-        $markdown | Should -Match 'Separate product and unit'
+        $markdown | Should -Match '\*\*Combined: 62.5% \(5/8 measured changed lines\)'
+        $markdown | Should -Match 'Separate product, unit, and component'
         $detail = ($markdown -split '<!-- per-line-evidence -->', 2)[1]
         foreach ($line in $combined.Lines) {
             $row = "| [GVFS/GVFS.Common/Policy.cs:$($line.Line)](https://github.com/microsoft/VFSForGit/blob/$commit/GVFS/GVFS.Common/Policy.cs#L$($line.Line)) | $($line.State) |"
             $detail | Should -Match ([regex]::Escape($row))
         }
         $summaryMarkdown = ($markdown -split '<!-- per-line-evidence -->', 2)[0]
-        $summaryMarkdown | Should -Match '\*\*Combined: 66.67%'
+        $summaryMarkdown | Should -Match '\*\*Combined: 62.5%'
         $summaryMarkdown | Should -Not -Match '#L6'
+    }
+
+    It 'Uses fixed uncolored patch syntax and preserves bare carriage returns with <GitSetting>' -ForEach @(
+        @{ GitSetting = 'color.ui'; GitValue = 'always' },
+        @{ GitSetting = 'diff.noprefix'; GitValue = 'true' },
+        @{ GitSetting = 'diff.mnemonicPrefix'; GitValue = 'true' }
+    ) {
+        $policyPath = Join-Path $sourcePath 'GVFS\GVFS.Common\Policy.cs'
+        [System.IO.File]::WriteAllText($policyPath, "first`nold`nlast`n")
+        Invoke-TestGit @('init', '--quiet') | Out-Null
+        Invoke-TestGit @('config', 'user.email', 'fixture@example.invalid') | Out-Null
+        Invoke-TestGit @('config', 'user.name', 'Coverage fixture') | Out-Null
+        Invoke-TestGit @('config', 'core.autocrlf', 'false') | Out-Null
+        Invoke-TestGit @('config', 'commit.gpgsign', 'false') | Out-Null
+        '* -text' | Set-Content -LiteralPath (Join-Path $sourcePath '.gitattributes')
+        Invoke-TestGit @('add', '.') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Base fixture') | Out-Null
+        $base = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        [System.IO.File]::WriteAllText($policyPath, "first`nnew`nvoid M()`r`r`nnext`nlast`n")
+        Invoke-TestGit @('add', '.') | Out-Null
+        Invoke-TestGit @('-c', 'core.hooksPath=NUL', 'commit', '--quiet', '-m', 'Tested fixture') | Out-Null
+        $commit = [string](Invoke-TestGit @('rev-parse', 'HEAD'))
+        Invoke-TestGit @('config', $GitSetting, $GitValue) | Out-Null
+        foreach ($metadataFile in Get-ChildItem -LiteralPath $inputPath -Filter 'metadata.json' -Recurse) {
+            Set-WorkerMetadata $metadataFile.Directory.Name SourceCommit $commit
+        }
+        Invoke-Merge -Base $base
+        $changed = Get-Content -LiteralPath (Join-Path $outputPath 'changed-lines.json') -Raw | ConvertFrom-Json
+        $policy = $changed.Files | Where-Object Path -eq 'GVFS/GVFS.Common/Policy.cs'
+        @($policy.AddedModifiedLines) | Should -Be @(2, 3, 4)
+        $policy.COMBINED.Measured | Should -Be 1
+        $policy.COMBINED.NoEntry | Should -Be 2
+        Test-Path -LiteralPath (Join-Path $outputPath 'changed-lines.patch') | Should -BeFalse
     }
 
     It 'Selects only new-side lines across deletion, rename, and multiple hunks without a final newline' {
@@ -527,8 +621,8 @@ Describe 'Managed-source coverage aggregation integrity' {
         $policy.PRODUCT.Lines[0].State | Should -Be 'uncovered'
         $policy.UNIT.Hit | Should -Be 1
         $policy.COMBINED.Hit | Should -Be 1
-        $policy.COMBINED.Lines[0].State | Should -Be 'unit-only'
-        $policy.COMBINED.UnitOnly | Should -Be 1
+        $policy.COMBINED.Lines[0].State | Should -Be 'test-only'
+        $policy.COMBINED.TestOnly | Should -Be 1
         $policy.UNIT.Lines[0].Provenance.Module | Should -Contain 'GVFS.UnitTests'
         $policy.PRODUCT.Lines[0].Provenance.Suite | Should -Not -Contain 'Unit'
         $absent = $changed.Files | Where-Object Path -eq 'GVFS/GVFS.Common/No Entry.cs'

@@ -479,7 +479,7 @@ jobs:
         '## Coverage report download' >> $env:GITHUB_STEP_SUMMARY
         "Tested revision: [``$($report.SourceCommit)``]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/commit/$($report.SourceCommit)). Run attempt: [$env:GITHUB_RUN_ATTEMPT]($attemptUrl)." >> $env:GITHUB_STEP_SUMMARY
         "[Download coverage reports for attempt $env:GITHUB_RUN_ATTEMPT]($env:COVERAGE_ARTIFACT_URL): ChangedLines.md contains per-line evidence and source links." >> $env:GITHUB_STEP_SUMMARY
-        'Separate report folders: unit-x64, unit-arm64, functional-x64, functional-arm64, and upgrade-x64.' >> $env:GITHUB_STEP_SUMMARY
+        'Separate report folders: unit-x64, unit-arm64, component-x64, component-arm64, functional-x64, functional-arm64, and upgrade-x64.' >> $env:GITHUB_STEP_SUMMARY
 
   result:
     runs-on: ubuntu-latest

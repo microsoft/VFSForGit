@@ -25,18 +25,22 @@ BeforeAll {
         $global:LASTEXITCODE = if ($args[0] -in @($collectorState.Failure)) { 1 } else { 0 }
         if ($args[0] -eq 'shutdown') {
             $collectorState.ShutdownArguments = @($args)
-            $collectorState.MetadataAtShutdown = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json
+            $metadataName = if ([string]$args[1] -like '*-component') { 'component-metadata.json' } else { 'metadata.json' }
+            $collectorState.MetadataAtShutdown = Get-Content -LiteralPath (Join-Path $collectorState.Directory $metadataName) -Raw | ConvertFrom-Json
             if ($global:LASTEXITCODE -ne 0) { 'Fake shutdown failure' } else { 'Fake shutdown complete' }
         }
         if ($args[0] -eq '--version') { return 'Fake coverage collector 1.0' }
         if ($args[0] -eq 'collect') {
+            $collectorState.CollectSettings = $args[[array]::IndexOf($args, '--settings') + 1]
+            $collectorState.CollectSession = $args[[array]::IndexOf($args, '--session-id') + 1]
+            $outputPath = $args[[array]::IndexOf($args, '--output') + 1]
             @"
 <coverage lines-covered="$($collectorState.CoveredLines)" lines-valid="2"><packages>
 <package name="GVFS.Service"><classes>
 <class name="GVFS.Service.GVFSService"><methods><method name="OnStart"><lines><line number="1" hits="$($collectorState.StartupHits)"/></lines></method></methods><lines><line number="1" hits="$($collectorState.StartupHits)"/></lines></class>
 </classes></package></packages></coverage>
-"@ | Set-Content -LiteralPath (Join-Path $collectorState.Directory 'coverage.cobertura.xml')
-            'Fake collector diagnostics' | Set-Content -LiteralPath (Join-Path $collectorState.Directory 'collector.log')
+"@ | Set-Content -LiteralPath $outputPath
+            'Fake collector diagnostics' | Set-Content -LiteralPath $args[[array]::IndexOf($args, '--log-file') + 1]
         }
     }
 
@@ -111,13 +115,15 @@ Describe 'Coverage lifecycle producer output' {
             It 'Completes <Suite> evidence from the real build-manifest writer' -ForEach @(
                 @{ Suite = 'Unit'; Shard = -1; Scenario = ''; Outcome = 'failure'; HasTests = $true },
                 @{ Suite = 'Functional'; Shard = 0; Scenario = ''; Outcome = 'success'; HasTests = $true },
+                @{ Suite = 'Component'; Shard = 0; Scenario = ''; Outcome = 'success'; HasTests = $true },
                 @{ Suite = 'Upgrade'; Shard = -1; Scenario = 'staging-upgrade'; Outcome = 'success'; HasTests = $false }
             ) {
                 $manifestPath = Join-Path $TestDrive 'produced-build.json'
                 & (Join-Path $PSScriptRoot 'New-CoverageManifest.ps1') -Path $manifestPath -Repository microsoft/VFSForGit `
                     -SessionId test-session -Architecture x64
                 & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifestPath -Suite $Suite -Shard $Shard -Scenario $Scenario
-                $metadataPath = Join-Path $collectorState.Directory 'metadata.json'
+                $prefix = if ($Suite -eq 'Component') { 'component-' } else { '' }
+                $metadataPath = Join-Path $collectorState.Directory "${prefix}metadata.json"
                 $started = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
                 $started.Complete | Should -BeFalse
                 $started.CompletedUtc | Should -BeNullOrEmpty
@@ -127,17 +133,20 @@ Describe 'Coverage lifecycle producer output' {
                 $started.Shard | Should -Be $Shard
                 $started.Scenario | Should -BeExactly $Scenario
                 $started.CollectorVersion | Should -Be 'Fake coverage collector 1.0'
-                & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome $Outcome
+                $started.SessionId | Should -Be $(if ($Suite -eq 'Component') { 'test-session-component' } else { 'test-session' })
+                $collectorState.CollectSession | Should -Be $started.SessionId
+                Split-Path -Leaf $collectorState.CollectSettings | Should -Be $(if ($Suite -in @('Unit', 'Component')) { 'TestProcessCoverage.config' } else { 'AotCoverage.config' })
+                & $lifecycle -Action Stop -Directory $collectorState.Directory -Suite $Suite -TestOutcome $Outcome
                 $stopped = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
                 $stopped.Complete | Should -BeTrue
                 $stopped.TestOutcome | Should -Be $Outcome
                 ([datetime]$stopped.CompletedUtc) | Should -BeGreaterOrEqual ([datetime]$stopped.StartedUtc)
-                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -Be $HasTests
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory "${prefix}tests.xml") | Should -Be $HasTests
                 if ($HasTests) {
-                    Get-Content -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') -Raw |
+                    Get-Content -LiteralPath (Join-Path $collectorState.Directory "${prefix}tests.xml") -Raw |
                         Should -BeExactly (Get-Content -LiteralPath TestResult.xml -Raw)
                 }
-                if ($Suite -ne 'Unit') {
+                if ($Suite -in @('Functional', 'Upgrade')) {
                     $service = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'service.json') -Raw | ConvertFrom-Json
                     $service.ScmServiceStartupCovered | Should -BeTrue
                 } else {
@@ -148,6 +157,25 @@ Describe 'Coverage lifecycle producer output' {
                 $collectorState.ShutdownArguments[3] | Should -Be 30000
                 $collectorState.MetadataAtShutdown.TestOutcome | Should -Be $Outcome
                 $collectorState.MetadataAtShutdown.Complete | Should -BeFalse
+            }
+
+            It 'Keeps product and component sessions, metadata, and results separate in one worker directory' {
+                $manifest = New-BuildManifest
+                & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Functional -Shard 0
+                & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Component -Shard 0
+                & $lifecycle -Action Stop -Directory $collectorState.Directory -Suite Component -TestOutcome success
+                $product = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json
+                $component = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'component-metadata.json') -Raw | ConvertFrom-Json
+                $product.SessionId | Should -Be 'test-session'
+                $component.SessionId | Should -Be 'test-session-component'
+                $product.Complete | Should -BeFalse
+                $component.Complete | Should -BeTrue
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'component-tests.xml') | Should -BeTrue
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -BeFalse
+                & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome success
+                (Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json).Complete | Should -BeTrue
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'component-collector.log') | Should -BeTrue
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'collector.log') | Should -BeTrue
             }
 
             It 'Shuts down after a failed readiness snapshot and retains incomplete diagnostics' {

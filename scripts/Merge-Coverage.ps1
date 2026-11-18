@@ -98,6 +98,28 @@ function Get-TestTotals {
     }
 }
 
+function Read-CoverageMetadata {
+    param([string]$Path)
+
+    $metadata = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+    if ($metadata -isnot [System.Collections.IDictionary]) { throw "Invalid metadata object in $Path." }
+    foreach ($field in @('SchemaVersion', 'Repository', 'SourceCommit', 'SourceRoot', 'SessionId', 'Architecture', 'Configuration', 'Suite', 'Shard', 'Scenario', 'Complete', 'TestOutcome')) {
+        if (-not $metadata.ContainsKey($field)) { throw "Missing metadata field $field in $Path." }
+    }
+    if ($metadata.SchemaVersion -isnot [long] -and $metadata.SchemaVersion -isnot [int]) { throw "Invalid metadata SchemaVersion in $Path." }
+    if ($metadata.SchemaVersion -ne 1) { throw "Unsupported metadata SchemaVersion in $Path." }
+    foreach ($field in @('Repository', 'SourceCommit', 'SourceRoot', 'SessionId', 'Architecture', 'Configuration', 'Suite', 'TestOutcome')) {
+        if ($metadata[$field] -isnot [string] -or [string]::IsNullOrWhiteSpace($metadata[$field])) { throw "Invalid metadata $field in $Path." }
+    }
+    if ($metadata.Repository -ne $Repository) { throw "Foreign repository in ${Path}: $($metadata.Repository)." }
+    if ($metadata.SourceCommit -ne $SourceCommit) { throw "SourceCommit mismatch in ${Path}: $($metadata.SourceCommit)." }
+    if ($metadata.Configuration -cne 'Release' -or $metadata.Architecture -cnotin @('x64', 'arm64') -or
+        $metadata.Suite -cnotin @('Unit', 'Functional', 'Upgrade', 'Component')) { throw "Invalid worker configuration, architecture, or suite in $Path." }
+    if ($metadata.Shard -isnot [long] -and $metadata.Shard -isnot [int]) { throw "Invalid worker Shard in $Path." }
+    if ($null -ne $metadata.Scenario -and $metadata.Scenario -isnot [string]) { throw "Invalid worker Scenario in $Path." }
+    return $metadata
+}
+
 function Get-LineStatistics {
     param([bool[]]$Lines)
 
@@ -165,8 +187,14 @@ function ConvertFrom-GitPath {
 }
 
 function Get-ChangedFiles {
-    $patch = @(git -C $SourceDirectory diff --unified=0 --no-ext-diff --no-textconv $BaseCommit $SourceCommit --)
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot read the diff between BaseCommit and the tested SourceCommit.' }
+    $patchPath = Join-Path $OutputDirectory 'changed-lines.patch'
+    try {
+        git -C $SourceDirectory diff --no-color --src-prefix=a/ --dst-prefix=b/ --unified=0 --no-ext-diff --no-textconv "--output=$patchPath" $BaseCommit $SourceCommit --
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot read the diff between BaseCommit and the tested SourceCommit.' }
+        $patch = [System.IO.File]::ReadAllText($patchPath).Split("`n")
+    } finally {
+        if (Test-Path -LiteralPath $patchPath) { Remove-Item -LiteralPath $patchPath }
+    }
     $files = @{}
     $file = $null
     $inHunk = $false
@@ -248,36 +276,37 @@ function Get-ChangedMeasurement {
 }
 
 function Get-CombinedMeasurement {
-    param($Product, $Unit)
+    param($Product, $Unit, $Component)
 
     $lines = @(
         for ($index = 0; $index -lt $Product.Lines.Count; $index++) {
             $productLine = $Product.Lines[$index]
             $unitLine = $Unit.Lines[$index]
+            $componentLine = $Component.Lines[$index]
             $productHit = $productLine.State -eq 'hit'
-            $unitHit = $unitLine.State -eq 'hit'
-            $state = if ($productHit -and $unitHit) { 'product-and-unit' }
+            $testHit = $unitLine.State -eq 'hit' -or $componentLine.State -eq 'hit'
+            $state = if ($productHit -and $testHit) { 'product-and-tests' }
                 elseif ($productHit) { 'product-only' }
-                elseif ($unitHit) { 'unit-only' }
-                elseif ($productLine.State -eq 'uncovered' -or $unitLine.State -eq 'uncovered') { 'uncovered' }
+                elseif ($testHit) { 'test-only' }
+                elseif ($productLine.State -eq 'uncovered' -or $unitLine.State -eq 'uncovered' -or $componentLine.State -eq 'uncovered') { 'uncovered' }
                 else { $productLine.State }
             [ordered]@{
                 Line = $productLine.Line
                 State = $state
-                Provenance = @(@($productLine.Provenance) + @($unitLine.Provenance) |
+                Provenance = @(@($productLine.Provenance) + @($unitLine.Provenance) + @($componentLine.Provenance) |
                     Sort-Object WorkerId, Module, SourceDocument)
             }
         }
     )
-    $both = @($lines | Where-Object State -eq 'product-and-unit').Count
+    $both = @($lines | Where-Object State -eq 'product-and-tests').Count
     $productOnly = @($lines | Where-Object State -eq 'product-only').Count
-    $unitOnly = @($lines | Where-Object State -eq 'unit-only').Count
+    $testOnly = @($lines | Where-Object State -eq 'test-only').Count
     $uncovered = @($lines | Where-Object State -eq 'uncovered').Count
-    $hit = $both + $productOnly + $unitOnly
+    $hit = $both + $productOnly + $testOnly
     $measured = $hit + $uncovered
     return [ordered]@{
         Measured = $measured; Hit = $hit; Uncovered = $uncovered
-        Both = $both; ProductOnly = $productOnly; UnitOnly = $unitOnly
+        Both = $both; ProductOnly = $productOnly; TestOnly = $testOnly
         NoEntry = @($lines | Where-Object State -eq 'no-entry/unmeasured-or-non-executable').Count
         Percentage = if ($measured -eq 0) { $null } else { [Math]::Round(100.0 * $hit / $measured, 2) }
         Lines = $lines
@@ -335,9 +364,10 @@ try {
     foreach ($scenario in $scenarios) { $expected["upgrade-x64-$scenario"] = $true }
 
     $workers = [System.Collections.Generic.List[object]]::new()
+    $componentReports = [System.Collections.Generic.List[object]]::new()
     $seen = @{}
     $functionalHits = @{}
-    $indexes = @{ PRODUCT = @{}; UNIT = @{} }
+    $indexes = @{ PRODUCT = @{}; UNIT = @{}; COMPONENT = @{} }
     $changedFiles = if ($BaseCommit) { @(Get-ChangedFiles) } else { @() }
     $changedLineKeys = @{}
     foreach ($file in $changedFiles) {
@@ -356,30 +386,7 @@ try {
         }
     }
     foreach ($metadataFile in $metadataFiles) {
-        $metadata = Get-Content -LiteralPath $metadataFile.FullName -Raw | ConvertFrom-Json -AsHashtable
-        if ($metadata -isnot [System.Collections.IDictionary]) { throw "Invalid metadata object in $($metadataFile.FullName)." }
-        foreach ($field in @('SchemaVersion', 'Repository', 'SourceCommit', 'SourceRoot', 'SessionId', 'Architecture', 'Configuration', 'Suite', 'Shard', 'Scenario', 'Complete', 'TestOutcome')) {
-            if (-not $metadata.ContainsKey($field)) { throw "Missing metadata field $field in $($metadataFile.FullName)." }
-        }
-        if ($metadata.SchemaVersion -isnot [long] -and $metadata.SchemaVersion -isnot [int]) {
-            throw "Invalid metadata SchemaVersion in $($metadataFile.FullName)."
-        }
-        if ($metadata.SchemaVersion -ne 1) { throw "Unsupported metadata SchemaVersion in $($metadataFile.FullName)." }
-        foreach ($field in @('Repository', 'SourceCommit', 'SourceRoot', 'SessionId', 'Architecture', 'Configuration', 'Suite', 'TestOutcome')) {
-            if ($metadata[$field] -isnot [string] -or [string]::IsNullOrWhiteSpace($metadata[$field])) {
-                throw "Invalid metadata $field in $($metadataFile.FullName)."
-            }
-        }
-        if ($metadata.Repository -ne $Repository) { throw "Foreign repository in $($metadataFile.FullName): $($metadata.Repository)." }
-        if ($metadata.SourceCommit -ne $SourceCommit) { throw "SourceCommit mismatch in $($metadataFile.FullName): $($metadata.SourceCommit)." }
-        if ($metadata.Configuration -cne 'Release' -or $metadata.Architecture -cnotin @('x64', 'arm64') -or
-            $metadata.Suite -cnotin @('Unit', 'Functional', 'Upgrade')) {
-            throw "Invalid worker configuration, architecture, or suite in $($metadataFile.FullName)."
-        }
-        if ($metadata.Shard -isnot [long] -and $metadata.Shard -isnot [int]) { throw "Invalid worker Shard in $($metadataFile.FullName)." }
-        if ($null -ne $metadata.Scenario -and $metadata.Scenario -isnot [string]) {
-            throw "Invalid worker Scenario in $($metadataFile.FullName)."
-        }
+        $metadata = Read-CoverageMetadata $metadataFile.FullName
         $hasScenario = -not [string]::IsNullOrEmpty($metadata.Scenario)
         $group = "$($metadata.Suite.ToLowerInvariant())-$($metadata.Architecture)"
         if ($metadata.Suite -ceq 'Functional') {
@@ -410,130 +417,151 @@ try {
             if (-not (Test-Path -LiteralPath $testPath -PathType Leaf)) { throw "Missing tests.xml for $workerId." }
             $tests = Get-TestTotals $testPath $workerId
         }
-        $document = Read-ReportXml $coveragePath
-        $coverage = $document.SelectSingleNode('/coverage')
-        if ($null -eq $coverage) { throw "Invalid Cobertura document for $workerId." }
-        $modules = @{}
-        $workerLines = @{}
-        foreach ($package in @($coverage.SelectNodes('./packages/package'))) {
-            $module = $package.GetAttribute('name')
-            if ([string]::IsNullOrWhiteSpace($module)) { throw "Missing assembly name in $workerId." }
-            if ($metadata.Suite -cne 'Unit' -and $module -match '(UnitTests|FunctionalTests|^GVFS\.Tests(?:$|\.))') {
-                throw "Test assemblies contaminate product worker ${workerId}: $module."
+        $collections = @($metadata)
+        if ($metadata.Suite -ceq 'Functional') {
+            $componentPath = Join-Path $metadataFile.DirectoryName 'component-metadata.json'
+            if (-not (Test-Path -LiteralPath $componentPath -PathType Leaf)) { throw "Missing component coverage metadata for $workerId." }
+            $component = Read-CoverageMetadata $componentPath
+            foreach ($field in @('Repository', 'SourceCommit', 'SourceRoot', 'Architecture', 'Configuration', 'Shard', 'Scenario', 'TestOutcome')) {
+                if ($component[$field] -cne $metadata[$field]) { throw "Component $field mismatch for $workerId." }
             }
-            if (-not $modules.ContainsKey($module)) { $modules[$module] = @{} }
-            foreach ($class in @($package.SelectNodes('./classes/class'))) {
-                $rawSource = $class.GetAttribute('filename')
-                if ([string]::IsNullOrWhiteSpace($rawSource)) { throw "Missing source filename in $workerId ($module)." }
-                $sourcePath = Get-WindowsPath $rawSource
-                $inside = $sourcePath.StartsWith("$sourceRoot\", [StringComparison]::OrdinalIgnoreCase)
-                $documentPath = if ($inside) { '\' + $sourcePath.Substring($sourceRoot.Length + 1) } else { $sourcePath }
-                $generated = $documentPath -match '(?i)\\(?:obj|bin|out|publish)\\'
-                if ($documentPath -match '(?i)(?:\.g(?:\.i)?|\.generated|\.AssemblyInfo|\.AssemblyAttributes)\.cs$') {
-                    $generated = $generated -or -not $inside -or
-                        -not $sourceFiles.ContainsKey($sourcePath.Substring($sourceRoot.Length + 1).Replace('\', '/'))
+            if ($component.Suite -cne 'Component' -or $component.SessionId -cne "$($metadata.SessionId)-component") {
+                throw "Invalid component session identity for $workerId."
+            }
+            if ($component.Complete -isnot [bool] -or -not $component.Complete) { throw "Incomplete component coverage for $workerId." }
+            $collections += $component
+        }
+        foreach ($collection in $collections) {
+            $isComponent = $collection.Suite -ceq 'Component'
+            $reportId = if ($isComponent) { "$workerId-component" } else { $workerId }
+            $reportGroup = if ($isComponent) { "component-$($metadata.Architecture)" } else { $group }
+            $coveragePath = Join-Path $metadataFile.DirectoryName $(if ($isComponent) { 'component.cobertura.xml' } else { 'coverage.cobertura.xml' })
+            if (-not (Test-Path -LiteralPath $coveragePath -PathType Leaf)) { throw "Missing coverage report for $reportId." }
+            $document = Read-ReportXml $coveragePath
+            $coverage = $document.SelectSingleNode('/coverage')
+            if ($null -eq $coverage) { throw "Invalid Cobertura document for $workerId." }
+            $modules = @{}
+            $workerLines = @{}
+            foreach ($package in @($coverage.SelectNodes('./packages/package'))) {
+                $module = $package.GetAttribute('name')
+                if ([string]::IsNullOrWhiteSpace($module)) { throw "Missing assembly name in $workerId." }
+                if ($collection.Suite -notin @('Unit', 'Component') -and $module -match '(UnitTests|FunctionalTests|^GVFS\.Tests(?:$|\.))') {
+                    throw "Test assemblies contaminate product worker ${workerId}: $module."
                 }
-                $external = $documentPath -match '(?i)\\(?:packages|\.nuget|nuget)\\'
-                $reason = $null
-                $relative = $null
-                if ($generated) {
-                    $reason = 'generated-document'
-                } elseif ($external) {
-                    $reason = 'external-document'
-                } elseif (-not $inside) {
-                    $matchesRepository = $sourcePath -match '(?i)\\GVFS\\'
-                    foreach ($candidate in $sourceFiles.Keys) {
-                        if ($sourcePath.EndsWith("\" + $candidate.Replace('/', '\'), [StringComparison]::OrdinalIgnoreCase)) {
-                            $matchesRepository = $true
-                            break
-                        }
+                if (-not $modules.ContainsKey($module)) { $modules[$module] = @{} }
+                foreach ($class in @($package.SelectNodes('./classes/class'))) {
+                    $rawSource = $class.GetAttribute('filename')
+                    if ([string]::IsNullOrWhiteSpace($rawSource)) { throw "Missing source filename in $workerId ($module)." }
+                    $sourcePath = Get-WindowsPath $rawSource
+                    $inside = $sourcePath.StartsWith("$sourceRoot\", [StringComparison]::OrdinalIgnoreCase)
+                    $documentPath = if ($inside) { '\' + $sourcePath.Substring($sourceRoot.Length + 1) } else { $sourcePath }
+                    $generated = $documentPath -match '(?i)\\(?:obj|bin|out|publish)\\'
+                    if ($documentPath -match '(?i)(?:\.g(?:\.i)?|\.generated|\.AssemblyInfo|\.AssemblyAttributes)\.cs$') {
+                        $generated = $generated -or -not $inside -or
+                            -not $sourceFiles.ContainsKey($sourcePath.Substring($sourceRoot.Length + 1).Replace('\', '/'))
                     }
-                    if ($matchesRepository) { throw "Unmatched repository source in ${workerId}: '$rawSource' does not match SourceRoot '$sourceRoot'." }
-                    $reason = 'external-document'
-                } else {
-                    $relative = $sourcePath.Substring($sourceRoot.Length + 1).Replace('\', '/')
-                    $mapped = Get-WindowsPath (Join-Path $SourceDirectory $relative.Replace('/', '\'))
-                    if (-not $mapped.StartsWith("$SourceDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
-                        throw "Source path escapes SourceDirectory in ${workerId}: $rawSource."
-                    }
-                    if (-not (Test-Path -LiteralPath $mapped -PathType Leaf)) { throw "Missing repository source in ${workerId}: $relative." }
-                    if ([System.IO.Path]::GetExtension($mapped) -ine '.cs') {
-                        $reason = 'non-managed-document'
-                    } else {
-                        $mapped = $sourceFiles[$relative]
-                        if ($null -eq $mapped) { throw "Missing repository source in ${workerId}: $relative." }
-                        $relative = $mapped.Substring($SourceDirectory.Length + 1).Replace('\', '/')
-                    }
-                }
-                if ($null -ne $reason) {
-                    $key = "$workerId`0$sourcePath"
-                    if (-not $exclusions.ContainsKey($key)) {
-                        $exclusions[$key] = [ordered]@{ WorkerId = $workerId; Suite = $metadata.Suite; Architecture = $metadata.Architecture; SourceDocument = $rawSource; Reason = $reason; Modules = @{} }
-                    }
-                    $exclusions[$key].Modules[$module] = $true
-                    [void]$class.ParentNode.RemoveChild($class)
-                    continue
-                }
-                $class.SetAttribute('filename', $mapped)
-                $scope = if ($metadata.Suite -ceq 'Unit') { 'UNIT' } else { 'PRODUCT' }
-                foreach ($line in @($class.SelectNodes('./lines/line'))) {
-                    $number = Get-Count $line.GetAttribute('number') "$workerId ($relative) line number" -Positive
-                    $hits = Get-Count $line.GetAttribute('hits') "$workerId ($relative) line hits"
-                    $key = "$relative`0$number"
-                    $workerLines[$key] = $workerLines[$key] -eq $true -or $hits -gt 0
-                    $modules[$module][$key] = $modules[$module][$key] -eq $true -or $hits -gt 0
-                    if (-not $indexes[$scope].ContainsKey($key)) {
-                        $indexes[$scope][$key] = [ordered]@{ Path = $relative; Line = $number; Hit = $false; Provenance = @{} }
-                    }
-                    $entry = $indexes[$scope][$key]
-                    $entry.Hit = $entry.Hit -or $hits -gt 0
-                    # Unchanged lines need only hit unions. Detailed provenance stays bounded to the diff.
-                    if ($changedLineKeys.ContainsKey($key)) {
-                        $provenanceKey = "$workerId`0$module`0$sourcePath"
-                        if (-not $entry.Provenance.ContainsKey($provenanceKey)) {
-                            $entry.Provenance[$provenanceKey] = [ordered]@{
-                                WorkerId = $workerId; Suite = $metadata.Suite; Architecture = $metadata.Architecture
-                                Module = $module; SourceDocument = $rawSource; Hit = $false
+                    $external = $documentPath -match '(?i)\\(?:packages|\.nuget|nuget)\\'
+                    $reason = $null
+                    $relative = $null
+                    if ($generated) {
+                        $reason = 'generated-document'
+                    } elseif ($external) {
+                        $reason = 'external-document'
+                    } elseif (-not $inside) {
+                        $matchesRepository = $sourcePath -match '(?i)\\GVFS\\'
+                        foreach ($candidate in $sourceFiles.Keys) {
+                            if ($sourcePath.EndsWith("\" + $candidate.Replace('/', '\'), [StringComparison]::OrdinalIgnoreCase)) {
+                                $matchesRepository = $true
+                                break
                             }
                         }
-                        $entry.Provenance[$provenanceKey].Hit = $entry.Provenance[$provenanceKey].Hit -or $hits -gt 0
+                        if ($matchesRepository) { throw "Unmatched repository source in ${workerId}: '$rawSource' does not match SourceRoot '$sourceRoot'." }
+                        $reason = 'external-document'
+                    } else {
+                        $relative = $sourcePath.Substring($sourceRoot.Length + 1).Replace('\', '/')
+                        $mapped = Get-WindowsPath (Join-Path $SourceDirectory $relative.Replace('/', '\'))
+                        if (-not $mapped.StartsWith("$SourceDirectory\", [StringComparison]::OrdinalIgnoreCase)) {
+                            throw "Source path escapes SourceDirectory in ${workerId}: $rawSource."
+                        }
+                        if (-not (Test-Path -LiteralPath $mapped -PathType Leaf)) { throw "Missing repository source in ${workerId}: $relative." }
+                        if ([System.IO.Path]::GetExtension($mapped) -ine '.cs') {
+                            $reason = 'non-managed-document'
+                        } else {
+                            $mapped = $sourceFiles[$relative]
+                            if ($null -eq $mapped) { throw "Missing repository source in ${workerId}: $relative." }
+                            $relative = $mapped.Substring($SourceDirectory.Length + 1).Replace('\', '/')
+                        }
                     }
-                    if ($metadata.Suite -ceq 'Functional' -and $hits -gt 0) { $functionalHits[$module] = $true }
+                    if ($null -ne $reason) {
+                        $key = "$reportId`0$sourcePath"
+                        if (-not $exclusions.ContainsKey($key)) {
+                            $exclusions[$key] = [ordered]@{ WorkerId = $workerId; Suite = $collection.Suite; Architecture = $metadata.Architecture; SourceDocument = $rawSource; Reason = $reason; Modules = @{} }
+                        }
+                        $exclusions[$key].Modules[$module] = $true
+                        [void]$class.ParentNode.RemoveChild($class)
+                        continue
+                    }
+                    $class.SetAttribute('filename', $mapped)
+                    $scope = if ($isComponent) { 'COMPONENT' } elseif ($metadata.Suite -ceq 'Unit') { 'UNIT' } else { 'PRODUCT' }
+                    foreach ($line in @($class.SelectNodes('./lines/line'))) {
+                        $number = Get-Count $line.GetAttribute('number') "$workerId ($relative) line number" -Positive
+                        $hits = Get-Count $line.GetAttribute('hits') "$workerId ($relative) line hits"
+                        $key = "$relative`0$number"
+                        $workerLines[$key] = $workerLines[$key] -eq $true -or $hits -gt 0
+                        $modules[$module][$key] = $modules[$module][$key] -eq $true -or $hits -gt 0
+                        if (-not $indexes[$scope].ContainsKey($key)) {
+                            $indexes[$scope][$key] = [ordered]@{ Path = $relative; Line = $number; Hit = $false; Provenance = @{} }
+                        }
+                        $entry = $indexes[$scope][$key]
+                        $entry.Hit = $entry.Hit -or $hits -gt 0
+                        # Unchanged lines need only hit unions. Detailed provenance stays bounded to the diff.
+                        if ($changedLineKeys.ContainsKey($key)) {
+                            $provenanceKey = "$reportId`0$module`0$sourcePath"
+                            if (-not $entry.Provenance.ContainsKey($provenanceKey)) {
+                                $entry.Provenance[$provenanceKey] = [ordered]@{
+                                    WorkerId = $workerId; Suite = $collection.Suite; Architecture = $metadata.Architecture
+                                    Module = $module; SourceDocument = $rawSource; Hit = $false
+                                }
+                            }
+                            $entry.Provenance[$provenanceKey].Hit = $entry.Provenance[$provenanceKey].Hit -or $hits -gt 0
+                        }
+                        if (-not $isComponent -and $metadata.Suite -ceq 'Functional' -and $hits -gt 0) { $functionalHits[$module] = $true }
+                    }
+                    Update-CoverageRates $class
                 }
-                Update-CoverageRates $class
+                if ($package.SelectNodes('./classes/class').Count -eq 0) {
+                    [void]$package.ParentNode.RemoveChild($package)
+                } else {
+                    Update-CoverageRates $package
+                }
             }
-            if ($package.SelectNodes('./classes/class').Count -eq 0) {
-                [void]$package.ParentNode.RemoveChild($package)
-            } else {
-                Update-CoverageRates $package
+            $statistics = Get-LineStatistics @($workerLines.Values)
+            if ($statistics.Hit -eq 0) { throw "No executed repository source coverage in $reportId." }
+            Update-CoverageRates $coverage
+            $sources = $coverage.SelectSingleNode('./sources')
+            if ($null -ne $sources) { [void]$coverage.RemoveChild($sources) }
+            $sources = $document.CreateElement('sources')
+            $sourceNode = $document.CreateElement('source')
+            $sourceNode.InnerText = $SourceDirectory
+            [void]$sources.AppendChild($sourceNode)
+            [void]$coverage.PrependChild($sources)
+            $moduleSummary = @(
+                foreach ($module in @($modules.Keys | Sort-Object)) {
+                    [ordered]@{ Name = $module; Coverage = Get-LineStatistics @($modules[$module].Values) }
+                }
+            )
+            $worker = [ordered]@{
+                WorkerId = $workerId; Group = $reportGroup; Suite = $collection.Suite; Architecture = $metadata.Architecture
+                Shard = $metadata.Shard; Scenario = $metadata.Scenario; SessionId = $collection.SessionId
+                SourceRoot = $metadata.SourceRoot; TestOutcome = $metadata.TestOutcome; Complete = $true
+                Tests = if ($isComponent) { $null } else { $tests }; Coverage = $statistics; Modules = $moduleSummary
+                NormalizedReport = "normalized\$reportGroup\$reportId.cobertura.xml"; Document = $document
             }
-        }
-        $statistics = Get-LineStatistics @($workerLines.Values)
-        if ($statistics.Hit -eq 0) { throw "No executed repository source coverage in $workerId." }
-        Update-CoverageRates $coverage
-        $sources = $coverage.SelectSingleNode('./sources')
-        if ($null -ne $sources) { [void]$coverage.RemoveChild($sources) }
-        $sources = $document.CreateElement('sources')
-        $sourceNode = $document.CreateElement('source')
-        $sourceNode.InnerText = $SourceDirectory
-        [void]$sources.AppendChild($sourceNode)
-        [void]$coverage.PrependChild($sources)
-        $moduleSummary = @(
-            foreach ($module in @($modules.Keys | Sort-Object)) {
-                [ordered]@{ Name = $module; Coverage = Get-LineStatistics @($modules[$module].Values) }
+            foreach ($field in @('CollectorVersion', 'StartedUtc', 'CompletedUtc')) {
+                if ($collection.ContainsKey($field)) { $worker[$field] = $collection[$field] }
             }
-        )
-        $worker = [ordered]@{
-            WorkerId = $workerId; Group = $group; Suite = $metadata.Suite; Architecture = $metadata.Architecture
-            Shard = $metadata.Shard; Scenario = $metadata.Scenario; SessionId = $metadata.SessionId
-            SourceRoot = $metadata.SourceRoot; TestOutcome = $metadata.TestOutcome; Complete = $true
-            Tests = $tests; Coverage = $statistics; Modules = $moduleSummary
-            NormalizedReport = "normalized\$group\$workerId.cobertura.xml"; Document = $document
+            if ($isComponent) { $componentReports.Add($worker) } else { $workers.Add($worker) }
         }
-        foreach ($field in @('CollectorVersion', 'StartedUtc', 'CompletedUtc')) {
-            if ($metadata.ContainsKey($field)) { $worker[$field] = $metadata[$field] }
-        }
-        $workers.Add($worker)
     }
     $missing = @($expected.Keys | Where-Object { -not $seen.ContainsKey($_) } | Sort-Object)
     if ($missing.Count -ne 0) { throw "Missing workers ($($seen.Count)/32): $($missing -join ', ')." }
@@ -546,9 +574,10 @@ try {
         Available = [bool]$BaseCommit
         Reason = if ($BaseCommit) { $null } else { 'Changed-line analysis is unavailable because BaseCommit is absent.' }
         Scopes = [ordered]@{
-            COMBINED = 'Unique source lines executed by product tests, unit tests, or both'
+            COMBINED = 'Unique source lines executed by product, unit, or component tests'
             PRODUCT = 'Functional + Upgrade, managed NativeAOT product execution'
             UNIT = 'Unit execution, including source-linked production code'
+            COMPONENT = 'Product source executed inside the functional test process, not deployed product execution'
         }
         Measurements = $null
         Files = @()
@@ -569,19 +598,21 @@ try {
                 $numbers = @($file.Lines | Sort-Object)
                 $product = Get-ChangedMeasurement $path $numbers $indexes.PRODUCT $classification
                 $unit = Get-ChangedMeasurement $path $numbers $indexes.UNIT $classification
+                $component = Get-ChangedMeasurement $path $numbers $indexes.COMPONENT $classification
                 [ordered]@{
                     Path = $path; Classification = $classification; AddedModifiedLines = $numbers
-                    COMBINED = Get-CombinedMeasurement $product $unit
+                    COMBINED = Get-CombinedMeasurement $product $unit $component
                     PRODUCT = $product
                     UNIT = $unit
+                    COMPONENT = $component
                 }
             }
         )
         $changed.Measurements = [ordered]@{}
-        foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT')) {
+        foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT', 'COMPONENT')) {
             $totals = [ordered]@{}
             $fields = @('Measured', 'Hit', 'Uncovered', 'NoEntry')
-            if ($scope -eq 'COMBINED') { $fields += @('Both', 'ProductOnly', 'UnitOnly') }
+            if ($scope -eq 'COMBINED') { $fields += @('Both', 'ProductOnly', 'TestOnly') }
             foreach ($field in $fields) {
                 $totals[$field] = [long](($changed.Files | ForEach-Object { $_[$scope][$field] } | Measure-Object -Sum).Sum)
             }
@@ -590,17 +621,17 @@ try {
         }
     }
     $combinedHits = @{}
-    foreach ($scope in @('PRODUCT', 'UNIT')) {
+    foreach ($scope in @('PRODUCT', 'UNIT', 'COMPONENT')) {
         foreach ($key in $indexes[$scope].Keys) {
             $combinedHits[$key] = $combinedHits[$key] -eq $true -or $indexes[$scope][$key].Hit
         }
     }
     $groups = @(
-        foreach ($group in @('unit-x64', 'unit-arm64', 'functional-x64', 'functional-arm64', 'upgrade-x64')) {
-            $members = @($workers | Where-Object { $_.Group -eq $group })
-            $expectedCount = if ($group.StartsWith('unit-')) { 1 } elseif ($group.StartsWith('functional-')) { 12 } else { 6 }
+        foreach ($group in @('unit-x64', 'unit-arm64', 'functional-x64', 'functional-arm64', 'upgrade-x64', 'component-x64', 'component-arm64')) {
+            $members = @(@($workers) + @($componentReports) | Where-Object { $_.Group -eq $group })
+            $expectedCount = if ($group.StartsWith('unit-')) { 1 } elseif ($group.StartsWith('upgrade-')) { 6 } else { 12 }
             $totals = $null
-            if (-not $group.StartsWith('upgrade-')) {
+            if (-not $group.StartsWith('upgrade-') -and -not $group.StartsWith('component-')) {
                 $totals = [ordered]@{}
                 foreach ($name in @('Total', 'Executed', 'Passed', 'Skipped', 'Inconclusive', 'Failed', 'Errors')) {
                     $totals[$name] = [long](($members | ForEach-Object { $_.Tests[$name] } | Measure-Object -Sum).Sum)
@@ -609,7 +640,8 @@ try {
             [ordered]@{
                 Group = $group; Suite = $members[0].Suite; Architecture = $members[0].Architecture
                 Workers = $members.Count; ExpectedWorkers = $expectedCount; Tests = $totals
-                TestEvidence = if ($null -eq $totals) { 'Scenario outcome from metadata. No NUnit test count is inferred.' } else { 'NUnit cases. Skipped cases are not executed tests.' }
+                TestEvidence = if ($group.StartsWith('component-')) { 'The existing functional run, measured separately. No additional tests or workers.' }
+                    elseif ($null -eq $totals) { 'Scenario outcome from metadata. No NUnit test count is inferred.' } else { 'NUnit cases. Skipped cases are not executed tests.' }
             }
         }
     )
@@ -623,6 +655,7 @@ try {
         'Native C++ coverage is unsupported.'
         'Branch coverage availability is not assumed. These summaries use class source lines.'
         'Unit-linked source coverage is not deployed product execution.'
+        'Component coverage measures the functional test process, not deployed product execution.'
         'Lines without coverage entries are unmeasured or non-executable, not inferred covered.'
         'No coverage thresholds apply.'
     )
@@ -635,6 +668,7 @@ try {
             COMBINED = Get-LineStatistics @($combinedHits.Values)
             PRODUCT = Get-LineStatistics @($indexes.PRODUCT.Values | ForEach-Object { $_.Hit })
             UNIT = Get-LineStatistics @($indexes.UNIT.Values | ForEach-Object { $_.Hit })
+            COMPONENT = Get-LineStatistics @($indexes.COMPONENT.Values | ForEach-Object { $_.Hit })
         }
         RequiredFunctionalModulesWithHits = $requiredModules
         ExcludedDocumentCount = $excludedDocuments.Count; ExcludedDocuments = $excludedDocuments
@@ -644,12 +678,17 @@ try {
             foreach ($key in $_.Keys) { if ($key -ne 'Document') { $report[$key] = $_[$key] } }
             $report
         })
+        ComponentReports = @($componentReports | Sort-Object WorkerId | ForEach-Object {
+            $report = [ordered]@{}
+            foreach ($key in $_.Keys) { if ($key -ne 'Document') { $report[$key] = $_[$key] } }
+            $report
+        })
     }
     $markdown = [System.Collections.Generic.List[string]]::new()
     $markdown.Add('# Managed-source coverage')
     $markdown.Add('')
     $markdown.Add("Workers: $($workers.Count)/32. Tested commit: ``$SourceCommit``.")
-    foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT')) {
+    foreach ($scope in @('COMBINED', 'PRODUCT', 'UNIT', 'COMPONENT')) {
         $measurement = $summary.Measurements[$scope]
         $markdown.Add("$scope`: $($changed.Scopes[$scope]). $($measurement.Hit)/$($measurement.Measured) measured lines have hits ($(Format-Percentage $measurement.Percentage)).")
     }
@@ -662,6 +701,7 @@ try {
         }
         $markdown.Add("| $($group.Suite) / $($group.Architecture) | $($group.Workers)/$($group.ExpectedWorkers) | $counts |")
     }
+    $markdown.Add('Component rows measure the same functional runs separately. They do not add tests or workers.')
     $markdown.Add('')
     $markdown.Add("Excluded generated/external/non-managed documents: $($excludedDocuments.Count). See summary.json for documents and original module provenance.")
     $markdown.Add('Upgrade metadata records scenario outcomes, not NUnit case counts.')
@@ -676,28 +716,28 @@ try {
         $changedMarkdown.Add("Diff: ``$BaseCommit`` to tested commit ``$SourceCommit``.")
         $total = $changed.Measurements.COMBINED
         $changedMarkdown.Add("**Combined: $(Format-Percentage $total.Percentage) ($($total.Hit)/$($total.Measured) measured changed lines). Uncovered: $($total.Uncovered). No-entry: $($total.NoEntry).**")
-        $changedMarkdown.Add('Each source line counts once. Product + unit, product-only, and unit-only hits count as covered.')
-        $changedMarkdown.Add('Unit-only execution does not prove execution in the deployed product.')
+        $changedMarkdown.Add('Each source line counts once. A hit from product, unit, or component tests counts as covered.')
+        $changedMarkdown.Add('Test-only execution does not prove execution in the deployed product. UNIT and COMPONENT retain their separate attribution.')
         $changedMarkdown.Add('Percentages use measured changed lines only. N/A means that no changed lines have coverage entries.')
         $changedMarkdown.Add('No-entry means unmeasured or non-executable. It does not mean covered.')
         $changedMarkdown.Add('')
-        $changedMarkdown.Add('| File at tested commit | Measured | Product + unit | Product only | Unit only | Uncovered | No-entry | Combined | Classification |')
+        $changedMarkdown.Add('| File at tested commit | Measured | Product + tests | Product only | Test only | Uncovered | No-entry | Combined | Classification |')
         $changedMarkdown.Add('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
         foreach ($file in $changed.Files) {
             $measurement = $file.COMBINED
             $displayPath = $file.Path.Replace('|', '\|').Replace('[', '\[').Replace(']', '\]').Replace("`n", ' ').Replace("`r", ' ')
             $sourceLink = Get-SourceLink $file.Path
-            $changedMarkdown.Add("| [$displayPath]($sourceLink) | $($measurement.Measured) | $($measurement.Both) | $($measurement.ProductOnly) | $($measurement.UnitOnly) | $($measurement.Uncovered) | $($measurement.NoEntry) | $(Format-Percentage $measurement.Percentage) | $($file.Classification) |")
+            $changedMarkdown.Add("| [$displayPath]($sourceLink) | $($measurement.Measured) | $($measurement.Both) | $($measurement.ProductOnly) | $($measurement.TestOnly) | $($measurement.Uncovered) | $($measurement.NoEntry) | $(Format-Percentage $measurement.Percentage) | $($file.Classification) |")
         }
         $changedMarkdown.Add('')
         $changedMarkdown.Add('Download the artifact for per-line evidence in ChangedLines.md and the separate full HTML reports.')
         $changedMarkdown.Add('')
-        $changedMarkdown.Add('<details><summary>Separate product and unit changed-line measurements</summary>')
+        $changedMarkdown.Add('<details><summary>Separate product, unit, and component changed-line measurements</summary>')
         $changedMarkdown.Add('')
         $changedMarkdown.Add('| File | Scope | Measured | Hit | Uncovered | No-entry | Percentage | Classification |')
         $changedMarkdown.Add('| --- | --- | --- | --- | --- | --- | --- | --- |')
         foreach ($file in $changed.Files) {
-            foreach ($scope in @('PRODUCT', 'UNIT')) {
+            foreach ($scope in @('PRODUCT', 'UNIT', 'COMPONENT')) {
                 $measurement = $file[$scope]
                 $displayPath = $file.Path.Replace('|', '\|').Replace("`n", ' ').Replace("`r", ' ')
                 $changedMarkdown.Add("| $displayPath | $scope | $($measurement.Measured) | $($measurement.Hit) | $($measurement.Uncovered) | $($measurement.NoEntry) | $(Format-Percentage $measurement.Percentage) | $($file.Classification) |")
@@ -720,7 +760,7 @@ try {
             }
         }
     }
-    foreach ($worker in @($workers | Sort-Object WorkerId)) {
+    foreach ($worker in @(@($workers) + @($componentReports) | Sort-Object Group, WorkerId)) {
         $path = Join-Path $OutputDirectory $worker.NormalizedReport
         [void][System.IO.Directory]::CreateDirectory((Split-Path -Parent $path))
         $worker.Document.Save($path)

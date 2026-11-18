@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Directory,
     [string]$BuildManifest,
-    [ValidateSet('Unit', 'Functional', 'Upgrade')]
+    [ValidateSet('Unit', 'Functional', 'Component', 'Upgrade')]
     [string]$Suite,
     [int]$Shard = -1,
     [string]$Scenario,
@@ -17,8 +17,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $collector = (Get-Command Microsoft.CodeCoverage.Console.exe -ErrorAction Stop).Source
-$metadataPath = Join-Path $Directory 'metadata.json'
-$coveragePath = Join-Path $Directory 'coverage.cobertura.xml'
+$prefix = if ($Suite -eq 'Component') { 'component-' } else { '' }
+$metadataPath = Join-Path $Directory "${prefix}metadata.json"
+$coveragePath = Join-Path $Directory $(if ($prefix) { 'component.cobertura.xml' } else { 'coverage.cobertura.xml' })
 
 if ($Action -eq 'Start') {
     if (-not $BuildManifest -or -not $Suite) { throw 'Start requires a build manifest and suite.' }
@@ -31,17 +32,18 @@ if ($Action -eq 'Start') {
     if ($LASTEXITCODE -ne 0 -or $sourceCommit -ne $build.SourceCommit) {
         throw 'Collector source checkout does not match the compiled manifest.'
     }
-    if ($Suite -eq 'Functional' -and ($Shard -lt 0 -or $Shard -ge 12)) { throw 'Invalid functional shard.' }
+    if ($Suite -in @('Functional', 'Component') -and ($Shard -lt 0 -or $Shard -ge 12)) { throw 'Invalid functional shard.' }
     if ($Suite -eq 'Upgrade' -and -not $Scenario) { throw 'Upgrade coverage requires a scenario.' }
     New-Item -ItemType Directory -Path $Directory -Force | Out-Null
     $collectorVersion = (& $collector --version | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot identify the coverage collector version.' }
+    $sessionId = $build.SessionId + $(if ($Suite -eq 'Component') { '-component' } else { '' })
     $metadata = [ordered]@{
         SchemaVersion = 1
         Repository = $build.Repository
         SourceCommit = $build.SourceCommit
         SourceRoot = $build.SourceRoot
-        SessionId = $build.SessionId
+        SessionId = $sessionId
         Architecture = $build.Architecture
         Configuration = $build.Configuration
         Suite = $Suite
@@ -55,16 +57,16 @@ if ($Action -eq 'Start') {
         CompletedUtc = $null
     }
     $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
-    $configuration = Join-Path $PSScriptRoot $(if ($Suite -eq 'Unit') { 'UnitCoverage.config' } else { 'AotCoverage.config' })
-    & $collector collect --server-mode --background --session-id $build.SessionId --settings $configuration --output $coveragePath --output-format cobertura --log-file (Join-Path $Directory 'collector.log') --log-level Info
+    $configuration = Join-Path $PSScriptRoot $(if ($Suite -in @('Unit', 'Component')) { 'TestProcessCoverage.config' } else { 'AotCoverage.config' })
+    & $collector collect --server-mode --background --session-id $sessionId --settings $configuration --output $coveragePath --output-format cobertura --log-file (Join-Path $Directory "${prefix}collector.log") --log-level Info
     if ($LASTEXITCODE -ne 0) { throw 'Coverage collector startup failed.' }
     try {
-        & $collector snapshot $build.SessionId --output (Join-Path $Directory 'before-tests.coverage')
+        & $collector snapshot $sessionId --output (Join-Path $Directory "${prefix}before-tests.coverage")
         if ($LASTEXITCODE -ne 0) { throw 'Coverage collector readiness check failed.' }
     } catch {
-        & $collector shutdown $build.SessionId --timeout ($ShutdownTimeoutSeconds * 1000) 2>&1 |
-            Tee-Object -FilePath (Join-Path $Directory 'shutdown.log')
-        if ($LASTEXITCODE -ne 0) { Write-Warning 'Coverage cleanup failed after the readiness failure. See shutdown.log.' }
+        & $collector shutdown $sessionId --timeout ($ShutdownTimeoutSeconds * 1000) 2>&1 |
+            Tee-Object -FilePath (Join-Path $Directory "${prefix}shutdown.log")
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Coverage cleanup failed after the readiness failure. See ${prefix}shutdown.log." }
         throw
     }
 } else {
@@ -74,27 +76,27 @@ if ($Action -eq 'Start') {
     $metadata.CompletedUtc = $null
     $metadata.TestOutcome = $TestOutcome
     $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
-    if ($metadata.Suite -in @('Unit', 'Functional')) {
+    if ($metadata.Suite -in @('Unit', 'Functional', 'Component')) {
         if (Test-Path -LiteralPath 'TestResult.xml') {
-            Copy-Item -LiteralPath 'TestResult.xml' -Destination (Join-Path $Directory 'tests.xml')
+            Copy-Item -LiteralPath 'TestResult.xml' -Destination (Join-Path $Directory "${prefix}tests.xml")
         } elseif ($TestOutcome -ne 'success') {
             Write-Warning "The test outcome is '$TestOutcome'; TestResult.xml is unavailable."
         }
     }
     & $collector shutdown $metadata.SessionId --timeout ($ShutdownTimeoutSeconds * 1000) 2>&1 |
-        Tee-Object -FilePath (Join-Path $Directory 'shutdown.log')
+        Tee-Object -FilePath (Join-Path $Directory "${prefix}shutdown.log")
     if ($LASTEXITCODE -ne 0) {
-        $message = "Coverage collector shutdown failed (exit $LASTEXITCODE, IPC timeout ${ShutdownTimeoutSeconds}s). See shutdown.log and collector.background.log."
+        $message = "Coverage collector shutdown failed (exit $LASTEXITCODE, IPC timeout ${ShutdownTimeoutSeconds}s). See ${prefix}shutdown.log and ${prefix}collector.background.log."
         $metadata | Add-Member -NotePropertyName StopError -NotePropertyValue $message -Force
         $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
         throw "$message The test outcome remains '$TestOutcome'; coverage is incomplete."
     }
-    if ($metadata.Suite -in @('Unit', 'Functional') -and $TestOutcome -eq 'success' -and -not (Test-Path -LiteralPath 'TestResult.xml')) {
+    if ($metadata.Suite -in @('Unit', 'Functional', 'Component') -and $TestOutcome -eq 'success' -and -not (Test-Path -LiteralPath 'TestResult.xml')) {
         throw 'The successful test run produced no TestResult.xml.'
     }
     [xml]$report = Get-Content -LiteralPath $coveragePath -Raw
     if ([int]$report.coverage.'lines-covered' -le 0) { throw 'Coverage report contains no executed lines.' }
-    if ($metadata.Suite -ne 'Unit') {
+    if ($metadata.Suite -in @('Functional', 'Upgrade')) {
         & (Join-Path $PSScriptRoot 'Assert-AotCoverage.ps1') -CoveragePath $coveragePath |
             Set-Content -LiteralPath (Join-Path $Directory 'service.json') -Encoding utf8
     }

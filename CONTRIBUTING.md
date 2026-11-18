@@ -344,6 +344,7 @@ An expired artifact requires another validation run.
 | `Summary.md` | Worker completeness, test counts, and whole-project measurements. |
 | `unit-x64\index.html`, `unit-arm64\index.html` | Full unit reports by architecture. |
 | `functional-x64\index.html`, `functional-arm64\index.html` | Full functional reports by architecture. |
+| `component-x64\index.html`, `component-arm64\index.html` | Product source execution inside functional-test processes, including local component tests. |
 | `upgrade-x64\index.html` | Full upgrade report. |
 | `changed-lines.json`, `summary.json` | Detailed measurements and source, module, and worker attribution. |
 
@@ -353,13 +354,15 @@ The combined summary counts each source line once, so its totals can differ from
 
 | Changed-line evidence | Meaning |
 | --- | --- |
-| `product-and-unit` | Product and unit tests execute the line. |
+| `product-and-tests` | Product processes and unit or component test processes execute the line. |
 | `product-only` | Product tests execute the line. |
-| `unit-only` | Unit tests execute a source copy in a test assembly, not the deployed product. |
+| `test-only` | Unit or component test processes execute the line, without recorded execution in the deployed product. |
 | `uncovered` | The report measures the line but records no execution. |
 | `no-entry/unmeasured-or-non-executable` | The line has no coverage entry. It can be unmeasured or non-executable. |
 
 Percentages include measured changed lines only.
+The separate UNIT and COMPONENT measurements distinguish unit-test execution from execution inside the functional-test process.
+The same functional run supplies both product and component reports, without additional workers or test runs.
 A missing entry does not establish coverage.
 N/A means that no changed lines have coverage entries, not that coverage is 100%.
 PowerShell, YAML, and native C++ changes do not produce managed C# coverage measurements.
