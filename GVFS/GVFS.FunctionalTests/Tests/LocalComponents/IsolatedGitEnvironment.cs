@@ -3,15 +3,22 @@ using GVFS.Common.Git;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
     internal sealed class IsolatedGitEnvironment : IDisposable
     {
+        private const int SharingViolationHResult = unchecked((int)0x80070020);
+        private const int CleanupTimeoutMs = 5000;
+        private const int CleanupRetryDelayMs = 50;
+
+        private readonly Action<int> retryDelay;
         private bool disposed;
 
-        public IsolatedGitEnvironment()
+        public IsolatedGitEnvironment(Action<int> retryDelay = null)
         {
+            this.retryDelay = retryDelay ?? Thread.Sleep;
             this.RootDirectory = Path.Combine(Path.GetTempPath(), "LocalComponents_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(this.RootDirectory);
         }
@@ -48,8 +55,35 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 return;
             }
 
-            Directory.Delete(this.RootDirectory, recursive: true);
+            Stopwatch timer = Stopwatch.StartNew();
+            IOException lastSharingViolation = null;
+            int retries = 0;
+            while (true)
+            {
+                try
+                {
+                    Directory.Delete(this.RootDirectory, recursive: true);
+                    break;
+                }
+                catch (IOException exception) when (
+                    exception.HResult == SharingViolationHResult &&
+                    timer.ElapsedMilliseconds < CleanupTimeoutMs)
+                {
+                    lastSharingViolation = exception;
+                    ++retries;
+                    this.retryDelay(CleanupRetryDelayMs);
+                }
+            }
+
             this.disposed = true;
+            if (lastSharingViolation != null)
+            {
+                Console.WriteLine(
+                    "Temporary directory cleanup recovered after {0} retries in {1} ms: {2}",
+                    retries,
+                    timer.ElapsedMilliseconds,
+                    lastSharingViolation);
+            }
         }
     }
 

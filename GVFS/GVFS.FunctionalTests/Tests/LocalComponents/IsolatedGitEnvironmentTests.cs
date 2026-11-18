@@ -1,13 +1,16 @@
 using GVFS.Common.Git;
 using GVFS.FunctionalTests.Properties;
 using GVFS.UnitTests.Category;
+using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using NativeMethods = GVFS.FunctionalTests.Tools.NativeMethods;
 using Win32Exception = System.ComponentModel.Win32Exception;
 
 namespace GVFS.FunctionalTests.Tests.LocalComponents
@@ -15,6 +18,86 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
     [TestFixture]
     public class IsolatedGitEnvironmentTests
     {
+        [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DisposeWaitsForTransientDirectorySharingViolations()
+        {
+            int retries = 0;
+            SafeFileHandle directoryLock = null;
+            using (IsolatedGitEnvironment environment = new IsolatedGitEnvironment(
+                retryDelay: milliseconds =>
+                {
+                    ++retries;
+                    directoryLock?.Dispose();
+                    Thread.Sleep(milliseconds);
+                }))
+            {
+                string lockedDirectory = Path.Combine(environment.RootDirectory, "locked");
+                Directory.CreateDirectory(lockedDirectory);
+                File.WriteAllText(Path.Combine(lockedDirectory, "child.txt"), "cleanup");
+                using (directoryLock = OpenDirectoryWithoutDeleteSharing(lockedDirectory))
+                {
+                    environment.Dispose();
+                }
+
+                Assert.That(retries, Is.GreaterThan(0), "Cleanup must encounter the held directory handle before the test releases it.");
+                Assert.That(Directory.Exists(environment.RootDirectory), Is.False);
+            }
+        }
+
+        [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DisposePreservesPersistentDirectorySharingViolations()
+        {
+            int retries = 0;
+            using (IsolatedGitEnvironment environment = new IsolatedGitEnvironment(
+                retryDelay: milliseconds =>
+                {
+                    if (++retries > 200)
+                    {
+                        throw new TimeoutException("Cleanup exceeded the test retry limit.");
+                    }
+
+                    Thread.Sleep(milliseconds);
+                }))
+            {
+                string lockedDirectory = Path.Combine(environment.RootDirectory, "locked");
+                Directory.CreateDirectory(lockedDirectory);
+                string childFile = Path.Combine(lockedDirectory, "child.txt");
+                File.WriteAllText(childFile, "cleanup");
+                using (SafeFileHandle directoryLock = OpenDirectoryWithoutDeleteSharing(lockedDirectory))
+                {
+                    IOException exception = Assert.Throws<IOException>(() => environment.Dispose());
+                    Assert.That(exception.HResult, Is.EqualTo(unchecked((int)0x80070020)));
+                    Assert.That(retries, Is.GreaterThan(0));
+                    Assert.That(Directory.Exists(environment.RootDirectory), Is.True);
+                    Assert.That(File.Exists(childFile), Is.False);
+                }
+
+                environment.Dispose();
+                Assert.That(Directory.Exists(environment.RootDirectory), Is.False);
+            }
+        }
+
+        [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DisposeDoesNotRetryOtherIOExceptions()
+        {
+            using (IsolatedGitEnvironment environment = new IsolatedGitEnvironment(
+                retryDelay: _ => Assert.Fail("Only sharing violations can retry cleanup.")))
+            {
+                Directory.Delete(environment.RootDirectory);
+                try
+                {
+                    Assert.Throws<DirectoryNotFoundException>(() => environment.Dispose());
+                }
+                finally
+                {
+                    Directory.CreateDirectory(environment.RootDirectory);
+                }
+            }
+        }
+
         [Test]
         public async Task ConcurrentGitReadsKeepSeparateConfigurationAndLeaveTheParentUnchanged()
         {
@@ -185,6 +268,27 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
 
             Assert.That(Directory.Exists(root), Is.False);
             AssertParentEnvironment(parent);
+        }
+
+        private static SafeFileHandle OpenDirectoryWithoutDeleteSharing(string path)
+        {
+            const uint FileFlagBackupSemantics = 0x02000000;
+            SafeFileHandle handle = NativeMethods.CreateFile(
+                path,
+                (uint)FileAccess.Read,
+                FileShare.Read | FileShare.Write,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileFlagBackupSemantics,
+                IntPtr.Zero);
+            if (handle.IsInvalid)
+            {
+                int error = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new Win32Exception(error, "Could not open the directory handle for the cleanup test.");
+            }
+
+            return handle;
         }
 
         private static bool TryGetStartedProcessId(Process process, out int processId)
