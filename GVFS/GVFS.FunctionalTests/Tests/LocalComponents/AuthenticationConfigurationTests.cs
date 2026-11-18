@@ -392,6 +392,42 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         }
 
         [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void ConfigQueryPreservesGitErrorsWhenGitExitsBeforeReadingInput()
+        {
+            GitProcess git = this.environment.CreateGitProcess(this.GetGitPath(), this.root);
+            using CancellationTokenSource deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            // Exceed the pipe buffer so Git's early exit forces an input-write failure.
+            GitProcess.Result result = GitProcessConfigReader.ReadRaw(
+                "--get-urlmatch",
+                () => git.GetGitProcess(
+                    "config --file - --no-includes --null --get-urlmatch authdiagnostic \"https://example.com/%zz\"",
+                    this.root, Path.Combine(this.root, ".git"), false, null, false),
+                new string('#', 65536),
+                deadline.Token,
+                NullTracer.Instance);
+
+            Assert.That(result.ExitCode, Is.EqualTo(128));
+            Assert.That(result.Output, Is.Empty);
+            Assert.That(result.Errors, Does.Contain("invalid %XX escape sequence"));
+        }
+
+        [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void ConfigQueryDoesNotHideInputErrorsAfterSuccessfulExit()
+        {
+            GitProcess git = this.environment.CreateGitProcess(this.GetGitPath(), this.root);
+            using CancellationTokenSource deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+            Assert.Throws<IOException>(() => GitProcessConfigReader.ReadRaw(
+                "--version",
+                () => git.GetGitProcess("--version", this.root, Path.Combine(this.root, ".git"), false, null, false),
+                new string('#', 65536),
+                deadline.Token,
+                NullTracer.Instance));
+        }
+
+        [Test]
         public void UsernameTokensRetainMatchingWithoutEnteringProcessArgumentsOrTrace2()
         {
             string trace = Path.Combine(this.root, "trace");
