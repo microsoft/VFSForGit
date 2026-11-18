@@ -12,6 +12,7 @@ Thank you for taking the time to contribute!
 * [Background Threads](#background-threads)
 * [Coding Conventions](#coding-conventions)
 * [Testing](#testing)
+* [Reviewing coverage](#reviewing-coverage)
 
 ## Code of Conduct
 
@@ -304,3 +305,50 @@ The design review process is as follows:
 - *Use a `mock` prefix for absolute file system paths and URLs*
 
   The unit tests should not touch the real file system nor should they reach out to any real URLs.  Using  `mock:\\` and `mock://` ensures that any product code that was not properly mocked will not interact with the real file system or attempt to contact a real URL.
+
+### Reviewing coverage
+
+PR validation collects managed-source coverage during the existing unit, functional, and upgrade tests.
+Push and manual builds run the tests without instrumentation or coverage reports.
+The release pipeline also leaves instrumentation off.
+
+1. Open the PR's **Managed Code Coverage** check.
+2. Open the workflow run's **Summary** page.
+3. Read **Combined changed-line coverage** before the whole-project measurements.
+4. Verify the tested revision and run attempt beside the download link.
+5. Download the artifact through that link.
+6. Extract the archive.
+
+The download link identifies the artifact from that run attempt.
+Earlier attempts can retain incomplete artifacts with the same `ManagedCoverage` name.
+An expired artifact requires another validation run.
+
+| Report | Purpose |
+| --- | --- |
+| `ChangedLines.md` | Per-file totals and per-line evidence, with links to the tested source. |
+| `Summary.md` | Worker completeness, test counts, and whole-project measurements. |
+| `unit-x64\index.html`, `unit-arm64\index.html` | Full unit reports by architecture. |
+| `functional-x64\index.html`, `functional-arm64\index.html` | Full functional reports by architecture. |
+| `upgrade-x64\index.html` | Full upgrade report. |
+| `changed-lines.json`, `summary.json` | Detailed measurements and source, module, and worker attribution. |
+
+Open an `index.html` file in a browser to explore a full report.
+The HTML totals retain assembly attribution.
+The combined summary counts each source line once, so its totals can differ from assembly-based totals.
+
+| Changed-line evidence | Meaning |
+| --- | --- |
+| `product-and-unit` | Product and unit tests execute the line. |
+| `product-only` | Product tests execute the line. |
+| `unit-only` | Unit tests execute a source copy in a test assembly, not the deployed product. |
+| `uncovered` | The report measures the line but records no execution. |
+| `no-entry/unmeasured-or-non-executable` | The line has no coverage entry. It can be unmeasured or non-executable. |
+
+Percentages include measured changed lines only.
+A missing entry does not establish coverage.
+N/A means that no changed lines have coverage entries, not that coverage is 100%.
+PowerShell, YAML, and native C++ changes do not produce managed C# coverage measurements.
+
+A successful coverage job reports valid collection from all 32 workers.
+It does not prove assertion quality or complete branch coverage.
+There is no coverage percentage threshold.
