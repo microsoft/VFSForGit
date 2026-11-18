@@ -120,6 +120,8 @@ namespace GVFS.Virtualization
             this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
             this.gitStatusCache.SetProjectedFolderCountProvider(
                 () => this.GitIndexProjection.GetProjectedFolderCount());
+            this.gitStatusCache.SetProjectedFileCountProvider(
+                () => this.GitIndexProjection.GetProjectedFileCountIfSparseIndex());
             this.gitStatusCache.SetModifiedPathsProvider(this.GetAllModifiedPaths);
 
             this.logsHeadPath = this.context.Enlistment.GitHeadLogPath;

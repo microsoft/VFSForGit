@@ -265,7 +265,8 @@ namespace GVFS.Virtualization.Projection
 
                 public void MakeFreeSpace(int count)
                 {
-                    if (this.FreeIndex + count > this.Pool.Length)
+                    // One expansion adds 15% of the pool, which can be less than a long name
+                    while (this.FreeIndex + count > this.Pool.Length)
                     {
                         this.ExpandPool();
                     }
