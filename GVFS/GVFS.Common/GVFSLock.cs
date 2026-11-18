@@ -11,6 +11,7 @@ namespace GVFS.Common
         private readonly Lock acquisitionLock = new Lock();
         private readonly ITracer tracer;
         private readonly LockHolder currentLockHolder = new LockHolder();
+        private int placeholderCreations;
 
         public GVFSLock(ITracer tracer)
         {
@@ -77,6 +78,13 @@ namespace GVFS.Common
                         return false;
                     }
 
+                    if (this.placeholderCreations > 0)
+                    {
+                        metadata.Add("CurrentLockHolder", "PlaceholderCreation");
+                        metadata.Add("Result", "Denied");
+                        return false;
+                    }
+
                     metadata.Add("Result", "Accepted");
                     eventLevel = EventLevel.Informational;
 
@@ -106,6 +114,11 @@ namespace GVFS.Common
                     if (this.currentLockHolder.IsGVFS)
                     {
                         return true;
+                    }
+
+                    if (this.placeholderCreations > 0)
+                    {
+                        return false;
                     }
 
                     NamedPipeMessages.LockData existingExternalHolder = this.GetExternalHolder();
@@ -174,6 +187,32 @@ namespace GVFS.Common
             return null;
         }
 
+        public NamedPipeMessages.LockData GetLockHolderForCallbacks(out long? processStartTime)
+        {
+            lock (this.acquisitionLock)
+            {
+                processStartTime = this.currentLockHolder.ExternalStartTime;
+                return this.currentLockHolder.GetExternalHolder();
+            }
+        }
+
+        public bool TryAcquirePlaceholderCreation(Func<string, bool> canCreate, out IDisposable lease, out string command)
+        {
+            lock (this.acquisitionLock)
+            {
+                lease = null;
+                command = this.GetLockedGitCommand();
+                if (!canCreate(command))
+                {
+                    return false;
+                }
+
+                ++this.placeholderCreations;
+                lease = new PlaceholderCreationLease(this);
+                return true;
+            }
+        }
+
         public string GetStatus()
         {
             lock (this.acquisitionLock)
@@ -187,6 +226,11 @@ namespace GVFS.Common
                 if (externalHolder != null)
                 {
                     return string.Format("Held by {0} (PID:{1})", externalHolder.ParsedCommand, externalHolder.PID);
+                }
+
+                if (this.placeholderCreations > 0)
+                {
+                    return "Held by placeholder creation.";
                 }
             }
 
@@ -228,7 +272,8 @@ namespace GVFS.Common
                     this.tracer.RelatedEvent(EventLevel.Verbose, "ExternalHolderLivenessIndeterminate", metadata);
                 }
 
-                return existingExternalHolder == null;
+                return existingExternalHolder == null &&
+                    (checkExternalHolderOnly || this.placeholderCreations == 0);
             }
         }
 
@@ -284,6 +329,28 @@ namespace GVFS.Common
             EventMetadata metadata = new EventMetadata();
             metadata.Add("ExternalHolderTerminationReason", terminationReason ?? "Unknown");
             this.ReleaseExternalLock(pid, "ExternalLockHolderExited", metadata);
+        }
+
+        private sealed class PlaceholderCreationLease : IDisposable
+        {
+            private GVFSLock owner;
+
+            public PlaceholderCreationLease(GVFSLock owner)
+            {
+                this.owner = owner;
+            }
+
+            public void Dispose()
+            {
+                GVFSLock lockOwner = Interlocked.Exchange(ref this.owner, null);
+                if (lockOwner != null)
+                {
+                    lock (lockOwner.acquisitionLock)
+                    {
+                        --lockOwner.placeholderCreations;
+                    }
+                }
+            }
         }
 
         // The lock release event is a convenient place to record stats about things that happened while a git command was running,
@@ -414,6 +481,8 @@ namespace GVFS.Common
         {
             private NamedPipeMessages.LockData externalLockHolder;
             private long? externalLockHolderStartTime;
+
+            public long? ExternalStartTime => this.externalLockHolderStartTime;
 
             public bool IsFree
             {

@@ -231,6 +231,64 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase("false", "true")]
+        [TestCase("true", "false")]
+        public void PrefetchOffloadUsesEnvironmentConfigOverLocalConfig(string localValue, string environmentValue)
+        {
+            const string Key = "gvfs.prefetch-offload";
+            Dictionary<string, string> previous = this.ReadLocalConfig(new[] { Key });
+            this.Enlistment.IsMounted().ShouldEqual(true);
+            try
+            {
+                // The baseline makes the commit prefetch below quick for both the mount and gvfs.
+                this.SetLocalConfig(Key, "false");
+                ProcessResult baseline = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, "prefetch --commits", this.Enlistment.RepoRoot, timeoutMs: 300000);
+                baseline.ExitCode.ShouldEqual(0, baseline.Output + baseline.Errors);
+
+                this.SetLocalConfig(Key, localValue);
+
+                // Git applies GIT_CONFIG_KEY_<n> and GIT_CONFIG_VALUE_<n> after all config files.
+                // Append the entry, so that entries that the test environment supplies stay in effect.
+                int.TryParse(Environment.GetEnvironmentVariable("GIT_CONFIG_COUNT"), out int count);
+                ProcessStartInfo startInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS)
+                {
+                    Arguments = "prefetch --commits",
+                    WorkingDirectory = this.Enlistment.RepoRoot,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+                startInfo.Environment["GIT_CONFIG_COUNT"] = (count + 1).ToString();
+                startInfo.Environment["GIT_CONFIG_KEY_" + count] = Key;
+                startInfo.Environment["GIT_CONFIG_VALUE_" + count] = environmentValue;
+
+                string logDirectory = Path.Combine(this.Enlistment.DotGVFSRoot, "logs");
+                HashSet<string> previousLogs = new HashSet<string>(Directory.GetFiles(logDirectory, "gvfs_prefetch_*.log"), StringComparer.OrdinalIgnoreCase);
+
+                ProcessResult result = ProcessHelper.Run(startInfo);
+                result.ExitCode.ShouldEqual(0, result.Output + result.Errors);
+
+                string log = Directory.GetFiles(logDirectory, "gvfs_prefetch_*.log")
+                    .Where(path => !previousLogs.Contains(path))
+                    .Select(File.ReadAllText)
+                    .Single();
+                log.ShouldContain("\"PrefetchOffloadEnabled\":" + environmentValue);
+                if (environmentValue == "true")
+                {
+                    log.ShouldContain("TryPrefetchCommitsViaMountProcess: Mount completed prefetch successfully");
+                }
+                else
+                {
+                    log.ShouldNotContain(ignoreCase: false, unexpectedSubstrings: "TryPrefetchCommitsViaMountProcess");
+                }
+            }
+            finally
+            {
+                this.RestoreLocalConfig(previous);
+            }
+        }
+
         private Dictionary<string, string> ReadLocalConfig(IEnumerable<string> keys)
         {
             Dictionary<string, string> values = new Dictionary<string, string>();

@@ -202,6 +202,11 @@ The design review process is as follows:
 
   Starting with a verb in the name improves readability and helps ensure consistency with the rest of the VFS4G codebase.
 
+- *Use `System.Threading.Lock` for dedicated synchronization gates*
+
+  Declare private gates as `private readonly Lock gate = new Lock();`, with `using System.Threading;`.
+  Keep the gate typed as `Lock`. Do not cast it to `object` or use `Monitor` operations on it.
+
 - *Aim to write self-commenting code.  When necessary, comments should give background needed to understand the code.*
 
   Helpful (good) comment:
@@ -279,9 +284,22 @@ The design review process is as follows:
 
   Comprehensive tests are essential for maintaining the health and quality of the product.  For more details on writing tests see [Authoring Tests](https://github.com/Microsoft/VFSForGit/blob/master/AuthoringTests.md).
 
-- *Functional tests are black-box tests and should not build against any VFS4G product code*
+- *Keep end-to-end functional tests black-box*
 
   Keeping the code separate helps ensure that bugs in the product code do not compromise the integrity of the functional tests.
+
+  Local component tests in `GVFS.FunctionalTests.Tests.LocalComponents` can call product APIs to verify real Git, process, HTTP, and named-pipe behavior.
+  These tests run with the other functional tests through the standard discovery and CI slices.
+  They use the existing functional runner and service lifecycle, but do not require a mounted enlistment or a remote repository.
+  The `LocalComponents` folder groups the fixtures by their dependencies. It does not define a separate test suite or CI step.
+  Keep their dependencies local and isolate temporary files, configuration, and environment changes.
+  Configure child Git processes through per-process environment overrides, not changes to the functional runner's environment.
+  Run scenarios that require process-global environment or native-library state in isolated child test processes.
+
+  Unit tests must not start external programs or use real network or named-pipe connections.
+  Native hook executable tests are an exception.
+  Unit tests can use isolated temporary files and the repository-built libgit2 library.
+  Keep pure policy, parsing, and controlled-stream tests in the unit suite.
 
 ### C# Unit Tests
 
@@ -298,4 +316,6 @@ The design review process is as follows:
 
 - *Use a `mock` prefix for absolute file system paths and URLs*
 
-  The unit tests should not touch the real file system nor should they reach out to any real URLs.  Using  `mock:\\` and `mock://` ensures that any product code that was not properly mocked will not interact with the real file system or attempt to contact a real URL.
+  Use `mock:\\` and `mock://` when a test does not require real files.
+  This convention prevents unexpected file access or network requests when product code is not fully mocked.
+  Filesystem-only tests must use an isolated temporary directory and remove their files after each test.

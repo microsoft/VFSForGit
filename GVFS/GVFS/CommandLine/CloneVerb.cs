@@ -19,6 +19,8 @@ namespace GVFS.CommandLine
     {
         private const string CloneVerbName = "clone";
 
+        internal delegate bool TryCloneStep(out string error);
+
         public string RepositoryURL { get; set; }
 
         public override string EnlistmentRootPathParameter { get; set; }
@@ -290,14 +292,14 @@ namespace GVFS.CommandLine
 
                         this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
 
-                        this.ShowStatusWhileRunning(
-                            () =>
+                        this.RunCloneWithProgress(
+                            tracer,
+                            normalizedEnlistmentRootPath,
+                            progress =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot, progress);
                                 return cloneResult.Success;
-                            },
-                            "Cloning",
-                            normalizedEnlistmentRootPath);
+                            });
                     }
 
                     if (!cloneResult.Success)
@@ -310,7 +312,8 @@ namespace GVFS.CommandLine
                             tracer,
                             enlistment.WorkingDirectoryBackingRoot,
                             GVFSConstants.GitConfig.TrustPackIndexes,
-                            GVFSConstants.GitConfig.TrustPackIndexesDefault);
+                            GVFSConstants.GitConfig.TrustPackIndexesDefault,
+                            enlistment.CreateGitProcess(tracer).TryGetBoolFromConfig);
 
                         if (!this.NoPrefetch && !trustPackIndexes)
                         {
@@ -435,6 +438,32 @@ namespace GVFS.CommandLine
             }
         }
 
+        internal bool RunCloneWithProgress(ITracer tracer, string enlistmentRoot, Func<CloneProgress, bool> clone)
+        {
+            using (CloneProgress progress = new CloneProgress(tracer))
+            {
+                return this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        bool success = clone(progress);
+                        if (success)
+                        {
+                            progress.Complete();
+                        }
+
+                        return success;
+                    },
+                    getMessage: () => progress.GetMessage(this.GetCloneConsoleWidth()),
+                    "Cloning",
+                    enlistmentRoot);
+            }
+        }
+
+        protected virtual int GetCloneConsoleWidth()
+        {
+            return Console.WindowWidth;
+        }
+
         private static bool IsForceCheckoutErrorCloneFailure(string checkoutError)
         {
             if (string.IsNullOrWhiteSpace(checkoutError) ||
@@ -444,6 +473,112 @@ namespace GVFS.CommandLine
             }
 
             return true;
+        }
+
+        internal static string GetCheckoutError(GitProcess.Result result, string branch, bool optimisticCheckout)
+        {
+            if (result.ExitCodeIsSuccess)
+            {
+                return null;
+            }
+
+            StringBuilder checkoutErrors = new StringBuilder();
+            foreach (string gitError in result.Errors.Split('\n'))
+            {
+                if (IsForceCheckoutErrorCloneFailure(gitError))
+                {
+                    checkoutErrors.AppendLine(gitError);
+                }
+            }
+
+            if (checkoutErrors.Length == 0 && !optimisticCheckout)
+            {
+                return null;
+            }
+
+            return "Could not complete checkout of branch: " + branch + ", " +
+                (checkoutErrors.Length > 0
+                    ? checkoutErrors.ToString()
+                    : $"git checkout exited with code {result.ExitCode}.");
+        }
+
+        internal static bool TryPrepareRootAttributes(
+            ITracer tracer,
+            bool usedCachedCommit,
+            TryCloneStep prepareRootAttributes,
+            TryCloneStep downloadCommit,
+            out string error,
+            out bool recoveryAttempted)
+        {
+            recoveryAttempted = false;
+            if (prepareRootAttributes(out error))
+            {
+                return true;
+            }
+
+            if (!usedCachedCommit)
+            {
+                return false;
+            }
+
+            tracer.RelatedWarning(
+                new EventMetadata { { "RootAttributesError", error } },
+                "Clone could not prepare root .gitattributes from cached objects. Download the commit pack and retry root attributes.");
+            recoveryAttempted = true;
+            return downloadCommit(out error) && prepareRootAttributes(out error);
+        }
+
+        internal static GitProcess.Result CheckoutWithCommitRetry(
+            ITracer tracer,
+            GitProcess git,
+            string branch,
+            bool optimisticCheckout,
+            Func<bool> downloadCommit,
+            out bool downloadFailed,
+            bool allowCommitDownload = true)
+        {
+            downloadFailed = false;
+            GitProcess.Result result = git.ForceCheckout(branch);
+            if (result.ExitCodeIsSuccess || !allowCommitDownload || !IsMissingTreeCheckoutError(result.Errors, optimisticCheckout))
+            {
+                return result;
+            }
+
+            if (optimisticCheckout)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata { { "Branch", branch }, { "CheckoutErrors", result.Errors } },
+                    "Clone checkout could not read a tree. Download the commit pack and retry checkout.");
+            }
+
+            if (!downloadCommit())
+            {
+                downloadFailed = true;
+                return result;
+            }
+
+            return git.ForceCheckout(branch);
+        }
+
+        private static bool IsMissingTreeCheckoutError(string errors, bool optimisticCheckout)
+        {
+            if (!optimisticCheckout)
+            {
+                return errors.IndexOf("unable to read tree") > 0;
+            }
+
+            foreach (string line in errors.Split('\n'))
+            {
+                if (line.StartsWith("fatal: unable to read tree ", StringComparison.Ordinal) ||
+                    line.StartsWith("error: unable to read tree ", StringComparison.Ordinal) ||
+                    line.StartsWith("unable to read tree ", StringComparison.Ordinal) ||
+                    line.StartsWith("fatal: bad tree object ", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private Result TryCreateEnlistment(
@@ -495,7 +630,8 @@ namespace GVFS.CommandLine
             CacheServerInfo cacheServer,
             RetryConfig retryConfig,
             ServerGVFSConfig serverGVFSConfig,
-            string resolvedLocalCacheRoot)
+            string resolvedLocalCacheRoot,
+            CloneProgress progress)
         {
             Result pipeResult;
             using (NamedPipeServer pipeServer = this.StartNamedPipe(tracer, enlistment, out pipeResult))
@@ -505,6 +641,7 @@ namespace GVFS.CommandLine
                     return pipeResult;
                 }
 
+                progress.StartStage(CloneProgress.Stage.ReadingRemoteReferences);
                 using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
@@ -535,6 +672,7 @@ namespace GVFS.CommandLine
                         }
                     }
 
+                    progress.StartStage(CloneProgress.Stage.PreparingRepositoryAndCache);
                     if (!enlistment.TryCreateEnlistmentSubFolders())
                     {
                         string error = "Could not create enlistment directories";
@@ -562,7 +700,7 @@ namespace GVFS.CommandLine
                     Directory.CreateDirectory(enlistment.GitPackRoot);
                     Directory.CreateDirectory(enlistment.BlobSizesRoot);
 
-                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch);
+                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch, progress);
                 }
             }
         }
@@ -691,7 +829,8 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
             GitRefs refs,
-            string branch)
+            string branch,
+            CloneProgress progress)
         {
             Result initRepoResult = this.TryInitRepo(tracer, refs, enlistment);
             if (!initRepoResult.Success)
@@ -709,9 +848,26 @@ namespace GVFS.CommandLine
             GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
             GVFSGitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
-
-            if (!this.TryDownloadCommit(
-                refs.GetTipCommitId(branch),
+            progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees);
+            string commitId = refs.GetTipCommitId(branch);
+            GitProcess git = new GitProcess(enlistment);
+            bool optimisticCheckout = LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                enlistment.WorkingDirectoryBackingRoot,
+                GVFSConstants.GitConfig.OptimisticCloneCheckout,
+                GVFSConstants.GitConfig.OptimisticCloneCheckoutDefault,
+                git.TryGetBoolFromConfig);
+            bool usedCachedCommit = optimisticCheckout && gitRepo.CommitAndRootTreeExists(commitId, out _);
+            if (usedCachedCommit)
+            {
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "Clone_UseCachedCommit",
+                    new EventMetadata { { "CommitId", commitId } },
+                    Keywords.Telemetry);
+            }
+            else if (!this.TryDownloadCommit(
+                commitId,
                 enlistment,
                 objectRequestor,
                 gitObjects,
@@ -721,6 +877,7 @@ namespace GVFS.CommandLine
                 return new Result(errorMessage);
             }
 
+            progress.StartStage(CloneProgress.Stage.PreparingCheckout);
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment, out string configError))
             {
                 return new Result("Unable to configure git repo: " + configError);
@@ -742,7 +899,6 @@ namespace GVFS.CommandLine
                 return new Result("Unable to configure endpoint-specific cache servers: " + errorMessage);
             }
 
-            GitProcess git = new GitProcess(enlistment);
             string originBranchName = "origin/" + branch;
             GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
             if (createBranchResult.ExitCodeIsFailure)
@@ -754,7 +910,31 @@ namespace GVFS.CommandLine
                 Path.Combine(enlistment.WorkingDirectoryBackingRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
-            if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
+            TryCloneStep downloadCommit = (out string error) => this.TryDownloadCommit(
+                commitId,
+                enlistment,
+                objectRequestor,
+                gitObjects,
+                gitRepo,
+                out error,
+                checkLocalObjectCache: false);
+            if (!TryPrepareRootAttributes(
+                tracer,
+                usedCachedCommit,
+                (out string error) => this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out error),
+                (out string error) =>
+                {
+                    progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees, attempt: 2, retryPreviousStage: true);
+                    if (!downloadCommit(out error))
+                    {
+                        return false;
+                    }
+
+                    progress.StartStage(CloneProgress.Stage.PreparingCheckout, attempt: 2);
+                    return true;
+                },
+                out errorMessage,
+                out bool rootRecoveryAttempted))
             {
                 return new Result(errorMessage);
             }
@@ -768,51 +948,39 @@ namespace GVFS.CommandLine
                 return new Result(installHooksError);
             }
 
-            GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
-            if (forceCheckoutResult.ExitCodeIsFailure && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
-            {
-                // It is possible to have the above TryDownloadCommit() fail because we
-                // already have the commit and root tree we intend to check out, but
-                // don't have a tree further down the working directory. If we fail
-                // checkout here, its' because we don't have these trees and the
-                // read-object hook is not available yet. Force downloading the commit
-                // again and retry the checkout.
-
-                if (!this.TryDownloadCommit(
-                    refs.GetTipCommitId(branch),
-                    enlistment,
-                    objectRequestor,
-                    gitObjects,
-                    gitRepo,
-                    out errorMessage,
-                    checkLocalObjectCache: false))
+            progress.StartStage(CloneProgress.Stage.InitializingIndex);
+            string downloadError = null;
+            GitProcess.Result forceCheckoutResult = CheckoutWithCommitRetry(
+                tracer,
+                git,
+                branch,
+                optimisticCheckout,
+                () =>
                 {
-                    return new Result(errorMessage);
-                }
-
-                forceCheckoutResult = git.ForceCheckout(branch);
-            }
-
-            if (forceCheckoutResult.ExitCodeIsFailure)
-            {
-                string[] errorLines = forceCheckoutResult.Errors.Split('\n');
-                StringBuilder checkoutErrors = new StringBuilder();
-                foreach (string gitError in errorLines)
-                {
-                    if (IsForceCheckoutErrorCloneFailure(gitError))
+                    progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees, attempt: 2, retryPreviousStage: true);
+                    if (!downloadCommit(out downloadError))
                     {
-                        checkoutErrors.AppendLine(gitError);
+                        return false;
                     }
-                }
 
-                if (checkoutErrors.Length > 0)
-                {
-                    string error = "Could not complete checkout of branch: " + branch + ", " + checkoutErrors.ToString();
-                    tracer.RelatedError(error);
-                    return new Result(error);
-                }
+                    progress.StartStage(CloneProgress.Stage.InitializingIndex, attempt: 2);
+                    return true;
+                },
+                out bool downloadFailed,
+                allowCommitDownload: !rootRecoveryAttempted);
+            if (downloadFailed)
+            {
+                return new Result(downloadError);
             }
 
+            string checkoutError = GetCheckoutError(forceCheckoutResult, branch, optimisticCheckout);
+            if (checkoutError != null)
+            {
+                tracer.RelatedError(checkoutError);
+                return new Result(checkoutError);
+            }
+
+            progress.StartStage(CloneProgress.Stage.FinalizingRepository);
             if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out errorMessage))
             {
                 tracer.RelatedError(errorMessage);

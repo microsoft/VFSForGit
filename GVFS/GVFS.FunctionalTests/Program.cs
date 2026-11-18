@@ -14,8 +14,8 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
-            Properties.Settings.Default.Initialize();
             GVFSPlatformLoader.Initialize();
+            Properties.Settings.Default.Initialize();
 
             GVFSTestConfig.IsDevMode = Environment.GetEnvironmentVariable("GVFS_FUNCTIONAL_TEST_DEV_MODE") == "1";
 
@@ -29,6 +29,7 @@ namespace GVFS.FunctionalTests
             }
 
             NUnitRunner runner = new NUnitRunner(args);
+            GVFSTestConfig.IsIsolatedTestProcess = runner.HasCustomArg(IsolatedTestProcess.WorkerArgument);
             runner.AddGlobalSetupIfNeeded("GVFS.FunctionalTests.GlobalSetup");
 
             if (runner.HasCustomArg("--debug"))
@@ -133,6 +134,11 @@ namespace GVFS.FunctionalTests
 
         private static void RunBeforeAnyTests()
         {
+            if (GVFSTestConfig.IsIsolatedTestProcess)
+            {
+                return;
+            }
+
             Console.WriteLine("[CI-DEBUG] RunBeforeAnyTests: starting");
             Console.Out.Flush();
 

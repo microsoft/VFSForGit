@@ -1,5 +1,6 @@
 using GVFS.Common.Git;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
@@ -12,6 +13,9 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class LibGit2RepoConfigLookupTests
     {
+        // The git route never opens this path. A libgit2 read fails to open it and logs a warning.
+        private const string MissingRepoPath = @"mock:\missing-repo";
+
         private const string LockedConfigError =
             "Failed to get config handle: could not open 'C:\\repo\\.git\\config': The process cannot access the file because it is being used by another process.";
 
@@ -269,7 +273,9 @@ namespace GVFS.UnitTests.Common
                 tracer,
                 missingRepoPath,
                 "gvfs.test",
-                false);
+                false,
+                ReadBoolWithGitMustNotRun,
+                new Hashtable { { "PATH", "C:\\bin" } });
 
             value.ShouldEqual(false);
 
@@ -279,6 +285,130 @@ namespace GVFS.UnitTests.Common
             // exactly one warning is expected here.
             tracer.RelatedWarningEvents.Count.ShouldEqual(1);
             tracer.RelatedWarningEvents[0].ShouldContain("Couldn't open repo at");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void GetConfigBoolOrDefaultOnPathReadsWithGitWhenTheEnvironmentChangesGitConfig(bool gitValue)
+        {
+            MockTracer tracer = new MockTracer();
+            List<string> gitKeys = new List<string>();
+
+            bool value = LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                MissingRepoPath,
+                "gvfs.test",
+                !gitValue,
+                (string key, out bool? result, out string error) =>
+                {
+                    gitKeys.Add(key);
+                    result = gitValue;
+                    error = null;
+                    return true;
+                },
+                new Hashtable { { "GIT_CONFIG_GLOBAL", "C:\\test.gitconfig" } });
+
+            value.ShouldEqual(gitValue);
+            gitKeys.ShouldMatchInOrder("gvfs.test");
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void GetConfigBoolOrDefaultOnPathReturnsDefaultWhenGitReportsAnUnsetKey()
+        {
+            MockTracer tracer = new MockTracer();
+            List<string> gitKeys = new List<string>();
+
+            bool value = LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                MissingRepoPath,
+                "gvfs.test",
+                false,
+                (string key, out bool? result, out string error) =>
+                {
+                    gitKeys.Add(key);
+                    result = null;
+                    error = null;
+                    return true;
+                },
+                new Hashtable { { "GIT_CONFIG_COUNT", "1" } });
+
+            value.ShouldEqual(false);
+            gitKeys.ShouldMatchInOrder("gvfs.test");
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+        }
+
+        [TestCase]
+        public void GetConfigBoolOrDefaultOnPathReturnsDefaultAndLogsWhenGitFails()
+        {
+            MockTracer tracer = new MockTracer();
+
+            bool value = LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                MissingRepoPath,
+                "gvfs.test",
+                true,
+                (string key, out bool? result, out string error) =>
+                {
+                    result = null;
+                    error = "bad boolean";
+                    return false;
+                },
+                new Hashtable { { "GIT_CONFIG_PARAMETERS", "'gvfs.test=maybe'" } });
+
+            value.ShouldEqual(true);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents[0].ShouldContain("Failed to read gvfs.test config, using default: bad boolean");
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void GetConfigBoolOrDefaultOnPathReturnsDefaultAndLogsTheExceptionWhenTheGitReaderThrows()
+        {
+            MockTracer tracer = new MockTracer();
+
+            bool value = LibGit2Repo.GetConfigBoolOrDefault(
+                tracer,
+                MissingRepoPath,
+                "gvfs.test",
+                true,
+                (string key, out bool? result, out string error) => throw new System.ComponentModel.Win32Exception(2, "git not found"),
+                new Hashtable { { "GIT_CONFIG_GLOBAL", "C:\\test.gitconfig" } });
+
+            value.ShouldEqual(true);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            tracer.RelatedWarningEvents[0].ShouldContain("Failed to read gvfs.test config, using default: System.ComponentModel.Win32Exception");
+            tracer.RelatedWarningEvents[0].ShouldContain("git not found");
+        }
+
+        [TestCase(0, "true\n", "", true)]
+        [TestCase(0, "false\r\n", "", false)]
+        [TestCase(1, "", "", null)]
+        public void TryParseConfigBoolOutputParsesGitOutput(int exitCode, string output, string errors, bool? expected)
+        {
+            LibGit2Repo.TryParseConfigBoolOutput("gvfs.test", exitCode, output, errors, out bool? value, out string error).ShouldBeTrue();
+
+            value.ShouldEqual(expected);
+            error.ShouldBeNull();
+        }
+
+        [TestCase(128, "", "fatal: bad boolean config value 'maybe' for 'gvfs.test'")]
+        [TestCase(1, "", "error: could not lock config file")]
+        [TestCase(0, "maybe\n", "")]
+        public void TryParseConfigBoolOutputReportsFailures(int exitCode, string output, string errors)
+        {
+            LibGit2Repo.TryParseConfigBoolOutput("gvfs.test", exitCode, output, errors, out bool? value, out string error).ShouldBeFalse();
+
+            value.HasValue.ShouldBeFalse();
+            error.ShouldContain("Error while reading 'gvfs.test' from config");
+        }
+
+        private static bool ReadBoolWithGitMustNotRun(string key, out bool? value, out string error)
+        {
+            Assert.Fail("Read " + key + " with git.exe");
+            value = null;
+            error = null;
+            return false;
         }
 
         private class MockConfigRepo : LibGit2Repo
