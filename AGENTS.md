@@ -156,6 +156,8 @@ participate in the C# inner-loop paths above.
 
 ## Running tests
 
+For CI report navigation and interpretation, read [Reviewing coverage](CONTRIBUTING.md#reviewing-coverage).
+
 ### NUnit filter syntax — `--test`, NEVER `--where`
 
 > **⚠️ This codebase uses NUnitLite, which supports ONLY `--test` for name
