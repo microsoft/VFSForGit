@@ -1,4 +1,5 @@
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Sparse;
 using GVFS.Hooks;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.Tests.Should;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.UnitTests.Hooks
@@ -201,6 +203,24 @@ namespace GVFS.UnitTests.Hooks
 
             this.Widen("add", "Z/z.txt").ShouldEqual(ConeRequestOutcome.Rejected);
             this.createdClients[0].Requests.Count.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void WidenMapsTheNotLockHolderReply()
+        {
+            this.clientFactory = () => ReplyWith(NamedPipeMessages.ConeManagement.NotLockHolderResult);
+
+            this.Widen("add", "Z/z.txt").ShouldEqual(ConeRequestOutcome.NotLockHolder);
+        }
+
+        [TestCase]
+        public void WidenWithMorePathsThanTheMountAcceptsSendsNoRequest()
+        {
+            // The mount refuses such a widen every time, so the hook does not send it.
+            string[] paths = Enumerable.Range(0, AutoSparseIndexConeManager.MaxWidenPaths + 1).Select(i => $"Z{i}/z.txt").ToArray();
+
+            this.Widen(new[] { "add" }.Concat(paths).ToArray()).ShouldEqual(ConeRequestOutcome.TooManyPaths);
+            this.createdClients.ShouldBeEmpty();
         }
 
         [TestCase]

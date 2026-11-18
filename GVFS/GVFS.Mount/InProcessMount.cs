@@ -57,6 +57,10 @@ namespace GVFS.Mount
         // Handles cone widen and narrow requests. Null when gvfs.auto-sparse-index was false
         // when the projection was created.
         private AutoSparseIndexConeManager coneManager;
+
+        // Test only: refuses cone requests (see ConeRequestFaultInjection). Null unless the
+        // functional tests set its environment variable.
+        private ConeRequestFaultInjection coneRequestFaults;
         private GVFSDatabase gvfsDatabase;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
@@ -1011,9 +1015,24 @@ namespace GVFS.Mount
 
         private void HandleConeRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
         {
-            string result = this.currentState == MountState.Ready
-                ? AutoSparseIndexConeManager.HandleRequest(this.coneManager, this.tracer, message)
-                : NamedPipeMessages.MountNotReadyResult;
+            string result;
+            if (this.currentState != MountState.Ready)
+            {
+                result = NamedPipeMessages.MountNotReadyResult;
+            }
+            else if (this.coneRequestFaults?.GetForcedReply(message.Header) is string forcedReply)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "Mount");
+                metadata.Add("Header", message.Header);
+                metadata.Add("Reply", forcedReply);
+                this.tracer.RelatedEvent(EventLevel.Informational, "ConeRequestFaultInjected", metadata);
+                result = forcedReply;
+            }
+            else
+            {
+                result = AutoSparseIndexConeManager.HandleRequest(this.coneManager, this.tracer, message);
+            }
 
             connection.TrySendResponse(result);
         }
@@ -1815,6 +1834,16 @@ namespace GVFS.Mount
             {
                 this.fileSystemCallbacks.SetWorkingDirectoryChangeObserver(this.coneManager);
                 this.coneManager.Start();
+
+                this.coneRequestFaults = ConeRequestFaultInjection.FromEnvironment(Environment.GetEnvironmentVariable);
+                if (this.coneRequestFaults != null)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", "Mount");
+                    metadata.Add("FaultFile", this.coneRequestFaults.FaultFilePath);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, $"{ConeRequestFaultInjection.FaultFileEnvironmentVariable} is set. This is for tests only: the fault file can make the mount refuse cone requests.");
+                    this.tracer.RelatedEvent(EventLevel.Warning, "ConeRequestFaultInjection", metadata);
+                }
             }
             else
             {
