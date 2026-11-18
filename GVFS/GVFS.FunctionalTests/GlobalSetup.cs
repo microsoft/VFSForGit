@@ -18,6 +18,11 @@ namespace GVFS.FunctionalTests
         [OneTimeTearDown]
         public void RunAfterAllTests()
         {
+            if (GVFSTestConfig.IsIsolatedTestProcess)
+            {
+                return;
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 string serviceLogFolder = Path.Combine(

@@ -292,14 +292,14 @@ namespace GVFS.CommandLine
 
                         this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
 
-                        this.ShowStatusWhileRunning(
-                            () =>
+                        this.RunCloneWithProgress(
+                            tracer,
+                            normalizedEnlistmentRootPath,
+                            progress =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot, progress);
                                 return cloneResult.Success;
-                            },
-                            "Cloning",
-                            normalizedEnlistmentRootPath);
+                            });
                     }
 
                     if (!cloneResult.Success)
@@ -317,7 +317,7 @@ namespace GVFS.CommandLine
 
                         if (!this.NoPrefetch && !trustPackIndexes)
                         {
-                            hasPrefetchPacks = HasPrefetchPacks(tracer, new PhysicalFileSystem(), enlistment.GitPackRoot);
+                            hasPrefetchPacks = PrefetchStep.HasCompletedPrefetchPacks(tracer, new PhysicalFileSystem(), enlistment.GitPackRoot);
                         }
                     }
                 }
@@ -413,29 +413,6 @@ namespace GVFS.CommandLine
             Environment.Exit(exitCode);
         }
 
-        internal static bool HasPrefetchPacks(ITracer tracer, PhysicalFileSystem fileSystem, string gitPackRoot)
-        {
-            try
-            {
-                return fileSystem.DirectoryExists(gitPackRoot) &&
-                    fileSystem.GetFiles(gitPackRoot, GVFSConstants.PrefetchPackPrefix + "-*.pack").Any(
-                        pack => PrefetchStep.GetPrefetchPackTimestamp(pack).HasValue &&
-                            fileSystem.FileExists(Path.ChangeExtension(pack, ".idx")) &&
-                            !fileSystem.FileExists(Path.ChangeExtension(pack, GVFSConstants.InProgressPrefetchMarkerExtension)));
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-            {
-                tracer.RelatedWarning(
-                    new EventMetadata
-                    {
-                        { nameof(gitPackRoot), gitPackRoot },
-                        { "Exception", ex.ToString() },
-                    },
-                    "Could not check for cached prefetch packs. Prefetch will use the initial-prefetch announcement and window.");
-                return false;
-            }
-        }
-
         internal void StartBackgroundPrefetch(string enlistmentRoot, bool hasPrefetchPacks, Action<ProcessStartInfo> startProcess)
         {
             try
@@ -459,6 +436,32 @@ namespace GVFS.CommandLine
                 this.Output.WriteLine("\r\nError starting prefetch: " + ex.Message);
                 this.Output.WriteLine("Run 'gvfs prefetch --commits' from within your enlistment to prefetch the commit graph.");
             }
+        }
+
+        internal bool RunCloneWithProgress(ITracer tracer, string enlistmentRoot, Func<CloneProgress, bool> clone)
+        {
+            using (CloneProgress progress = new CloneProgress(tracer))
+            {
+                return this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        bool success = clone(progress);
+                        if (success)
+                        {
+                            progress.Complete();
+                        }
+
+                        return success;
+                    },
+                    getMessage: () => progress.GetMessage(this.GetCloneConsoleWidth()),
+                    "Cloning",
+                    enlistmentRoot);
+            }
+        }
+
+        protected virtual int GetCloneConsoleWidth()
+        {
+            return Console.WindowWidth;
         }
 
         private static bool IsForceCheckoutErrorCloneFailure(string checkoutError)
@@ -627,7 +630,8 @@ namespace GVFS.CommandLine
             CacheServerInfo cacheServer,
             RetryConfig retryConfig,
             ServerGVFSConfig serverGVFSConfig,
-            string resolvedLocalCacheRoot)
+            string resolvedLocalCacheRoot,
+            CloneProgress progress)
         {
             Result pipeResult;
             using (NamedPipeServer pipeServer = this.StartNamedPipe(tracer, enlistment, out pipeResult))
@@ -637,6 +641,7 @@ namespace GVFS.CommandLine
                     return pipeResult;
                 }
 
+                progress.StartStage(CloneProgress.Stage.ReadingRemoteReferences);
                 using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
@@ -667,6 +672,7 @@ namespace GVFS.CommandLine
                         }
                     }
 
+                    progress.StartStage(CloneProgress.Stage.PreparingRepositoryAndCache);
                     if (!enlistment.TryCreateEnlistmentSubFolders())
                     {
                         string error = "Could not create enlistment directories";
@@ -694,7 +700,7 @@ namespace GVFS.CommandLine
                     Directory.CreateDirectory(enlistment.GitPackRoot);
                     Directory.CreateDirectory(enlistment.BlobSizesRoot);
 
-                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch);
+                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch, progress);
                 }
             }
         }
@@ -823,7 +829,8 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
             GitRefs refs,
-            string branch)
+            string branch,
+            CloneProgress progress)
         {
             Result initRepoResult = this.TryInitRepo(tracer, refs, enlistment);
             if (!initRepoResult.Success)
@@ -841,6 +848,7 @@ namespace GVFS.CommandLine
             GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
             GVFSGitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
+            progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees);
             string commitId = refs.GetTipCommitId(branch);
             GitProcess git = new GitProcess(enlistment);
             bool optimisticCheckout = LibGit2Repo.GetConfigBoolOrDefault(
@@ -869,6 +877,7 @@ namespace GVFS.CommandLine
                 return new Result(errorMessage);
             }
 
+            progress.StartStage(CloneProgress.Stage.PreparingCheckout);
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment, out string configError))
             {
                 return new Result("Unable to configure git repo: " + configError);
@@ -913,7 +922,17 @@ namespace GVFS.CommandLine
                 tracer,
                 usedCachedCommit,
                 (out string error) => this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out error),
-                downloadCommit,
+                (out string error) =>
+                {
+                    progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees, attempt: 2, retryPreviousStage: true);
+                    if (!downloadCommit(out error))
+                    {
+                        return false;
+                    }
+
+                    progress.StartStage(CloneProgress.Stage.PreparingCheckout, attempt: 2);
+                    return true;
+                },
                 out errorMessage,
                 out bool rootRecoveryAttempted))
             {
@@ -929,13 +948,24 @@ namespace GVFS.CommandLine
                 return new Result(installHooksError);
             }
 
+            progress.StartStage(CloneProgress.Stage.InitializingIndex);
             string downloadError = null;
             GitProcess.Result forceCheckoutResult = CheckoutWithCommitRetry(
                 tracer,
                 git,
                 branch,
                 optimisticCheckout,
-                () => downloadCommit(out downloadError),
+                () =>
+                {
+                    progress.StartStage(CloneProgress.Stage.PreparingCommitAndTrees, attempt: 2, retryPreviousStage: true);
+                    if (!downloadCommit(out downloadError))
+                    {
+                        return false;
+                    }
+
+                    progress.StartStage(CloneProgress.Stage.InitializingIndex, attempt: 2);
+                    return true;
+                },
                 out bool downloadFailed,
                 allowCommitDownload: !rootRecoveryAttempted);
             if (downloadFailed)
@@ -950,6 +980,7 @@ namespace GVFS.CommandLine
                 return new Result(checkoutError);
             }
 
+            progress.StartStage(CloneProgress.Stage.FinalizingRepository);
             if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out errorMessage))
             {
                 tracer.RelatedError(errorMessage);

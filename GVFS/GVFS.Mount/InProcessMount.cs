@@ -10,6 +10,7 @@ using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
+using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1365,25 +1366,47 @@ namespace GVFS.Mount
             NamedPipeMessages.PrefetchCommits.Response response;
             try
             {
-                // Use a callback to enqueue the post-fetch step directly on the
-                // maintenance scheduler, avoiding a re-entrant named pipe call.
-                PrefetchStep prefetchStep = new PrefetchStep(
-                    this.context,
-                    this.gitObjects,
-                    requireCacheLock: false,
-                    postFetchCallback: packIndexes =>
-                    {
-                        this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
-                    });
-
-                string error;
-                bool success = prefetchStep.TryPrefetchCommitsAndTrees(out error);
-
-                response = new NamedPipeMessages.PrefetchCommits.Response
+                List<string> postFetchPackIndexes = null;
+                using (FileBasedLock cacheLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                    this.context.FileSystem,
+                    this.tracer,
+                    Path.Combine(this.enlistment.GitObjectsRoot, GitMaintenanceStep.ObjectCacheLock)))
                 {
-                    Success = success,
-                    Error = error,
-                };
+                    if (!cacheLock.TryAcquireLock())
+                    {
+                        this.tracer.RelatedInfo("Commit prefetch offload declined because the cache lock is unavailable.");
+                        connection.TrySendResponse(
+                            new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
+                        return;
+                    }
+
+                    PrefetchStep prefetchStep = new PrefetchStep(
+                        this.context,
+                        this.gitObjects,
+                        requireCacheLock: false,
+                        postFetchCallback: packIndexes => postFetchPackIndexes = packIndexes);
+
+                    bool success = prefetchStep.TryPrefetchCommitsAndTreesForOffload(out string error, out bool offloadDeclined);
+                    if (offloadDeclined)
+                    {
+                        this.tracer.RelatedInfo("Commit prefetch offload declined because prefetch is active or no completed baseline is available.");
+                        connection.TrySendResponse(
+                            new NamedPipeMessages.Message(NamedPipeMessages.PrefetchCommits.MountNotReadyResult, null));
+                        return;
+                    }
+
+                    response = new NamedPipeMessages.PrefetchCommits.Response
+                    {
+                        Success = success,
+                        Error = error,
+                    };
+                }
+
+                // Post-fetch maintenance needs the cache lock, so enqueue after releasing it.
+                if (postFetchPackIndexes != null)
+                {
+                    this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, postFetchPackIndexes));
+                }
             }
             catch (Exception e)
             {
@@ -1665,6 +1688,11 @@ namespace GVFS.Mount
                 {
                     this.FailMountAndExit("Error: {0}. \r\nPlease confirm that gvfs clone completed without error.", error);
                 }
+            }
+            catch (SparseIndexNotSupportedException e)
+            {
+                // The message tells the user how to recover. GitIndexProjection already logged the stack trace.
+                this.FailMountAndExit("Error: {0}", e.Message);
             }
             catch (Exception e)
             {

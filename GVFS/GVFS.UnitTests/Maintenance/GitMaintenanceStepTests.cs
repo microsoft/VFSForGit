@@ -1,12 +1,17 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Maintenance;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
+using Moq;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace GVFS.UnitTests.Maintenance
 {
@@ -74,6 +79,34 @@ namespace GVFS.UnitTests.Maintenance
 
             step.SawWorkInvoked.ShouldBeTrue();
             step.SawEndOfMethod.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void OffloadedPrefetchDeclinesIfTheBaselineDisappearsBeforeDownload()
+        {
+            using (MockTracer tracer = new MockTracer())
+            {
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
+                Mock<PhysicalFileSystem> fileSystem = new Mock<PhysicalFileSystem>();
+                string pack = Path.Combine(enlistment.GitPackRoot, "prefetch-1000-aabb.pack");
+                fileSystem.Setup(fs => fs.DirectoryExists(enlistment.GitPackRoot)).Returns(true);
+                fileSystem.Setup(fs => fs.GetFiles(enlistment.GitPackRoot, "prefetch-*.pack")).Returns(new[] { pack });
+                fileSystem.Setup(fs => fs.FileExists(Path.ChangeExtension(pack, ".idx"))).Returns(true);
+                fileSystem.Setup(fs => fs.GetAttributes(Path.ChangeExtension(pack, ".incomplete")))
+                    .Throws(new FileNotFoundException());
+                Mock<GitObjects> gitObjects = new Mock<GitObjects>(tracer, enlistment, null, fileSystem.Object);
+                gitObjects.Setup(objects => objects.ReadPackFileNames(enlistment.GitPackRoot, "prefetch"))
+                    .Returns(Array.Empty<string>());
+                GVFSContext context = new GVFSContext(tracer, fileSystem.Object, null, enlistment);
+                PrefetchStep step = new PrefetchStep(context, gitObjects.Object, requireCacheLock: false);
+
+                Assert.That(step.TryPrefetchCommitsAndTreesForOffload(out string error, out bool declined), Is.False);
+                Assert.That(declined, Is.True);
+                Assert.That(error, Is.Null);
+                List<string> indexes = null;
+                gitObjects.Verify(objects => objects.TryDownloadPrefetchPacks(
+                    It.IsAny<GitProcess>(), It.IsAny<long>(), It.IsAny<bool>(), out indexes), Times.Never);
+            }
         }
 
         private void TestSetup()
