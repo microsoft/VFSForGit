@@ -65,6 +65,21 @@ namespace GVFS.UnitTests.Hooks
             this.createdClients.ShouldBeEmpty();
         }
 
+        [TestCase(null, true, false, 0)]
+        [TestCase("/A/\n", true, false, 0)]
+        [TestCase(ConeWithRecursiveA, false, false, 1)]
+        [TestCase(ConeWithRecursiveA, true, true, 1)]
+        public void IsSparseIndexConeManagedUsesTheGateOfAWiden(string content, bool enabled, bool expected, int expectedConfigReads)
+        {
+            this.coneFileContent = content;
+            this.featureEnabled = enabled;
+
+            this.CreateHook().IsSparseIndexConeManaged().ShouldEqual(expected);
+
+            this.configReadCount.ShouldEqual(expectedConfigReads);
+            this.createdClients.ShouldBeEmpty();
+        }
+
         [TestCase("status")]
         [TestCase("commit", "-m", "message")]
         [TestCase("checkout", "topic")]

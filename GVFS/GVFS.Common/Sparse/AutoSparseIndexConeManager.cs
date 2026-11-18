@@ -54,7 +54,8 @@ namespace GVFS.Common.Sparse
     /// <para>
     /// Working-tree changes: Git sees a change to a file only when the index has an entry for
     /// it, and <c>git add</c> takes a path only when the cone includes it. The file system
-    /// callbacks report every created, written, renamed, or deleted path (see
+    /// callbacks report every created, written, renamed, or deleted path, and the unstage
+    /// preparation reports every staged file that it adds to the modified paths (see
     /// <see cref="OnWorkingDirectoryPathChanged"/>). When the applied cone does not include the
     /// path, the manager creates the pending file (see
     /// <see cref="IConeManagerEnvironment.TrySetConeChangePending"/>). The callback does not

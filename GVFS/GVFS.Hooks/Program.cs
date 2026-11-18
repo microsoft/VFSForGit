@@ -111,6 +111,7 @@ namespace GVFS.Hooks
         private static void RunPreCommands(string[] args)
         {
             string command = GetGitCommand(args);
+            bool isUnstage = false;
             switch (command)
             {
                 case "fetch":
@@ -127,20 +128,29 @@ namespace GVFS.Hooks
                     break;
                 case "restore":
                 case "checkout":
-                    if (UnstageCommandParser.IsUnstageOperation(command, args))
-                    {
-                        SendPrepareForUnstageMessage(command, args);
-                    }
+                case "reset":
+                    isUnstage = UnstageCommandParser.ShouldPrepareForUnstage(command, args, IsSparseIndexConeManaged);
                     break;
                 case "worktree":
                     RunWorktreePreCommand(args);
                     break;
             }
 
-            // Check before the widen: a widen that the mount applies also applies the pending change.
-            bool coneChangePending = IsConeChangePending();
-            ConeRequestOutcome widenOutcome = TrySendConeWiden(args);
-            TryApplyPendingConeChange(args, coneChangePending, widenOutcome);
+            string unsafeRequest = PreCommandConeRequests.Send(
+                isUnstage,
+                IsConeChangePending,
+                () => TrySendConeWiden(args),
+                () => SendPrepareForUnstageMessage(command, args),
+                () => TryApplyPendingConeChange(args));
+
+            if (unsafeRequest != null)
+            {
+                ExitWithError(
+                    "VFS for Git could not add the staged files to the sparse-index cone (" + unsafeRequest + ").",
+                    "Without them in the cone, Git would not show the changes that this command unstages.",
+                    "",
+                    "Run the command again. If it fails again, run 'gvfs unmount' and 'gvfs mount', and then run it again.");
+            }
         }
 
         private static bool ArgsBlockHydrationStatus(string[] args)

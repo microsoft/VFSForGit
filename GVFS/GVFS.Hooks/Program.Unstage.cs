@@ -5,7 +5,7 @@ namespace GVFS.Hooks
 {
     /// <summary>
     /// Partial class for unstage-related pre-command handling.
-    /// Detects "restore --staged" and "checkout HEAD --" operations and sends
+    /// Detects "restore --staged", "checkout HEAD --", and mixed "reset" operations, and sends
     /// a PrepareForUnstage message to the GVFS mount process so it can add
     /// staged files to ModifiedPaths before git clears skip-worktree.
     /// </summary>
@@ -98,7 +98,7 @@ namespace GVFS.Hooks
                     "",
                     "To resolve:",
                     "  1. Run 'gvfs unmount' and 'gvfs mount' to reset the GVFS state",
-                    "  2. Retry the restore --staged command",
+                    "  2. Retry the unstage command",
                     "If the problem persists, run 'gvfs repair' or re-clone the enlistment.");
             }
         }
