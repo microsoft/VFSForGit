@@ -34,7 +34,7 @@ on:
         required: false
         type: string
       require_sparse_index_tests:
-        description: 'Fail if a sparse-index functional test (AutoSparseIndex*, SparseIndexMountTests, ConeManagementHookTests) is ignored or skipped, or if none ran'
+        description: 'Fail if a sparse-index functional test (AutoSparseIndex*, SparseIndexMountTests, ConeManagementHookTests; not *WithoutGitSupport*) is ignored or skipped, or if none ran'
         required: false
         type: boolean
         default: false
@@ -440,7 +440,9 @@ jobs:
             $outcome = switch ($case.result) { 'Passed' { 'passed' } 'Failed' { 'failed' } default { 'ignored' } }
             $all[$outcome]++
             $fixture = ($case.classname -split '\.')[-1]
-            if ($fixture -like 'AutoSparseIndex*' -or $fixture -in 'SparseIndexMountTests', 'ConeManagementHookTests') {
+            # *WithoutGitSupport* fixtures test a git without the feature, so they skip themselves here.
+            $isSparse = ($fixture -like 'AutoSparseIndex*' -or $fixture -in 'SparseIndexMountTests', 'ConeManagementHookTests') -and $fixture -notlike '*WithoutGitSupport*'
+            if ($isSparse) {
               $sparse[$outcome]++
               if (-not $fixtures.ContainsKey($fixture)) { $fixtures[$fixture] = [ordered]@{ passed = 0; failed = 0; ignored = 0 } }
               $fixtures[$fixture][$outcome]++
