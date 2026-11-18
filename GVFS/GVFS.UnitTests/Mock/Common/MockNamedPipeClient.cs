@@ -1,5 +1,6 @@
 using GVFS.Common.NamedPipes;
 using System;
+using System.Collections.Generic;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -10,16 +11,19 @@ namespace GVFS.UnitTests.Mock.Common
         }
 
         public Exception ConnectError { get; set; }
+        public Action ConnectCallback { get; set; }
         public Exception SendError { get; set; }
         public Exception ReadError { get; set; }
         public Func<NamedPipeMessages.Message> ReadResponseCallback { get; set; }
         public NamedPipeMessages.Message Response { get; set; }
         public bool Disposed { get; private set; }
         public int ConnectTimeoutMs { get; private set; }
+        public List<NamedPipeMessages.Message> Requests { get; } = new List<NamedPipeMessages.Message>();
 
         public override bool Connect(int timeoutMilliseconds, out Exception error)
         {
             this.ConnectTimeoutMs = timeoutMilliseconds;
+            this.ConnectCallback?.Invoke();
             error = this.ConnectError;
             return error == null;
         }
@@ -30,6 +34,8 @@ namespace GVFS.UnitTests.Mock.Common
             {
                 throw this.SendError;
             }
+
+            this.Requests.Add(message);
         }
 
         public override NamedPipeMessages.Message ReadResponse()

@@ -25,6 +25,7 @@ namespace GVFS.Hooks
         private static string enlistmentRoot;
         private static string enlistmentPipename;
         private static string normalizedCurrentDirectory;
+        private static GVFSEnlistment.WorktreeInfo currentWorktreeInfo;
         private static Random random = new Random();
 
         private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, NamedPipeClient pipeClient);
@@ -70,7 +71,8 @@ namespace GVFS.Hooks
                 // If running inside a worktree, append a worktree-specific
                 // suffix to the pipe name so hooks communicate with the
                 // correct GVFS mount instance.
-                string worktreeSuffix = GVFSEnlistment.GetWorktreePipeSuffix(normalizedCurrentDirectory);
+                currentWorktreeInfo = GVFSEnlistment.TryGetWorktreeInfo(normalizedCurrentDirectory);
+                string worktreeSuffix = currentWorktreeInfo?.PipeSuffix;
                 if (worktreeSuffix != null)
                 {
                     enlistmentPipename += worktreeSuffix;
@@ -134,6 +136,8 @@ namespace GVFS.Hooks
                     RunWorktreePreCommand(args);
                     break;
             }
+
+            TrySendConeWiden(args);
         }
 
         private static bool ArgsBlockHydrationStatus(string[] args)
@@ -154,6 +158,8 @@ namespace GVFS.Hooks
                     RunWorktreePostCommand(args);
                     break;
             }
+
+            TrySendConeNarrow(args);
         }
 
         private static string ResolvePath(string path)
