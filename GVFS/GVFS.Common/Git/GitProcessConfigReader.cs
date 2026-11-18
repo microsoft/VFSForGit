@@ -16,7 +16,7 @@ namespace GVFS.Common.Git
         private const int MaxOutput = 65536;
         private const int MaxErrors = 4096;
 
-        // The caller owns process execution. This method retries only Git results.
+        // If the caller runs Git and returns a result, use Read for retries.
         internal static GitProcess.Result Read(
             string configName,
             Func<GitProcess.Result> readConfig,
@@ -33,6 +33,8 @@ namespace GVFS.Common.Git
                 delay);
         }
 
+        // If the reader must run Git and manage its streams, use ReadRaw.
+        // ReadRaw uses the same retry policy as Read.
         // The factory must return a fresh, unstarted process for each attempt.
         // The caller's token covers all attempts and retry delays.
         // This method reports native process failures as GitConfigProcessException.
