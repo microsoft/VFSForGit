@@ -230,17 +230,32 @@ namespace GVFS.Common.Git
                 {
                     metadata["Status"] = "query-timeout";
                 }
-                catch (Win32Exception)
+                catch (Exception ex) when (IsNativeProcessError(ex))
                 {
                     metadata["Status"] = "query-process-error";
                 }
-                catch (IOException)
+                catch (Exception ex) when (ex is IOException ||
+                    (ex is AggregateException aggregate &&
+                        aggregate.InnerExceptions is [IOException, var cleanupFailure] &&
+                        IsNativeProcessError(cleanupFailure)))
                 {
                     metadata["Status"] = "query-io-error";
                 }
             }
 
             return metadata;
+        }
+
+        private static bool IsNativeProcessError(Exception error)
+        {
+            if (error is AggregateException aggregate)
+            {
+                var errors = aggregate.Flatten().InnerExceptions;
+                return errors.Count > 0 && errors.All(IsNativeProcessError);
+            }
+
+            // Process tree enumeration can wrap a failed native snapshot in InvalidOperationException.
+            return error is Win32Exception or InvalidOperationException { InnerException: Win32Exception };
         }
 
         internal static string DescribeHelper(string value)

@@ -1,9 +1,9 @@
 using GVFS.Common.Tracing;
 using System;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,7 +54,7 @@ namespace GVFS.Common.Git
                 delay => Task.Delay(delay, cancellation).GetAwaiter().GetResult());
         }
 
-        private static async Task<GitProcess.Result> RunAsync(Process process, string input, CancellationToken cancellation)
+        private static Task<GitProcess.Result> RunAsync(Process process, string input, CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested();
             // Config output and URL-bearing command arguments must not enter inherited Git traces.
@@ -68,75 +68,102 @@ namespace GVFS.Common.Git
             process.StartInfo.Environment["GIT_TRACE2_PERF"] = "0";
             process.StartInfo.Environment["LC_ALL"] = "C";
             process.Start();
-            int killFailed = 0;
-            using (CancellationTokenRegistration kill = cancellation.Register(() =>
+            return ReadWithProcessCleanupAsync(
+                ReadResultAsync,
+                () => process.HasExited,
+                () => process.Kill(entireProcessTree: true),
+                cancellation);
+
+            async Task<GitProcess.Result> ReadResultAsync()
             {
-                if (!TryKillProcess(() => process.Kill(entireProcessTree: true)))
-                {
-                    Interlocked.Exchange(ref killFailed, 1);
-                }
-            }))
-            {
+                Task<(string Text, bool Truncated)> stdout = ReadBoundedAsync(process.StandardOutput, MaxOutput, cancellation);
+                Task<(string Text, bool Truncated)> stderr = ReadBoundedAsync(process.StandardError, MaxErrors, cancellation);
+                Task write = WriteInputAsync(process, input, cancellation);
+                Task exited = process.WaitForExitAsync(cancellation);
                 try
                 {
-                    Task<(string Text, bool Truncated)> stdout = ReadBoundedAsync(process.StandardOutput, MaxOutput, cancellation);
-                    Task<(string Text, bool Truncated)> stderr = ReadBoundedAsync(process.StandardError, MaxErrors, cancellation);
-                    Task write = WriteInputAsync(process, input, cancellation);
-                    Task exited = process.WaitForExitAsync(cancellation);
-                    try
-                    {
-                        await Task.WhenAll(stdout, stderr, write, exited);
-                    }
-                    catch (IOException) when (
-                        write.IsFaulted && stdout.IsCompletedSuccessfully && stderr.IsCompletedSuccessfully &&
-                        exited.IsCompletedSuccessfully && process.ExitCode != 0)
-                    {
-                        // Git can reject the query before reading stdin. Preserve its error
-                        // instead of replacing it with the resulting broken-pipe exception.
-                        cancellation.ThrowIfCancellationRequested();
-                    }
-
-                    (string Text, bool Truncated) output = await stdout;
-                    (string Text, bool Truncated) errors = await stderr;
-                    return new GitProcess.Result(output.Text, errors.Text, process.ExitCode, output.Truncated, errors.Truncated);
+                    await Task.WhenAll(stdout, stderr, write, exited);
                 }
-                finally
+                catch (IOException) when (
+                    write.IsFaulted && stdout.IsCompletedSuccessfully && stderr.IsCompletedSuccessfully &&
+                    exited.IsCompletedSuccessfully && process.ExitCode != 0)
                 {
-                    if (!process.HasExited)
-                    {
-                        if (!TryKillProcess(() => process.Kill(entireProcessTree: true)))
-                        {
-                            Interlocked.Exchange(ref killFailed, 1);
-                        }
-                    }
-
-                    if (killFailed != 0)
-                    {
-                        throw new Win32Exception();
-                    }
+                    // Git can reject the query before reading stdin. Preserve its error
+                    // instead of replacing it with the resulting broken-pipe exception.
+                    cancellation.ThrowIfCancellationRequested();
                 }
+
+                (string Text, bool Truncated) output = await stdout;
+                (string Text, bool Truncated) errors = await stderr;
+                return new GitProcess.Result(output.Text, errors.Text, process.ExitCode, output.Truncated, errors.Truncated);
             }
         }
 
-        internal static bool TryKillProcess(Action kill)
+        internal static async Task<GitProcess.Result> ReadWithProcessCleanupAsync(
+            Func<Task<GitProcess.Result>> read,
+            Func<bool> hasExited,
+            Action killTree,
+            CancellationToken cancellation)
         {
+            TaskCompletionSource<Exception> cancellationKill = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            CancellationTokenRegistration registration = cancellation.Register(() =>
+            {
+                Exception failure = null;
+                try
+                {
+                    killTree();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+
+                cancellationKill.SetResult(failure);
+            });
+
+            IOException readFailure = null;
             try
             {
-                kill();
-                return true;
+                return await read();
             }
-            catch (InvalidOperationException)
+            catch (IOException ex)
             {
-                // The query already exited.
-                return true;
+                readFailure = ex;
+                throw;
             }
-            catch (Win32Exception)
+            finally
             {
-                return false;
-            }
-            catch (AggregateException)
-            {
-                return false;
+                // An empty registration can mean either no callback or an inline callback that already finished.
+                bool cancellationOwnsKill = registration.Token.CanBeCanceled
+                    ? !registration.Unregister()
+                    : cancellationKill.Task.IsCompleted;
+                Exception failure = cancellationOwnsKill ? await cancellationKill.Task : null;
+
+                // A successful kill can return before the process exits. Do not kill it again.
+                if (!cancellationOwnsKill || failure != null)
+                {
+                    try
+                    {
+                        if (!hasExited())
+                        {
+                            killTree();
+                        }
+                    }
+                    catch (Exception cleanupFailure) when (failure != null || readFailure != null)
+                    {
+                        failure = failure == null ? cleanupFailure : new AggregateException(failure, cleanupFailure);
+                    }
+                }
+
+                if (failure != null)
+                {
+                    if (readFailure != null)
+                    {
+                        throw new AggregateException(readFailure, failure);
+                    }
+
+                    ExceptionDispatchInfo.Throw(failure);
+                }
             }
         }
 

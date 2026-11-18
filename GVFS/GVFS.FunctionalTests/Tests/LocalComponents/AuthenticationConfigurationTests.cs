@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.LocalComponents
 {
@@ -238,13 +239,13 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
 
         [Test]
         [Category(CategoryConstants.ExceptionExpected)]
-        public void DiagnosticQueriesHaveOneTimeoutBudgetAndStopTheirOwnedProcess()
+        public async Task DiagnosticQueriesHaveOneTimeoutBudgetAndStopTheirOwnedProcess()
         {
-            using ManualResetEventSlim exited = new ManualResetEventSlim();
+            TaskCompletionSource<Process> retryProcess = new TaskCompletionSource<Process>(TaskCreationOptions.RunContinuationsAsynchronously);
             Stopwatch timer = Stopwatch.StartNew();
             int attempts = 0;
             MockTracer tracer = new MockTracer();
-            EventMetadata snapshot = AuthenticationConfiguration.Collect("https://example.com/org", command =>
+            Task<EventMetadata> collect = Task.Run(() => AuthenticationConfiguration.Collect("https://example.com/org", command =>
             {
                 ++attempts;
                 Process process = new Process
@@ -260,20 +261,45 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                         RedirectStandardError = true,
                         CreateNoWindow = true,
                     },
-                    EnableRaisingEvents = true,
                 };
                 if (attempts > 1)
                 {
-                    process.Exited += (sender, args) => exited.Set();
+                    retryProcess.SetResult(process);
                 }
 
                 return process;
-            }, tracer: tracer);
-            Assert.That(snapshot["Status"], Is.EqualTo("query-timeout"));
-            Assert.That(attempts, Is.EqualTo(2));
-            Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(1));
-            Assert.That(timer.Elapsed, Is.LessThan(TimeSpan.FromSeconds(8)));
-            Assert.That(exited.Wait(TimeSpan.FromSeconds(1)), Is.True);
+            }, tracer: tracer));
+
+            try
+            {
+                Process process = await retryProcess.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                int processId = 0;
+                Assert.That(SpinWait.SpinUntil(() =>
+                {
+                    try
+                    {
+                        processId = process.Id;
+                        return true;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        return false;
+                    }
+                }, TimeSpan.FromSeconds(5)), Is.True, "The diagnostic query must start the retry process.");
+
+                using Process observer = Process.GetProcessById(processId);
+                _ = observer.Handle;
+                EventMetadata snapshot = await collect.WaitAsync(TimeSpan.FromSeconds(8));
+                Assert.That(snapshot["Status"], Is.EqualTo("query-timeout"));
+                Assert.That(attempts, Is.EqualTo(2));
+                Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(1));
+                Assert.That(timer.Elapsed, Is.LessThan(TimeSpan.FromSeconds(8)));
+                await observer.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(1));
+            }
+            finally
+            {
+                await collect.WaitAsync(TimeSpan.FromSeconds(8));
+            }
         }
 
         [Test]
