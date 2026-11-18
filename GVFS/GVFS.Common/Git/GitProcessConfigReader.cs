@@ -82,7 +82,20 @@ namespace GVFS.Common.Git
                     Task<(string Text, bool Truncated)> stdout = ReadBoundedAsync(process.StandardOutput, MaxOutput, cancellation);
                     Task<(string Text, bool Truncated)> stderr = ReadBoundedAsync(process.StandardError, MaxErrors, cancellation);
                     Task write = WriteInputAsync(process, input, cancellation);
-                    await Task.WhenAll(stdout, stderr, write, process.WaitForExitAsync(cancellation));
+                    Task exited = process.WaitForExitAsync(cancellation);
+                    try
+                    {
+                        await Task.WhenAll(stdout, stderr, write, exited);
+                    }
+                    catch (IOException) when (
+                        write.IsFaulted && stdout.IsCompletedSuccessfully && stderr.IsCompletedSuccessfully &&
+                        exited.IsCompletedSuccessfully && process.ExitCode != 0)
+                    {
+                        // Git can reject the query before reading stdin. Preserve its error
+                        // instead of replacing it with the resulting broken-pipe exception.
+                        cancellation.ThrowIfCancellationRequested();
+                    }
+
                     (string Text, bool Truncated) output = await stdout;
                     (string Text, bool Truncated) errors = await stderr;
                     return new GitProcess.Result(output.Text, errors.Text, process.ExitCode, output.Truncated, errors.Truncated);
