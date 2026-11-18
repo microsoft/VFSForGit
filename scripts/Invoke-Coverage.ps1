@@ -10,7 +10,9 @@ param(
     [int]$Shard = -1,
     [string]$Scenario,
     [ValidateSet('success', 'failure', 'skipped', 'cancelled')]
-    [string]$TestOutcome
+    [string]$TestOutcome,
+    [ValidateRange(1, 120)]
+    [int]$ShutdownTimeoutSeconds = 30
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,24 +62,42 @@ if ($Action -eq 'Start') {
         & $collector snapshot $build.SessionId --output (Join-Path $Directory 'before-tests.coverage')
         if ($LASTEXITCODE -ne 0) { throw 'Coverage collector readiness check failed.' }
     } catch {
-        & $collector shutdown $build.SessionId
+        & $collector shutdown $build.SessionId --timeout ($ShutdownTimeoutSeconds * 1000) 2>&1 |
+            Tee-Object -FilePath (Join-Path $Directory 'shutdown.log')
+        if ($LASTEXITCODE -ne 0) { Write-Warning 'Coverage cleanup failed after the readiness failure. See shutdown.log.' }
         throw
     }
 } else {
     if (-not $TestOutcome) { throw 'Stop requires the test outcome.' }
     $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-    & $collector shutdown $metadata.SessionId
-    if ($LASTEXITCODE -ne 0) { throw 'Coverage collector shutdown failed.' }
+    $metadata.Complete = $false
+    $metadata.CompletedUtc = $null
+    $metadata.TestOutcome = $TestOutcome
+    $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
+    if ($metadata.Suite -in @('Unit', 'Functional')) {
+        if (Test-Path -LiteralPath 'TestResult.xml') {
+            Copy-Item -LiteralPath 'TestResult.xml' -Destination (Join-Path $Directory 'tests.xml')
+        } elseif ($TestOutcome -ne 'success') {
+            Write-Warning "The test outcome is '$TestOutcome'; TestResult.xml is unavailable."
+        }
+    }
+    & $collector shutdown $metadata.SessionId --timeout ($ShutdownTimeoutSeconds * 1000) 2>&1 |
+        Tee-Object -FilePath (Join-Path $Directory 'shutdown.log')
+    if ($LASTEXITCODE -ne 0) {
+        $message = "Coverage collector shutdown failed (exit $LASTEXITCODE, IPC timeout ${ShutdownTimeoutSeconds}s). See shutdown.log and collector.background.log."
+        $metadata | Add-Member -NotePropertyName StopError -NotePropertyValue $message -Force
+        $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
+        throw "$message The test outcome remains '$TestOutcome'; coverage is incomplete."
+    }
+    if ($metadata.Suite -in @('Unit', 'Functional') -and $TestOutcome -eq 'success' -and -not (Test-Path -LiteralPath 'TestResult.xml')) {
+        throw 'The successful test run produced no TestResult.xml.'
+    }
     [xml]$report = Get-Content -LiteralPath $coveragePath -Raw
     if ([int]$report.coverage.'lines-covered' -le 0) { throw 'Coverage report contains no executed lines.' }
     if ($metadata.Suite -ne 'Unit') {
         & (Join-Path $PSScriptRoot 'Assert-AotCoverage.ps1') -CoveragePath $coveragePath |
             Set-Content -LiteralPath (Join-Path $Directory 'service.json') -Encoding utf8
     }
-    if ($metadata.Suite -in @('Unit', 'Functional')) {
-        Copy-Item -LiteralPath 'TestResult.xml' -Destination (Join-Path $Directory 'tests.xml')
-    }
-    $metadata.TestOutcome = $TestOutcome
     $metadata.Complete = $true
     $metadata.CompletedUtc = [DateTime]::UtcNow.ToString('o')
     $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8

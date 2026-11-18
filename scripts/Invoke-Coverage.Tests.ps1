@@ -22,7 +22,12 @@ BeforeAll {
 
     function Invoke-TestCollector {
         $collectorState.Calls.Add([string]$args[0])
-        $global:LASTEXITCODE = if ($args[0] -eq $collectorState.Failure) { 1 } else { 0 }
+        $global:LASTEXITCODE = if ($args[0] -in @($collectorState.Failure)) { 1 } else { 0 }
+        if ($args[0] -eq 'shutdown') {
+            $collectorState.ShutdownArguments = @($args)
+            $collectorState.MetadataAtShutdown = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json
+            if ($global:LASTEXITCODE -ne 0) { 'Fake shutdown failure' } else { 'Fake shutdown complete' }
+        }
         if ($args[0] -eq '--version') { return 'Fake coverage collector 1.0' }
         if ($args[0] -eq 'collect') {
             @"
@@ -139,6 +144,10 @@ Describe 'Coverage lifecycle producer output' {
                     Test-Path -LiteralPath (Join-Path $collectorState.Directory 'service.json') | Should -BeFalse
                 }
                 @($collectorState.Calls) | Should -Be @('--version', 'collect', 'snapshot', 'shutdown')
+                $collectorState.ShutdownArguments[2] | Should -Be '--timeout'
+                $collectorState.ShutdownArguments[3] | Should -Be 30000
+                $collectorState.MetadataAtShutdown.TestOutcome | Should -Be $Outcome
+                $collectorState.MetadataAtShutdown.Complete | Should -BeFalse
             }
 
             It 'Shuts down after a failed readiness snapshot and retains incomplete diagnostics' {
@@ -149,6 +158,63 @@ Describe 'Coverage lifecycle producer output' {
                 @($collectorState.Calls) | Should -Be @('--version', 'collect', 'snapshot', 'shutdown')
                 (Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json).Complete | Should -BeFalse
                 Test-Path -LiteralPath (Join-Path $collectorState.Directory 'collector.log') | Should -BeTrue
+                $collectorState.ShutdownArguments[2] | Should -Be '--timeout'
+                $collectorState.ShutdownArguments[3] | Should -Be 30000
+            }
+
+            It 'Preserves a <Outcome> test outcome when the collector is already gone (<HasResults>)' -ForEach @(
+                @{ Outcome = 'failure'; HasResults = $true },
+                @{ Outcome = 'cancelled'; HasResults = $false }
+            ) {
+                $manifest = New-BuildManifest
+                & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Functional -Shard 0
+                if (-not $HasResults) { Remove-Item -LiteralPath TestResult.xml }
+                $collectorState.Failure = 'shutdown'
+                { & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome $Outcome -ShutdownTimeoutSeconds 1 3>$null } |
+                    Should -Throw "*test outcome remains '$Outcome'; coverage is incomplete*"
+                $metadata = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json
+                $metadata.TestOutcome | Should -Be $Outcome
+                $metadata.Complete | Should -BeFalse
+                $metadata.CompletedUtc | Should -BeNullOrEmpty
+                $metadata.StopError | Should -Match 'Coverage collector shutdown failed.*timeout 1s'
+                $collectorState.MetadataAtShutdown.TestOutcome | Should -Be $Outcome
+                $collectorState.ShutdownArguments[3] | Should -Be 1000
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -Be $HasResults
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'shutdown.log') | Should -BeTrue
+                Get-Content -LiteralPath (Join-Path $collectorState.Directory 'shutdown.log') -Raw | Should -Match 'Fake shutdown failure'
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'service.json') | Should -BeFalse
+            }
+
+            It 'Fails incomplete collection when successful tests lose the collector' {
+                $manifest = New-BuildManifest
+                & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Unit
+                $collectorState.Failure = 'shutdown'
+                { & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome success } |
+                    Should -Throw '*Coverage collector shutdown failed*'
+                $metadata = Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json
+                $metadata.TestOutcome | Should -Be 'success'
+                $metadata.Complete | Should -BeFalse
+                $metadata.StopError | Should -Match 'shutdown failed'
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -BeTrue
+            }
+
+            It 'Still stops the collector when successful tests omit NUnit results' {
+                $manifest = New-BuildManifest
+                & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Unit
+                Remove-Item -LiteralPath TestResult.xml
+                { & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome success } |
+                    Should -Throw '*successful test run produced no TestResult.xml*'
+                @($collectorState.Calls) | Should -Contain 'shutdown'
+                (Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json).Complete | Should -BeFalse
+            }
+
+            It 'Preserves the readiness error when bounded cleanup also fails' {
+                $collectorState.Failure = @('snapshot', 'shutdown')
+                $manifest = New-BuildManifest
+                { & $lifecycle -Action Start -Directory $collectorState.Directory -BuildManifest $manifest -Suite Unit 3>$null } |
+                    Should -Throw '*readiness check failed*'
+                @($collectorState.Calls) | Should -Be @('--version', 'collect', 'snapshot', 'shutdown')
+                $collectorState.ShutdownArguments[3] | Should -Be 30000
             }
 
             It 'Does not mark a zero-hit report complete' {
@@ -158,7 +224,7 @@ Describe 'Coverage lifecycle producer output' {
                 { & $lifecycle -Action Stop -Directory $collectorState.Directory -TestOutcome success } |
                     Should -Throw '*no executed lines*'
                 (Get-Content -LiteralPath (Join-Path $collectorState.Directory 'metadata.json') -Raw | ConvertFrom-Json).Complete | Should -BeFalse
-                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -BeFalse
+                Test-Path -LiteralPath (Join-Path $collectorState.Directory 'tests.xml') | Should -BeTrue
             }
 
             It 'Does not mark non-SCM functional evidence complete' {

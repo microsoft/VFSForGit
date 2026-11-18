@@ -426,7 +426,9 @@ jobs:
 
     - name: Stop upgrade coverage
       if: always() && steps.coverage_start.outcome == 'success'
+      continue-on-error: ${{ steps.upgrade_test.outcome != 'success' }}
       shell: pwsh
+      timeout-minutes: 3
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory coverage -TestOutcome '${{ steps.upgrade_test.outcome }}'
 
     - name: Upload upgrade coverage

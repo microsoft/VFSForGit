@@ -272,7 +272,9 @@ jobs:
 
     - name: Stop coverage and verify SCM service capture
       if: always() && steps.coverage_start.outcome == 'success'
+      continue-on-error: ${{ steps.functional_tests.outcome != 'success' }}
       shell: pwsh
+      timeout-minutes: 3
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory coverage -TestOutcome '${{ steps.functional_tests.outcome }}'
 
     - name: Upload worker coverage

@@ -347,7 +347,9 @@ jobs:
 
     - name: Stop unit coverage
       if: always() && steps.unit_coverage.outcome == 'success'
+      continue-on-error: ${{ steps.unit_tests.outcome != 'success' }}
       shell: pwsh
+      timeout-minutes: 3
       run: src\scripts\Invoke-Coverage.ps1 -Action Stop -Directory unit-coverage -TestOutcome '${{ steps.unit_tests.outcome }}'
 
     - name: Upload unit coverage
