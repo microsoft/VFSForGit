@@ -59,6 +59,12 @@ namespace GVFS.Virtualization.Projection
                 get { return this.PathLength > 0 && this.PathBuffer[this.PathLength - 1] == PathSeparatorCode; }
             }
 
+            /// <summary>
+            /// True when the entry is a sparse-directory entry that the parser accepted. Its path ends
+            /// in '/', and its <see cref="Sha"/> is the id of the tree of the collapsed folder.
+            /// </summary>
+            public bool IsSparseDirectory { get; set; }
+
             public FolderData BuildingProjection_LastParent { get; set; }
 
             // Only used when buildingNewProjection is true
@@ -151,6 +157,38 @@ namespace GVFS.Virtualization.Projection
                     // We unrolled the final part calculation to after the loop, to avoid having to do a 0-byte check inside the for loop
                     this.BuildingProjection_PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, this.PathLength - currentPartStartIndex);
 
+                    this.BuildingProjection_NumParts++;
+                }
+            }
+
+            /// <summary>
+            /// Parses the path of a sparse-directory entry, without its trailing '/', into
+            /// <see cref="BuildingProjection_PathParts"/>. The final part is the name of the
+            /// collapsed folder. It should only be called when building a new projection.
+            /// </summary>
+            /// <remarks>
+            /// Call <see cref="ClearLastParent"/> before and after this method. This method does not
+            /// change <see cref="PathBuffer"/>, so the prefix compression of the next entry stays correct.
+            /// </remarks>
+            public unsafe void BuildingProjection_ParseSparseDirectoryPath()
+            {
+                int length = this.PathLength - 1;
+                int currentPartStartIndex = 0;
+                this.BuildingProjection_NumParts = 0;
+
+                fixed (byte* pathPtr = this.PathBuffer)
+                {
+                    for (int i = 0; i < length; i++)
+                    {
+                        if (pathPtr[i] == PathSeparatorCode)
+                        {
+                            this.BuildingProjection_PathParts[this.BuildingProjection_NumParts] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, i - currentPartStartIndex);
+                            this.BuildingProjection_NumParts++;
+                            currentPartStartIndex = i + 1;
+                        }
+                    }
+
+                    this.BuildingProjection_PathParts[this.BuildingProjection_NumParts] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, length - currentPartStartIndex);
                     this.BuildingProjection_NumParts++;
                 }
             }
