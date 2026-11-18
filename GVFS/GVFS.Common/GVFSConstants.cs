@@ -177,6 +177,12 @@ namespace GVFS.Common
             public const string LogName = "logs";
             public const string MountLock = "mount.lock";
 
+            /// <summary>
+            /// The mount creates this file when a working-tree change needs a sparse-index cone
+            /// change that the index does not have yet. The pre-command hook checks it.
+            /// </summary>
+            public const string ConeChangePending = "ConeChangePending";
+
             public static class Databases
             {
                 public const string Name = "databases";

@@ -37,6 +37,13 @@ namespace GVFS.Common.NamedPipes
         /// no longer runs.
         /// </para>
         /// <para>
+        /// When a working-tree change needs a cone change that the index does not have yet,
+        /// the mount creates the <see cref="GVFSConstants.DotGVFS.ConeChangePending"/> file. The
+        /// pre-command hook then sends an <see cref="ApplyRequest"/> before Git reads the index,
+        /// also for a command that names no paths. The requesting Git process must hold the
+        /// GVFS lock, as for a widen.
+        /// </para>
+        /// <para>
         /// A body is a list of fields separated by NUL. The header and the body split on the
         /// first '|' only, so a field can contain '|'.
         /// </para>
@@ -45,6 +52,7 @@ namespace GVFS.Common.NamedPipes
         {
             public const string WidenRequest = "ConeWiden";
             public const string NarrowRequest = "ConeNarrow";
+            public const string ApplyRequest = "ConeApply";
 
             /// <summary>The mount applied the request.</summary>
             public const string SuccessResult = "S";
@@ -72,6 +80,14 @@ namespace GVFS.Common.NamedPipes
             /// without limit.
             /// </summary>
             public const int WidenReplyCeilingMs = 10000;
+
+            /// <summary>
+            /// The time in which the mount applies a pending working-tree change. A slower apply
+            /// is a warning, and an apply that waited half of this time for earlier requests does
+            /// not run Git. The hook waits for the apply reply up to
+            /// <see cref="WidenReplyCeilingMs"/>, for the same reason as for a widen.
+            /// </summary>
+            public const int ApplyWaitBudgetMs = 5000;
 
             /// <summary>
             /// The maximum time that the post-command hook waits for a narrow reply. Git has
@@ -222,6 +238,41 @@ namespace GVFS.Common.NamedPipes
                     }
 
                     parameters = new NarrowParameters(body);
+                    return true;
+                }
+            }
+
+            /// <summary>
+            /// Parameters for an apply request: the command id of the Git command that holds the
+            /// GVFS lock and waits for the mount to apply the pending cone change.
+            /// </summary>
+            public class ApplyParameters
+            {
+                public ApplyParameters(string commandId)
+                {
+                    this.CommandId = commandId ?? string.Empty;
+                }
+
+                /// <summary>The Git process id, as decimal digits, or empty.</summary>
+                public string CommandId { get; }
+
+                public string ToBody()
+                {
+                    return this.CommandId;
+                }
+
+                /// <summary>
+                /// Parse an apply body. Return false when the command id is not valid.
+                /// </summary>
+                public static bool TryParse(string body, out ApplyParameters parameters)
+                {
+                    parameters = null;
+                    if (!IsValidCommandId(body))
+                    {
+                        return false;
+                    }
+
+                    parameters = new ApplyParameters(body);
                     return true;
                 }
             }

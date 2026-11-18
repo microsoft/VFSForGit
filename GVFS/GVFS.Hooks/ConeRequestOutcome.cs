@@ -39,12 +39,21 @@ namespace GVFS.Hooks
         TimedOut,
 
         /// <summary>
-        /// The hook sent a widen, but the mount did not reply within the reply ceiling. Git can
-        /// then find the index lock that the mount's Git process holds.
+        /// The hook sent a widen or an apply, but the mount did not reply within the reply
+        /// ceiling. Git can then find the index lock that the mount's Git process holds.
         /// </summary>
         ReplyTimedOut,
 
         /// <summary>The request failed with an exception.</summary>
         Failed,
+
+        /// <summary>No working-tree change waits for a cone change, so the hook did nothing.</summary>
+        NothingPending,
+
+        /// <summary>The command does not read the index and does not take the GVFS lock, so the hook did nothing.</summary>
+        NotAnIndexReader,
+
+        /// <summary>The hook could not take the GVFS lock for a command that does not take it, so it did not send the request.</summary>
+        LockUnavailable,
     }
 }
