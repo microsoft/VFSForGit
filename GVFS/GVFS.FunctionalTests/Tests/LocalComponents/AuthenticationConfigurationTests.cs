@@ -19,7 +19,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
     public class AuthenticationConfigurationTests
     {
         private const string Secret = "SecretSentinelNotForTelemetry";
-        private const int CollectionTimeoutMilliseconds = 30000;
+        private const int FixtureTimeoutMilliseconds = 30000;
         private const string SystemConfigQuery = "config --system --null --name-only --list";
         private const string UrlMatchQuery = "config --file - --no-includes --null --get-urlmatch authdiagnostic";
         private string root;
@@ -144,14 +144,14 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
         }
 
         [Test]
-        public void SystemConfigRetryCanCompleteWithSlowUrlMatchStartup()
+        public void SystemConfigRetryCompletesWithSlowStartupInOtherQueries()
         {
             this.AssertDiagnosticReadRetries(SystemConfigQuery, 1, 2, "collected", 1, info =>
             {
                 if (info.Arguments.Contains(AuthenticationConfiguration.ReadCommand, StringComparison.Ordinal) ||
                     info.Arguments.Contains(UrlMatchQuery, StringComparison.Ordinal))
                 {
-                    // Together the two delays exceed the production collection deadline.
+                    // The two delays exceed the production deadline, but not the fixture deadline.
                     Thread.Sleep(1200);
                 }
             });
@@ -557,9 +557,10 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 }
             }, tracer: tracer);
 
-            Assert.That(attempts, Is.EqualTo(expectedAttempts));
-            Assert.That(snapshot["Status"], Is.EqualTo(expectedStatus),
-                $"System config state: {snapshot.GetValueOrDefault("SystemConfigState", "not reported")}");
+            object status = snapshot["Status"];
+            string diagnostic = $"Status: {status}. System config state: {snapshot.GetValueOrDefault("SystemConfigState", "not reported")}.";
+            Assert.That(attempts, Is.EqualTo(expectedAttempts), diagnostic);
+            Assert.That(status, Is.EqualTo(expectedStatus), diagnostic);
             Assert.That(tracer.TelemetryWarnings.Count, Is.EqualTo(expectedWarnings));
             Assert.That(string.Join("\n", tracer.RelatedWarningEvents), Does.Not.Contain(Secret));
             if (expectedStatus == "collected")
@@ -605,7 +606,7 @@ namespace GVFS.FunctionalTests.Tests.LocalComponents
                 process.StartInfo.Environment["GIT_CONFIG_GLOBAL"] = Path.Combine(this.root, "global");
                 customize?.Invoke(process.StartInfo);
                 return process;
-            }, credentialFillEnvironment, tracer, timeoutMs: CollectionTimeoutMilliseconds);
+            }, credentialFillEnvironment, tracer, timeoutMs: FixtureTimeoutMilliseconds);
         }
 
         private void AssertNoSecret(EventMetadata metadata)
