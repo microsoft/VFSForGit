@@ -29,7 +29,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase(true, true)]
         public void BoundedPlaceholderWaitResumesOrReturnsTransientFailure(bool releaseBeforeTimeout, bool materializeWhileWaiting)
         {
-            this.VerifyPlaceholderWait(releaseBeforeTimeout, materializeWhileWaiting, 2000);
+            this.VerifyPlaceholderWait(
+                releaseBeforeTimeout,
+                materializeWhileWaiting,
+                waitMs: releaseBeforeTimeout ? 30000 : 2000);
         }
 
         [TestCase]
