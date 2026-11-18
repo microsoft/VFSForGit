@@ -1,5 +1,6 @@
 using GVFS.Common.Tracing;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace GVFS.Common.Git
         private const int MaxOutput = 65536;
         private const int MaxErrors = 4096;
 
+        // The caller owns process execution. This method retries only Git results.
         internal static GitProcess.Result Read(
             string configName,
             Func<GitProcess.Result> readConfig,
@@ -33,6 +35,7 @@ namespace GVFS.Common.Git
 
         // The factory must return a fresh, unstarted process for each attempt.
         // The caller's token covers all attempts and retry delays.
+        // This method reports native process failures as GitConfigProcessException.
         internal static GitProcess.Result ReadRaw(
             string configName,
             Func<Process> createProcess,
@@ -45,9 +48,16 @@ namespace GVFS.Common.Git
                 () =>
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    using (Process process = createProcess())
+                    try
                     {
-                        return RunAsync(process, input, cancellation).GetAwaiter().GetResult();
+                        using (Process process = createProcess())
+                        {
+                            return RunAsync(process, input, cancellation).GetAwaiter().GetResult();
+                        }
+                    }
+                    catch (Exception ex) when (IsNativeProcessError(ex))
+                    {
+                        throw new GitConfigProcessException(ex);
                     }
                 },
                 tracer ?? NullTracer.Instance,
@@ -159,12 +169,30 @@ namespace GVFS.Common.Git
                 {
                     if (readFailure != null)
                     {
-                        throw new AggregateException(readFailure, failure);
+                        AggregateException combinedFailure = new AggregateException(readFailure, failure);
+                        if (IsNativeProcessError(failure))
+                        {
+                            throw new IOException(readFailure.Message, combinedFailure);
+                        }
+
+                        throw combinedFailure;
                     }
 
                     ExceptionDispatchInfo.Throw(failure);
                 }
             }
+        }
+
+        private static bool IsNativeProcessError(Exception error)
+        {
+            if (error is AggregateException aggregate)
+            {
+                var errors = aggregate.InnerExceptions;
+                return errors.Count > 0 && errors.All(IsNativeProcessError);
+            }
+
+            // Process tree enumeration can wrap a failed native snapshot in InvalidOperationException.
+            return error is Win32Exception or InvalidOperationException { InnerException: Win32Exception };
         }
 
         private static async Task WriteInputAsync(Process process, string input, CancellationToken cancellation)

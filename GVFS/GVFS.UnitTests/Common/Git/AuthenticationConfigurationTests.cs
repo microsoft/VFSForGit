@@ -69,9 +69,10 @@ namespace GVFS.UnitTests.Common.Git
         {
             Win32Exception nativeFailure = new Win32Exception(5, Secret);
             InvalidOperationException snapshotFailure = new InvalidOperationException(Secret, nativeFailure);
-            AggregateException failure = readAlsoFails
-                ? new AggregateException(new IOException(Secret), new AggregateException(nativeFailure, snapshotFailure))
-                : new AggregateException(nativeFailure, snapshotFailure);
+            AggregateException processFailure = new AggregateException(nativeFailure, snapshotFailure);
+            Exception failure = readAlsoFails
+                ? new IOException(Secret, new AggregateException(new IOException(Secret), processFailure))
+                : processFailure;
 
             EventMetadata snapshot = AuthenticationConfiguration.Collect("mock://repo", _ => throw failure);
 

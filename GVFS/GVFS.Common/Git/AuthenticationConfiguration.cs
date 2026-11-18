@@ -1,7 +1,6 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -230,32 +229,17 @@ namespace GVFS.Common.Git
                 {
                     metadata["Status"] = "query-timeout";
                 }
-                catch (Exception ex) when (IsNativeProcessError(ex))
+                catch (GitConfigProcessException)
                 {
                     metadata["Status"] = "query-process-error";
                 }
-                catch (Exception ex) when (ex is IOException ||
-                    (ex is AggregateException aggregate &&
-                        aggregate.InnerExceptions is [IOException, var cleanupFailure] &&
-                        IsNativeProcessError(cleanupFailure)))
+                catch (IOException)
                 {
                     metadata["Status"] = "query-io-error";
                 }
             }
 
             return metadata;
-        }
-
-        private static bool IsNativeProcessError(Exception error)
-        {
-            if (error is AggregateException aggregate)
-            {
-                var errors = aggregate.Flatten().InnerExceptions;
-                return errors.Count > 0 && errors.All(IsNativeProcessError);
-            }
-
-            // Process tree enumeration can wrap a failed native snapshot in InvalidOperationException.
-            return error is Win32Exception or InvalidOperationException { InnerException: Win32Exception };
         }
 
         internal static string DescribeHelper(string value)

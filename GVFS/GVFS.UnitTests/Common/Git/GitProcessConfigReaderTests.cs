@@ -48,13 +48,14 @@ namespace GVFS.UnitTests.Common.Git
             Assert.That(killAttempts, Is.EqualTo(1));
         }
 
-        [Test]
-        public void FailedReadAndFailedCleanupPreserveBothErrors()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void FailedReadAndFailedCleanupPreserveBothErrors(bool isNativeCleanupFailure)
         {
             using CancellationTokenSource cancellation = new CancellationTokenSource();
             TaskCompletionSource<GitProcess.Result> read = new TaskCompletionSource<GitProcess.Result>();
-            IOException readFailure = new IOException();
-            Win32Exception killFailure = new Win32Exception(5);
+            IOException readFailure = new IOException("Could not read the pipe.");
+            Exception killFailure = isNativeCleanupFailure ? new Win32Exception(5) : new InvalidOperationException();
             Task<GitProcess.Result> result = GitProcessConfigReader.ReadWithProcessCleanupAsync(
                 () => read.Task,
                 () => true,
@@ -64,8 +65,32 @@ namespace GVFS.UnitTests.Common.Git
             Assert.DoesNotThrow(cancellation.Cancel);
             read.SetException(readFailure);
 
-            AggregateException failure = Assert.ThrowsAsync<AggregateException>(async () => await result);
+            AggregateException failure;
+            if (isNativeCleanupFailure)
+            {
+                IOException error = Assert.ThrowsAsync<IOException>(async () => await result);
+                Assert.That(error.Message, Is.EqualTo(readFailure.Message));
+                Assert.That(error.InnerException, Is.TypeOf<AggregateException>());
+                failure = (AggregateException)error.InnerException;
+            }
+            else
+            {
+                failure = Assert.ThrowsAsync<AggregateException>(async () => await result);
+            }
+
             Assert.That(failure.InnerExceptions, Is.EqualTo(new Exception[] { readFailure, killFailure }));
+        }
+
+        [Test]
+        public void ReadRawReportsNativeProcessErrorsWithTheirOriginalCauses()
+        {
+            Win32Exception accessDenied = new Win32Exception(5);
+            InvalidOperationException snapshotFailure = new InvalidOperationException("Could not get the process snapshot.", new Win32Exception(6));
+            AggregateException nativeFailure = new AggregateException(accessDenied, snapshotFailure);
+            GitConfigProcessException failure = Assert.Throws<GitConfigProcessException>(
+                () => GitProcessConfigReader.ReadRaw("credential", () => throw nativeFailure, string.Empty, CancellationToken.None, tracer: null));
+
+            Assert.That(failure.InnerException, Is.SameAs(nativeFailure));
         }
 
         [TestCase(false)]
