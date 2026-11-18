@@ -9,8 +9,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     /// <summary>
     /// Functional tests for the cone requests that the hooks send when
-    /// <c>gvfs.auto-sparse-index</c> is true. The mount does not handle these requests and
-    /// answers <c>UnknownRequest</c>, so the tests check that Git still runs.
+    /// <c>gvfs.auto-sparse-index</c> is true. The test turns the flag on after the mount
+    /// started, so the mount answers <c>NotEnabled</c>, and the tests check that Git still runs.
     /// </summary>
     [TestFixture]
     public class ConeManagementHookTests : TestsWithEnlistmentPerFixture
@@ -31,7 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         };
 
         [TestCase]
-        public void GitRunsWhenTheMountDoesNotHandleConeRequests()
+        public void GitRunsWhenTheMountRepliesNotEnabled()
         {
             string sparseCheckoutPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "info", "sparse-checkout");
             string originalSparseCheckout = File.Exists(sparseCheckoutPath) ? File.ReadAllText(sparseCheckoutPath) : null;

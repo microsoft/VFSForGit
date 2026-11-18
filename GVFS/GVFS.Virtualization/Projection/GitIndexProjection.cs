@@ -406,6 +406,12 @@ namespace GVFS.Virtualization.Projection
         }
 
         /// <summary>
+        /// True when <c>gvfs.auto-sparse-index</c> was true when the projection was created, so
+        /// the projection expands the sparse-directory entries of a sparse index.
+        /// </summary>
+        public bool IsSparseIndexSupportEnabled => this.sparseDirectoryExpander != null;
+
+        /// <summary>
         /// Get the number of files in the projection, if the projection expanded the
         /// sparse-directory entries of a sparse index. A sparse index has one entry for each
         /// collapsed folder, so its entry count is not the number of files.
