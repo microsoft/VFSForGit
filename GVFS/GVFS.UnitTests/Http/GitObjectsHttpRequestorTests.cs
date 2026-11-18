@@ -8,12 +8,14 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using GVFS.UnitTests.Tracing;
 
 namespace GVFS.UnitTests.Http
 {
@@ -441,6 +443,452 @@ namespace GVFS.UnitTests.Http
             RetryCircuitBreaker.ConsecutiveFailures.ShouldEqual(0);
         }
 
+        [TestCase(HttpStatusCode.BadRequest, false)]
+        [TestCase(HttpStatusCode.Unauthorized, true)]
+        public void RepeatedSizesAuthFailuresDoNotSendRequestsDuringCooldown(HttpStatusCode status, bool retry)
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1, endpointOverrides: false))
+            {
+                requestor.EnqueueResponse(status, "Authentication failed", retry, isAuthenticationFailure: true);
+                if (retry)
+                {
+                    requestor.EnqueueResponse(status, "Authentication failed", retry, isAuthenticationFailure: true);
+                }
+
+                Assert.That(requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error), Is.Empty);
+                int requests = requestor.RequestUris.Count;
+                int failures = RetryCircuitBreaker.ConsecutiveFailures;
+                for (int i = 0; i < 20; i++)
+                {
+                    Assert.That(requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError), Is.Empty);
+                    Assert.That(cachedError, Is.SameAs(error));
+                }
+
+                Assert.That(requests, Is.EqualTo(retry ? 2 : 1));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(requests));
+                Assert.That(failures, Is.EqualTo(retry ? 2 : 0));
+                Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.EqualTo(failures));
+                Assert.That(requestor.TestTracer.RelatedEventNames.Count(name => name == "SizesAuthFailureCooldown"), Is.EqualTo(1));
+                Assert.That(requestor.TestTracer.RelatedErrorEvents.Count, Is.EqualTo(1));
+            }
+        }
+
+        [TestCase(HttpStatusCode.BadRequest)]
+        [TestCase(HttpStatusCode.Unauthorized)]
+        public void AnonymousSizesChallengeRetriesWithoutCooldown(HttpStatusCode status)
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1, endpointOverrides: false))
+            {
+                requestor.EnqueueResponse(status, shouldRetry: true, shouldRecordFailure: false);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                Assert.That(error, Is.Null);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+                Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.Zero);
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Not.Contain("SizesAuthFailureCooldown"));
+            }
+        }
+
+        [TestCase]
+        public void Sizes401CanRecoverWithinItsNormalRetryBudget()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1, endpointOverrides: false))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, shouldRetry: true, isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+
+                Assert.That(error, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Not.Contain("SizesAuthFailureCooldown"));
+            }
+        }
+
+        [TestCase]
+        public void CredentialBackoffAfterAServerRejectionStillEntersSizesCooldown()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1, endpointOverrides: false))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, "Server rejected authentication", shouldRetry: true, isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, "Credential backoff is active", shouldRetry: true, isCredentialFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError);
+
+                Assert.That(error.Message, Is.EqualTo("Server rejected authentication"));
+                Assert.That(cachedError, Is.SameAs(error));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+            }
+        }
+
+        [TestCase(HttpStatusCode.BadRequest, false)]
+        [TestCase(HttpStatusCode.Unauthorized, true)]
+        [TestCase(HttpStatusCode.ServiceUnavailable, true)]
+        public void OtherSizesFailuresDoNotEnterAuthCooldown(HttpStatusCode status, bool retry)
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false))
+            {
+                requestor.EnqueueResponse(status, "Not a server authentication rejection", retry, isCredentialFailure: status == HttpStatusCode.Unauthorized);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+
+                Assert.That(error, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Not.Contain("SizesAuthFailureCooldown"));
+            }
+        }
+
+        [TestCase(HttpStatusCode.BadRequest)]
+        [TestCase(HttpStatusCode.Unauthorized)]
+        public void LatchedPreferredSizesEndpointStillAllowsGlobalRequests(HttpStatusCode status)
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.EnqueueResponse(status, isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception firstError);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception secondError);
+
+                Assert.That(firstError, Is.Null);
+                Assert.That(secondError, Is.Null);
+                Assert.That(requestor.RequestUris.Select(uri => uri.AbsoluteUri), Is.EqualTo(new[]
+                {
+                    EndpointCacheServerUrl + "/gvfs/sizes",
+                    GlobalCacheServerUrl + "/gvfs/sizes",
+                    GlobalCacheServerUrl + "/gvfs/sizes",
+                }));
+            }
+        }
+
+        [TestCase]
+        public void AllLatchedSizesEndpointsReturnTheCauseWithoutOriginFallback()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Preferred rejected", isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Global rejected", isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError);
+
+                Assert.That(cachedError, Is.SameAs(error));
+                Assert.That(cachedError.Message, Is.EqualTo("Global rejected"));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+                Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.Zero);
+            }
+        }
+
+        [TestCase]
+        public void SizesCooldownPreservesTheCauseWhenTheSharedBreakerIsOpen()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false))
+            {
+                for (int i = 0; i < RetryCircuitBreaker.DefaultFailureThreshold - 1; i++)
+                {
+                    RetryCircuitBreaker.RecordFailure();
+                }
+
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, "Server rejected authentication", shouldRetry: true, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                Assert.That(RetryCircuitBreaker.IsOpen, Is.True);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError);
+
+                Assert.That(cachedError, Is.SameAs(error));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(1));
+                Assert.That(requestor.TestTracer.RelatedErrorEvents.Count, Is.EqualTo(1));
+                Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.EqualTo(RetryCircuitBreaker.DefaultFailureThreshold));
+            }
+        }
+
+        [TestCase]
+        public void AnOlderSuccessfulResponseCannotClearANewerSizesFailure()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false))
+            {
+                Exception newerError = null;
+                requestor.EnqueueResponse(new CallbackReadStream(() =>
+                    requestor.QueryForFileSizes(new[] { "new" }, CancellationToken.None, out newerError)));
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Newer rejection", isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+
+                requestor.QueryForFileSizes(new[] { "old" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "next" }, CancellationToken.None, out Exception cachedError);
+
+                Assert.That(cachedError, Is.SameAs(newerError));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Not.Contain("SizesAuthFailureRecovered"));
+            }
+        }
+
+        [TestCase]
+        public void AnOlderSizesRejectionCannotSuppressAfterANewerSuccess()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false))
+            {
+                requestor.OnRequest = _ =>
+                {
+                    requestor.OnRequest = null;
+                    requestor.QueryForFileSizes(new[] { "new" }, CancellationToken.None);
+                };
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Older rejection", isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+
+                requestor.QueryForFileSizes(new[] { "old" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "next" }, CancellationToken.None, out Exception error);
+
+                Assert.That(error, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+                Assert.That(requestor.TestTracer.RelatedEventNames, Does.Not.Contain("SizesAuthFailureCooldown"));
+            }
+        }
+
+        [TestCase]
+        public void PreferredRejectionSurvivesFailedGlobalCredentialRefresh()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Preferred rejected authentication", isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, "Credential refresh failed", shouldRetry: true, isCredentialFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.Unauthorized, "Credential backoff", shouldRetry: true, isCredentialFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception recoveredError);
+
+                Assert.That(error.Message, Is.EqualTo("Preferred rejected authentication"));
+                Assert.That(recoveredError, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(4));
+                Assert.That(requestor.RequestUris.Last().AbsoluteUri, Is.EqualTo(GlobalCacheServerUrl + "/gvfs/sizes"));
+            }
+        }
+
+        [TestCase]
+        public void SkippingAPreferredCooldownDoesNotAddAGlobalRetry()
+        {
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                for (int i = 0; i < 3; i++)
+                {
+                    requestor.EnqueueResponse(HttpStatusCode.ServiceUnavailable, shouldRetry: true);
+                }
+
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(4));
+                Assert.That(RetryCircuitBreaker.ConsecutiveFailures, Is.EqualTo(2));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PreferredProbeReleasesItsReservationBeforeGlobalFallback(bool transportFailure)
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, timeProvider: clock))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                clock.Advance(TimeSpan.FromSeconds(31));
+                if (transportFailure)
+                {
+                    requestor.EnqueueException(new HttpRequestException("Preferred unavailable"));
+                }
+                else
+                {
+                    requestor.EnqueueResponse(HttpStatusCode.ServiceUnavailable);
+                }
+
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.OnRequest = _ =>
+                {
+                    if (requestor.RequestUris.Count == 4)
+                    {
+                        requestor.OnRequest = null;
+                        requestor.QueryForFileSizes(new[] { "other" }, CancellationToken.None);
+                    }
+                };
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(5));
+                Assert.That(requestor.RequestUris[3].AbsoluteUri, Is.EqualTo(GlobalCacheServerUrl + "/gvfs/sizes"));
+                Assert.That(requestor.RequestUris[4].AbsoluteUri, Is.EqualTo(EndpointCacheServerUrl + "/gvfs/sizes"));
+            }
+        }
+
+        [TestCase]
+        public void NonAuthenticationFailureReleasesTheSizesRecoveryProbe()
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false, timeProvider: clock))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Unrelated failure");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+
+                Assert.That(error, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+            }
+        }
+
+        [TestCase]
+        public void OriginSizesFailureUsesItsOwnCooldownAndRecovery()
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 1, endpointOverrides: false, timeProvider: clock))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.NotFound);
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "Origin rejected authentication", isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception cachedError);
+                Assert.That(cachedError, Is.SameAs(error));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception recoveredError);
+                Assert.That(recoveredError, Is.Null);
+                Assert.That(requestor.RequestUris.Last().AbsoluteUri, Is.EqualTo("mock://repourl/gvfs/sizes"));
+            }
+        }
+
+        [TestCase(HttpStatusCode.BadRequest)]
+        [TestCase(HttpStatusCode.Unauthorized)]
+        public void SizesAuthCooldownExpiresAndSuccessReportsRecovery(HttpStatusCode status)
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false, timeProvider: clock))
+            {
+                requestor.EnqueueResponse(status, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[{\"id\":\"abc\",\"size\":12}]");
+                List<GitObjectsHttpRequestor.GitObjectSize> sizes = requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+
+                Assert.That(error, Is.Null);
+                Assert.That(sizes.Single().Size, Is.EqualTo(12));
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+                int recovery = requestor.TestTracer.RelatedEventNames.IndexOf("SizesAuthFailureRecovered");
+                Assert.That(recovery, Is.GreaterThanOrEqualTo(0));
+                Assert.That(requestor.TestTracer.RelatedEventMetadata[recovery]["SuppressedQueries"], Is.EqualTo(1));
+                Assert.That(requestor.TestTracer.RelatedEventMetadata[recovery]["DurationSeconds"], Is.EqualTo(31));
+            }
+        }
+
+        [TestCase]
+        public void FailedSizesAuthRecoveryProbeRenewsTheCooldown()
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(
+                maxRetries: 0, endpointOverrides: false, globalCacheServerUrl: "https://user:secret@global-cache:8443/server", timeProvider: clock))
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, "private-response", isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+                Assert.That(requestor.TestTracer.RelatedEventNames.Count(name => name == "SizesAuthFailureCooldown"), Is.EqualTo(2));
+                List<EventMetadata> cooldowns = requestor.TestTracer.RelatedEventNames
+                    .Select((name, index) => new { Name = name, Metadata = requestor.TestTracer.RelatedEventMetadata[index] })
+                    .Where(item => item.Name == "SizesAuthFailureCooldown")
+                    .Select(item => item.Metadata).ToList();
+                Assert.That(cooldowns[0]["State"], Is.EqualTo("Entered"));
+                Assert.That(cooldowns[1]["State"], Is.EqualTo("Continued"));
+                Assert.That(cooldowns[0]["SuppressedQueries"], Is.EqualTo(0));
+                Assert.That(cooldowns[1]["SuppressedQueries"], Is.EqualTo(1));
+                foreach (EventMetadata metadata in cooldowns)
+                {
+                    Assert.That(metadata["Authority"], Is.EqualTo("global-cache:8443"));
+                    Assert.That(metadata["StatusCode"], Is.EqualTo(400));
+                    Assert.That(metadata["CooldownSeconds"], Is.EqualTo(30));
+                    Assert.That(metadata.Keys, Is.EquivalentTo(new[]
+                    {
+                        "RequestId", "Authority", "StatusCode", "State", "CooldownSeconds", "SuppressedQueries", "DurationSeconds",
+                    }));
+                }
+            }
+        }
+
+        [TestCase]
+        public void ConcurrentSizesQueriesPermitOnlyOneRecoveryProbe()
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false, timeProvider: clock))
+            using (ManualResetEventSlim probeStarted = new ManualResetEventSlim())
+            using (ManualResetEventSlim releaseProbe = new ManualResetEventSlim())
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.OnRequest = token =>
+                {
+                    probeStarted.Set();
+                    Assert.That(releaseProbe.Wait(TimeSpan.FromSeconds(10), token), Is.True);
+                };
+                Task probe = Task.Run(() => requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None));
+                try
+                {
+                    Assert.That(probeStarted.Wait(TimeSpan.FromSeconds(5)), Is.True);
+                    requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                    Assert.That(error, Is.Not.Null);
+                    Assert.That(requestor.RequestUris.Count, Is.EqualTo(2));
+                }
+                finally
+                {
+                    releaseProbe.Set();
+                    probe.GetAwaiter().GetResult();
+                }
+            }
+        }
+
+        [TestCase]
+        public void CanceledSizesRecoveryProbeReleasesItsReservation()
+        {
+            TelemetryAggregatorTests.TestClock clock = new TelemetryAggregatorTests.TestClock();
+            using (TestGitObjectsHttpRequestor requestor = this.CreateRequestor(maxRetries: 0, endpointOverrides: false, timeProvider: clock))
+            using (CancellationTokenSource cancellation = new CancellationTokenSource())
+            using (CancellationTokenSource probeCancellation = new CancellationTokenSource())
+            {
+                requestor.EnqueueResponse(HttpStatusCode.BadRequest, isAuthenticationFailure: true);
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None);
+                cancellation.Cancel();
+                Assert.Throws<OperationCanceledException>(() => requestor.QueryForFileSizes(new[] { "abc" }, cancellation.Token));
+                clock.Advance(TimeSpan.FromSeconds(31));
+                requestor.OnRequest = token =>
+                {
+                    probeCancellation.Cancel();
+                    token.ThrowIfCancellationRequested();
+                };
+                Assert.Throws<OperationCanceledException>(() => requestor.QueryForFileSizes(new[] { "abc" }, probeCancellation.Token));
+                requestor.OnRequest = null;
+                requestor.EnqueueResponse(HttpStatusCode.OK, "[]");
+                requestor.QueryForFileSizes(new[] { "abc" }, CancellationToken.None, out Exception error);
+                Assert.That(error, Is.Null);
+                Assert.That(requestor.RequestUris.Count, Is.EqualTo(3));
+            }
+        }
+
         private static RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult SuccessfulRequest(
             int tryCount,
             GitEndPointResponseData response)
@@ -453,7 +901,8 @@ namespace GVFS.UnitTests.Http
             int maxRetries,
             bool endpointOverrides = true,
             string globalCacheServerUrl = GlobalCacheServerUrl,
-            string endpointCacheServerUrl = EndpointCacheServerUrl)
+            string endpointCacheServerUrl = EndpointCacheServerUrl,
+            TimeProvider timeProvider = null)
         {
             CacheServerInfo cacheServer = new CacheServerInfo(globalCacheServerUrl, "global");
             if (endpointOverrides)
@@ -468,7 +917,8 @@ namespace GVFS.UnitTests.Http
             return new TestGitObjectsHttpRequestor(
                 new MockGVFSEnlistment(),
                 cacheServer,
-                new RetryConfig(maxRetries));
+                new RetryConfig(maxRetries),
+                timeProvider);
         }
 
         private class TestGitObjectsHttpRequestor : GitObjectsHttpRequestor
@@ -478,8 +928,9 @@ namespace GVFS.UnitTests.Http
             public TestGitObjectsHttpRequestor(
                 Enlistment enlistment,
                 CacheServerInfo cacheServer,
-                RetryConfig retryConfig)
-                : this(new MockTracer(), enlistment, cacheServer, retryConfig)
+                RetryConfig retryConfig,
+                TimeProvider timeProvider)
+                : this(new MockTracer(), enlistment, cacheServer, retryConfig, timeProvider)
             {
             }
 
@@ -487,8 +938,9 @@ namespace GVFS.UnitTests.Http
                 MockTracer tracer,
                 Enlistment enlistment,
                 CacheServerInfo cacheServer,
-                RetryConfig retryConfig)
-                : base(tracer, enlistment, cacheServer, retryConfig)
+                RetryConfig retryConfig,
+                TimeProvider timeProvider)
+                : base(tracer, enlistment, cacheServer, retryConfig, timeProvider ?? TimeProvider.System)
             {
                 this.TestTracer = tracer;
                 this.RequestUris = new List<Uri>();
@@ -496,14 +948,17 @@ namespace GVFS.UnitTests.Http
 
             public MockTracer TestTracer { get; }
             public List<Uri> RequestUris { get; }
+            public Action<CancellationToken> OnRequest { get; set; }
 
             public void EnqueueResponse(
                 HttpStatusCode statusCode,
                 string body = "",
                 bool shouldRetry = false,
-                bool shouldRecordFailure = true)
+                bool shouldRecordFailure = true,
+                bool isAuthenticationFailure = false,
+                bool isCredentialFailure = false)
             {
-                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry, shouldRecordFailure));
+                this.responses.Enqueue(Tuple.Create(statusCode, body, shouldRetry, shouldRecordFailure, isAuthenticationFailure, isCredentialFailure));
             }
 
             public void EnqueueException(Exception exception)
@@ -525,6 +980,7 @@ namespace GVFS.UnitTests.Http
                 MediaTypeWithQualityHeaderValue acceptType = null)
             {
                 this.RequestUris.Add(requestUri);
+                this.OnRequest?.Invoke(cancellationToken);
                 object nextResponse = this.responses.Dequeue();
                 if (nextResponse is Exception exception)
                 {
@@ -541,7 +997,7 @@ namespace GVFS.UnitTests.Http
                         onResponseDisposed: null);
                 }
 
-                Tuple<HttpStatusCode, string, bool, bool> response = (Tuple<HttpStatusCode, string, bool, bool>)nextResponse;
+                Tuple<HttpStatusCode, string, bool, bool, bool, bool> response = (Tuple<HttpStatusCode, string, bool, bool, bool, bool>)nextResponse;
 
                 if (response.Item1 == HttpStatusCode.OK)
                 {
@@ -555,11 +1011,32 @@ namespace GVFS.UnitTests.Http
 
                 return new GitEndPointResponseData(
                     response.Item1,
-                    new GitObjectsHttpException(response.Item1, "Test failure"),
+                    new GitObjectsHttpException(response.Item1, string.IsNullOrEmpty(response.Item2) ? "Test failure" : response.Item2),
                     shouldRetry: response.Item3,
                     message: null,
                     onResponseDisposed: null,
-                    shouldRecordFailure: response.Item4);
+                    shouldRecordFailure: response.Item4,
+                    isAuthenticationFailure: response.Item5,
+                    isCredentialFailure: response.Item6);
+            }
+        }
+
+        private class CallbackReadStream : MemoryStream
+        {
+            private Action beforeRead;
+
+            public CallbackReadStream(Action beforeRead)
+                : base(Encoding.UTF8.GetBytes("[]"))
+            {
+                this.beforeRead = beforeRead;
+            }
+
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                Action callback = this.beforeRead;
+                this.beforeRead = null;
+                callback?.Invoke();
+                return base.ReadAsync(buffer, cancellationToken);
             }
         }
 

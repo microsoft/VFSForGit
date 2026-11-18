@@ -271,6 +271,11 @@ namespace GVFS.Common.Git
             return this.GitObjectRequestor.QueryForFileSizes(objectIds, cancellationToken);
         }
 
+        public List<GitObjectsHttpRequestor.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
+        {
+            return this.GitObjectRequestor.QueryForFileSizes(objectIds, cancellationToken, out error);
+        }
+
         private DownloadAttemptResult TryDownloadAndSaveObject(
             string objectId,
             CancellationToken cancellationToken,

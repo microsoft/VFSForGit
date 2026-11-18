@@ -185,7 +185,7 @@ namespace GVFS.Virtualization.Projection
             {
                 if (childrenMissingSizes != null && childrenMissingSizes.Count > 0)
                 {
-                    Dictionary<string, long> objectLengths = gitObjects.GetFileSizes(missingShas, cancellationToken).ToDictionary(s => s.Id, s => s.Size, StringComparer.OrdinalIgnoreCase);
+                    Dictionary<string, long> objectLengths = gitObjects.GetFileSizes(missingShas, cancellationToken, out Exception error).ToDictionary(s => s.Id, s => s.Size, StringComparer.OrdinalIgnoreCase);
                     foreach (FileMissingSize childNeedingSize in childrenMissingSizes)
                     {
                         long blobLength = 0;
@@ -200,9 +200,14 @@ namespace GVFS.Virtualization.Projection
                         {
                             EventMetadata metadata = CreateEventMetadata();
                             metadata.Add("SHA", childNeedingSize.Sha);
+                            if (error != null)
+                            {
+                                metadata.Add("Exception", error.ToString());
+                            }
+
                             metadata.SetTelemetryAggregation("PopulateMissingSizesFromRemote", TelemetryFailureCategory.MissingObjectSize, "Failed");
                             tracer.RelatedError(metadata, "PopulateMissingSizesFromRemote: Failed to download size for child entry", Keywords.Network);
-                            throw new SizesUnavailableException("Failed to download size for " + childNeedingSize.Sha);
+                            throw new SizesUnavailableException("Failed to download size for " + childNeedingSize.Sha, error);
                         }
                     }
 

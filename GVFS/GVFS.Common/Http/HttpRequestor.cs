@@ -143,7 +143,8 @@ namespace GVFS.Common.Http
                         new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
                         shouldRetry: true,
                         message: null,
-                        onResponseDisposed: null);
+                        onResponseDisposed: null,
+                        isCredentialFailure: true);
                 }
 
                 // Initialization may finish anonymously while this request waits.
@@ -299,6 +300,8 @@ namespace GVFS.Common.Http
 
                     bool shouldRetry = ShouldRetry(response.StatusCode);
                     bool shouldRecordFailure = shouldRetry;
+                    bool isAuthenticationFailure = !sendAnonymous &&
+                        ShouldRejectCredentials(response.StatusCode, errorMessage);
 
                     if (sendAnonymous &&
                         ShouldRejectCredentials(response.StatusCode, errorMessage))
@@ -353,7 +356,8 @@ namespace GVFS.Common.Http
                         shouldRetry,
                         message: response,
                         onResponseDisposed: () => availableConnections.Release(),
-                        shouldRecordFailure: shouldRecordFailure);
+                        shouldRecordFailure: shouldRecordFailure,
+                        isAuthenticationFailure: isAuthenticationFailure);
                 }
             }
             catch (TaskCanceledException)

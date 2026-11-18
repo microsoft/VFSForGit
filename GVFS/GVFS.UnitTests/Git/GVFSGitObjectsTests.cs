@@ -1430,7 +1430,7 @@ namespace GVFS.UnitTests.Git
                 return new RetryWrapper<GitObjectTaskResult>.InvocationResult(0, true, result);
             }
 
-            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
             {
                 throw new NotImplementedException();
             }
@@ -1541,7 +1541,7 @@ namespace GVFS.UnitTests.Git
                 throw new NotImplementedException();
             }
 
-            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
             {
                 throw new NotImplementedException();
             }

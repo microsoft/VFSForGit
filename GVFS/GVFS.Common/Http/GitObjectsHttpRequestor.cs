@@ -20,18 +20,68 @@ namespace GVFS.Common.Http
         private Enlistment enlistment;
 
         private DateTime nextCacheServerAttemptTime = DateTime.Now;
+        private static readonly TimeSpan SizesAuthFailureCooldown = TimeSpan.FromSeconds(30);
+        private readonly Lock sizesAuthLock = new Lock();
+        private readonly Dictionary<Uri, SizesAuthFailure> sizesAuthFailures = new Dictionary<Uri, SizesAuthFailure>();
+        private readonly Dictionary<Uri, long> sizesEndpointGenerations = new Dictionary<Uri, long>();
+        private readonly TimeProvider timeProvider;
 
         public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
-            : base(tracer, retryConfig, enlistment)
+            : this(tracer, enlistment, cacheServer, retryConfig, TimeProvider.System)
+        {
+        }
+
+        internal GitObjectsHttpRequestor(
+            ITracer tracer,
+            Enlistment enlistment,
+            CacheServerInfo cacheServer,
+            RetryConfig retryConfig,
+            TimeProvider timeProvider,
+            HttpMessageHandler handlerOverride = null)
+            : base(tracer, retryConfig, enlistment, handlerOverride)
         {
             this.enlistment = enlistment;
             this.CacheServer = cacheServer;
+            this.timeProvider = timeProvider;
         }
 
         public CacheServerInfo CacheServer { get; private set; }
 
         public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
         {
+            return this.QueryForFileSizes(objectIds, cancellationToken, out _);
+        }
+
+        public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
+        {
+            Dictionary<Uri, SizesAuthFailure> recoveryProbes = new Dictionary<Uri, SizesAuthFailure>();
+            try
+            {
+                return this.QueryForFileSizes(objectIds, cancellationToken, recoveryProbes, out error);
+            }
+            finally
+            {
+                lock (this.sizesAuthLock)
+                {
+                    foreach (KeyValuePair<Uri, SizesAuthFailure> probe in recoveryProbes)
+                    {
+                        if (this.sizesAuthFailures.TryGetValue(probe.Key, out SizesAuthFailure failure) &&
+                            ReferenceEquals(failure, probe.Value))
+                        {
+                            failure.ProbeInProgress = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        private List<GitObjectSize> QueryForFileSizes(
+            IEnumerable<string> objectIds,
+            CancellationToken cancellationToken,
+            Dictionary<Uri, SizesAuthFailure> recoveryProbes,
+            out Exception error)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             long requestId = HttpRequestor.GetNewRequestId();
 
             string objectIdsJson = ToJsonList(objectIds);
@@ -56,15 +106,49 @@ namespace GVFS.Common.Http
 
             this.Tracer.RelatedEvent(EventLevel.Informational, "QueryFileSizes", metadata, Keywords.Network);
 
+            int maxAttempts = this.RetryConfig.MaxAttempts + (hasEndpointOverride && !useOrigin ? 2 : 0);
+            Uri initialEndpoint = useOrigin ? originEndpoint : (useGlobalCacheServer ? globalCacheServerEndpoint : preferredCacheServerEndpoint);
+            while (this.TryGetSizesAuthFailure(initialEndpoint, recoveryProbes, out Exception cachedError, out _))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!useGlobalCacheServer && !useOrigin)
+                {
+                    useGlobalCacheServer = true;
+                    initialEndpoint = globalCacheServerEndpoint;
+                    maxAttempts--;
+                    continue;
+                }
+
+                error = cachedError;
+                return new List<GitObjectSize>(0);
+            }
+
             RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(
-                this.RetryConfig.MaxAttempts + (hasEndpointOverride && !useOrigin ? 2 : 0),
+                maxAttempts,
                 cancellationToken,
                 tracer: this.Tracer);
-            retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, requestId, "QueryFileSizes");
+            bool suppressed = false;
+            Action<RetryWrapper<List<GitObjectSize>>.ErrorEventArgs> logFailure =
+                RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, requestId, "QueryFileSizes");
+            retrier.OnFailure += failure =>
+            {
+                if (!suppressed)
+                {
+                    logFailure(failure);
+                }
+            };
+            Uri lastEndpoint = null;
+            (Exception Error, HttpStatusCode StatusCode, long Generation)? lastAuthFailure = null;
+            Exception lastServerError = null;
 
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
                 tryCount =>
                 {
+                    suppressed = false;
+                    (Exception Error, HttpStatusCode StatusCode, long Generation)? previousAuthFailure = lastAuthFailure;
+                    lastAuthFailure = null;
+                    Exception previousServerError = lastServerError;
+                    lastServerError = null;
                     Uri gvfsEndpoint;
                     if (useOrigin)
                     {
@@ -79,12 +163,46 @@ namespace GVFS.Common.Http
                         gvfsEndpoint = preferredCacheServerEndpoint;
                     }
 
+                    if (this.TryGetSizesAuthFailure(gvfsEndpoint, recoveryProbes, out Exception cachedError, out long generation))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        suppressed = true;
+                        if (!useGlobalCacheServer && !useOrigin)
+                        {
+                            useGlobalCacheServer = true;
+                            return new RetryWrapper<List<GitObjectSize>>.CallbackResult(
+                                cachedError, shouldRetry: true, result: null, shouldRecordFailure: false);
+                        }
+
+                        return new RetryWrapper<List<GitObjectSize>>.CallbackResult(
+                            cachedError, shouldRetry: false, result: null, shouldRecordFailure: false);
+                    }
+
+                    lastEndpoint = gvfsEndpoint;
                     try
                     {
                         using (GitEndPointResponseData response = this.SendProtocolRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson, cancellationToken))
                         {
+                            if (response.IsAuthenticationFailure)
+                            {
+                                lastAuthFailure = (response.Error, response.StatusCode, generation);
+                                lastServerError = response.Error;
+                            }
+                            else if (response.IsCredentialFailure)
+                            {
+                                lastAuthFailure = previousAuthFailure;
+                                lastServerError = previousServerError;
+                            }
+
                             if (response.HasErrors && !useGlobalCacheServer && !useOrigin)
                             {
+                                if (response.IsAuthenticationFailure)
+                                {
+                                    this.RecordSizesAuthFailure(requestId, gvfsEndpoint, lastAuthFailure.Value, recoveryProbes);
+                                }
+
+                                lastAuthFailure = null;
+                                this.ReleaseSizesRecoveryProbe(gvfsEndpoint, recoveryProbes);
                                 this.TraceCacheServerFallback(
                                     requestId,
                                     preferredCacheServerEndpoint,
@@ -131,6 +249,7 @@ namespace GVFS.Common.Http
 
                             string objectSizesString = response.RetryableReadToEnd();
                             List<GitObjectSize> objectSizes = GVFSJsonOptions.Deserialize<List<GitObjectSize>>(objectSizesString);
+                            this.ClearSizesAuthFailure(requestId, gvfsEndpoint, generation);
                             return new RetryWrapper<List<GitObjectSize>>.CallbackResult(objectSizes);
                         }
                     }
@@ -139,6 +258,7 @@ namespace GVFS.Common.Http
                         !useGlobalCacheServer &&
                         !useOrigin)
                     {
+                        this.ReleaseSizesRecoveryProbe(gvfsEndpoint, recoveryProbes);
                         this.TraceCacheServerFallback(requestId, preferredCacheServerEndpoint, globalCacheServerEndpoint, "EndpointSpecific", "Global");
                         useGlobalCacheServer = true;
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(
@@ -149,7 +269,141 @@ namespace GVFS.Common.Http
                     }
                 });
 
+            if (!requestTask.Succeeded && lastAuthFailure.HasValue)
+            {
+                this.RecordSizesAuthFailure(requestId, lastEndpoint, lastAuthFailure.Value, recoveryProbes);
+            }
+
+            error = lastServerError ?? requestTask.Error;
             return requestTask.Result ?? new List<GitObjectSize>(0);
+        }
+
+        private bool TryGetSizesAuthFailure(
+            Uri endpoint,
+            Dictionary<Uri, SizesAuthFailure> recoveryProbes,
+            out Exception error,
+            out long generation)
+        {
+            lock (this.sizesAuthLock)
+            {
+                error = null;
+                this.sizesEndpointGenerations.TryGetValue(endpoint, out generation);
+                if (!this.sizesAuthFailures.TryGetValue(endpoint, out SizesAuthFailure failure) ||
+                    (recoveryProbes.TryGetValue(endpoint, out SizesAuthFailure probe) && ReferenceEquals(failure, probe)))
+                {
+                    return false;
+                }
+
+                if (!failure.ProbeInProgress &&
+                    !RetryCircuitBreaker.IsOpen &&
+                    this.timeProvider.GetElapsedTime(failure.LastAttemptTimestamp) >= SizesAuthFailureCooldown)
+                {
+                    failure.ProbeInProgress = true;
+                    recoveryProbes[endpoint] = failure;
+                    return false;
+                }
+
+                failure.SuppressedQueries++;
+                error = failure.Error;
+                return true;
+            }
+        }
+
+        private void RecordSizesAuthFailure(
+            long requestId,
+            Uri endpoint,
+            (Exception Error, HttpStatusCode StatusCode, long Generation) response,
+            Dictionary<Uri, SizesAuthFailure> recoveryProbes)
+        {
+            EventMetadata metadata;
+            lock (this.sizesAuthLock)
+            {
+                this.sizesEndpointGenerations.TryGetValue(endpoint, out long generation);
+                if (generation != response.Generation)
+                {
+                    return;
+                }
+
+                bool firstFailure = !this.sizesAuthFailures.TryGetValue(endpoint, out SizesAuthFailure failure);
+                if (!firstFailure &&
+                    (!recoveryProbes.TryGetValue(endpoint, out SizesAuthFailure probe) || !ReferenceEquals(failure, probe)))
+                {
+                    return;
+                }
+
+                if (firstFailure)
+                {
+                    failure = new SizesAuthFailure { FirstFailureTimestamp = this.timeProvider.GetTimestamp() };
+                    this.sizesAuthFailures.Add(endpoint, failure);
+                }
+
+                failure.Error = response.Error;
+                failure.LastAttemptTimestamp = this.timeProvider.GetTimestamp();
+                this.sizesEndpointGenerations[endpoint] = generation + 1;
+                metadata = new EventMetadata
+                {
+                    { "RequestId", requestId },
+                    { "Authority", GetAuthorityForTelemetry(endpoint) },
+                    { "StatusCode", (int)response.StatusCode },
+                    { "State", firstFailure ? "Entered" : "Continued" },
+                    { "CooldownSeconds", SizesAuthFailureCooldown.TotalSeconds },
+                    { "SuppressedQueries", failure.SuppressedQueries },
+                    { "DurationSeconds", this.timeProvider.GetElapsedTime(failure.FirstFailureTimestamp).TotalSeconds },
+                };
+            }
+
+            this.Tracer.RelatedEvent(EventLevel.Warning, "SizesAuthFailureCooldown", metadata, Keywords.Network | Keywords.Telemetry);
+        }
+
+        private void ReleaseSizesRecoveryProbe(Uri endpoint, Dictionary<Uri, SizesAuthFailure> recoveryProbes)
+        {
+            lock (this.sizesAuthLock)
+            {
+                if (recoveryProbes.Remove(endpoint, out SizesAuthFailure probe) &&
+                    this.sizesAuthFailures.TryGetValue(endpoint, out SizesAuthFailure failure) &&
+                    ReferenceEquals(failure, probe))
+                {
+                    failure.ProbeInProgress = false;
+                }
+            }
+        }
+
+        private void ClearSizesAuthFailure(long requestId, Uri endpoint, long generation)
+        {
+            EventMetadata metadata;
+            lock (this.sizesAuthLock)
+            {
+                this.sizesEndpointGenerations.TryGetValue(endpoint, out long currentGeneration);
+                if (currentGeneration != generation)
+                {
+                    return;
+                }
+
+                this.sizesEndpointGenerations[endpoint] = generation + 1;
+                if (!this.sizesAuthFailures.Remove(endpoint, out SizesAuthFailure failure))
+                {
+                    return;
+                }
+
+                metadata = new EventMetadata
+                {
+                    { "RequestId", requestId },
+                    { "Authority", GetAuthorityForTelemetry(endpoint) },
+                    { "SuppressedQueries", failure.SuppressedQueries },
+                    { "DurationSeconds", this.timeProvider.GetElapsedTime(failure.FirstFailureTimestamp).TotalSeconds },
+                };
+            }
+
+            this.Tracer.RelatedEvent(EventLevel.Informational, "SizesAuthFailureRecovered", metadata, Keywords.Network | Keywords.Telemetry);
+        }
+
+        private sealed class SizesAuthFailure
+        {
+            public Exception Error { get; set; }
+            public long FirstFailureTimestamp { get; set; }
+            public long LastAttemptTimestamp { get; set; }
+            public long SuppressedQueries { get; set; }
+            public bool ProbeInProgress { get; set; }
         }
 
         public virtual GitRefs QueryInfoRefs(string branch)

@@ -79,9 +79,10 @@ namespace GVFS.UnitTests.Virtualization.Git
             folderEntryData.ShouldBeNull();
         }
 
-        [TestCase]
+        [TestCase(false)]
+        [TestCase(true)]
         [Category(CategoryConstants.ExceptionExpected)]
-        public void MissingRemoteChildSizeKeepsTheFolderIncompleteAndAnnotatesItsError()
+        public void MissingRemoteChildSizeKeepsTheFolderIncompleteAndAnnotatesItsError(bool authenticationFailure)
         {
             MockTracer tracer = new MockTracer();
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -90,17 +91,28 @@ namespace GVFS.UnitTests.Virtualization.Git
             FolderData folder = new FolderData();
             folder.ResetData(ConstructLazyUTF8String("folder"), isIncluded: true);
             folder.AddChildFile(ConstructLazyUTF8String("child"), new byte[20]);
-            using (MissingSizesRequestor requestor = new MissingSizesRequestor(tracer, enlistment))
+            Exception error = authenticationFailure ? new GitObjectsHttpException(System.Net.HttpStatusCode.Unauthorized, "Server rejected authentication") : null;
+            using (MissingSizesRequestor requestor = new MissingSizesRequestor(tracer, enlistment, error))
             using (MissingSizeConnection connection = new MissingSizeConnection())
             {
                 GVFSGitObjects objects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, repository, enlistment), requestor);
-                Assert.Throws<SizesUnavailableException>(() => folder.PopulateSizes(
+                SizesUnavailableException exception = Assert.Throws<SizesUnavailableException>(() => folder.PopulateSizes(
                     tracer, objects, connection, new Dictionary<string, long>(), CancellationToken.None));
+                Assert.That(exception.InnerException, Is.SameAs(error));
                 Assert.That(folder.ChildrenHaveSizes, Is.False);
                 Assert.That(tracer.RelatedErrorEvents.Count, Is.EqualTo(1));
                 Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"FailureCategory\":\"MissingObjectSize\""));
                 Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"Operation\":\"PopulateMissingSizesFromRemote\""));
                 Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"AggregationResult\":\"Failed\""));
+                if (authenticationFailure)
+                {
+                    Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("Server rejected authentication"));
+                    Assert.That(tracer.RelatedErrorEvents[0], Does.Contain("\"Exception\""));
+                }
+                else
+                {
+                    Assert.That(tracer.RelatedErrorEvents[0], Does.Not.Contain("\"Exception\""));
+                }
             }
         }
 
@@ -332,13 +344,17 @@ namespace GVFS.UnitTests.Virtualization.Git
 
         private sealed class MissingSizesRequestor : MockHttpGitObjects
         {
-            public MissingSizesRequestor(MockTracer tracer, MockGVFSEnlistment enlistment)
+            private readonly Exception error;
+
+            public MissingSizesRequestor(MockTracer tracer, MockGVFSEnlistment enlistment, Exception error)
                 : base(tracer, enlistment)
             {
+                this.error = error;
             }
 
-            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
+            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken, out Exception error)
             {
+                error = this.error;
                 return new List<GitObjectSize>();
             }
         }
