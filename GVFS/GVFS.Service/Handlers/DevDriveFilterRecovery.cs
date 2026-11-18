@@ -23,7 +23,7 @@ namespace GVFS.Service.Handlers
                 {
                     metadata.Add("Outcome", "Disabled");
                     metadata.Add("DisabledReason", reason);
-                    error = $"The mounted volume rejected PrjFlt. {reason} {GetManualInstructions(volumeRoot)}";
+                    error = $"The mounted volume rejected PrjFlt. {reason} {ProjFsAttachRemedy.BuildForVolume(volumeRoot)}";
                     return false;
                 }
 
@@ -35,7 +35,7 @@ namespace GVFS.Service.Handlers
                 {
                     metadata.Add("Outcome", "PolicyFailed");
                     metadata.Add("PolicyError", policyError);
-                    error = $"The mounted volume rejected PrjFlt. {policyError} {GetManualInstructions(volumeRoot)}";
+                    error = $"The mounted volume rejected PrjFlt. {policyError} {ProjFsAttachRemedy.BuildForVolume(volumeRoot)}";
                     return false;
                 }
 
@@ -64,12 +64,6 @@ namespace GVFS.Service.Handlers
             {
                 tracer.RelatedEvent(EventLevel.Informational, "DevDriveFilterRecovery_Summary", metadata, Keywords.Telemetry);
             }
-        }
-
-        private static string GetManualInstructions(string volumeRoot)
-        {
-            return $"From an elevated command prompt, run 'fsutil devdrv query {CommandLineEscaping.EscapeArgument(volumeRoot)}' to inspect the saved allowances. "
-                + "After any required update, close applications that use the volume and remount it, or restart the computer.";
         }
     }
 }

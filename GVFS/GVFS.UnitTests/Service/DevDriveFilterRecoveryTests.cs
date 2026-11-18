@@ -21,6 +21,12 @@ namespace GVFS.UnitTests.Service
                 () => throw new InvalidOperationException("Attach must not run."),
                 out string error).ShouldBeFalse();
             error.ShouldContain("operator veto");
+            error.ShouldContain(
+                "fsutil devdrv query mock:\\volume\\",
+                "setFiltersAllowed /volume mock:\\volume\\",
+                "replaces the volume list",
+                "keep its existing entries");
+            error.ShouldNotContain(false, "setFiltersAllowed /f");
             error.ShouldNotContain(false, "not on that list");
         }
 
@@ -76,6 +82,8 @@ namespace GVFS.UnitTests.Service
                 out string error).ShouldBeFalse();
             error.ShouldContain("query or write error");
             error.ShouldContain("fsutil devdrv query");
+            error.ShouldContain("setFiltersAllowed /volume mock:\\volume\\", "keep its existing entries");
+            error.ShouldNotContain(false, "setFiltersAllowed /f");
             error.ShouldNotContain(false, "not on that list");
         }
 

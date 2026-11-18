@@ -19,7 +19,8 @@ namespace GVFS.UnitTests.Windows.Platform
             "Filters allowed on any developer volume, by group policy:\r\n    MsSecFlt\r\n\r\n";
         private const string Machine = "Filters allowed on any developer volume:\r\n    DfmFlt\r\n\r\n";
         private const string VolumeHeader = "Filters allowed on this developer volume:\r\n";
-        private const string Attached = "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt, WdFilter\r\n";
+        private const string Attached = "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt, WdFilter";
+        private const string NoAttached = "\r\nNo filters are currently attached to this developer volume.\r\n";
 
         [TestCase]
         public void ParserSeparatesVolumeAllowancesFromInheritedAndAttachedFilters()
@@ -56,10 +57,13 @@ namespace GVFS.UnitTests.Windows.Platform
         [TestCase(Preamble + VolumeHeader + "    bindflt,\r\n" + Attached)]
         [TestCase(Preamble + VolumeHeader + "    bindflt,\r\n\r\n    wcifs\r\n" + Attached)]
         [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n")]
-        [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt")]
         [TestCase(Preamble + "\r\nFilters currently attached to this developer volume:\r\n    MsSecFlt,\r\n")]
         [TestCase(Preamble + Attached + "\r\n" + VolumeHeader + "    bindflt\r\n")]
         [TestCase(Preamble + Preamble + Attached)]
+        [TestCase(Preamble + NoAttached + NoAttached)]
+        [TestCase(Preamble + Attached + "\r\n" + NoAttached)]
+        [TestCase(Preamble + NoAttached + VolumeHeader + "    bindflt\r\n")]
+        [TestCase(Preamble + VolumeHeader + "    bindflt,\r\n" + NoAttached)]
         [TestCase("Developer volumes are enabled.\r\n")]
         [TestCase("This is a trusted developer volume.\r" + VolumeHeader + "    DfmFlt\r")]
         public void ParserRejectsAmbiguousOrUnrecognizedOutput(string output)
@@ -70,7 +74,7 @@ namespace GVFS.UnitTests.Windows.Platform
 
         [TestCase(false)]
         [TestCase(true)]
-        public void ParserRejectsEveryTruncatedPrefixOfCapturedVolumeOutput(bool hasVolumeAllowance)
+        public void ParserRejectsIncompleteAllowanceSectionsBeforeTheAttachedList(bool hasVolumeAllowance)
         {
             string volume = hasVolumeAllowance ? VolumeHeader + "    bindflt\r\n" : string.Empty;
             string complete = Preamble + Enterprise + Machine + volume + Attached;
@@ -84,11 +88,59 @@ namespace GVFS.UnitTests.Windows.Platform
                 parsed.Volume.ShouldBeEmpty();
             }
 
-            for (int length = 0; length < complete.Length; ++length)
+            int attachedNames = complete.IndexOf("    MsSecFlt, WdFilter", System.StringComparison.Ordinal);
+            for (int length = 0; length <= attachedNames; ++length)
             {
                 bool accepted = DevDriveFilterPolicy.TryParseAllowedFilters(complete.Substring(0, length), out DevDriveFilterPolicy.Allowances _);
                 Assert.That(accepted, Is.False, $"Accepted output truncated at character {length}.");
             }
+        }
+
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void ParserAcceptsRealAttachedOutputWithoutAFinalNewline(bool noAttachedFilters, bool disallowAntivirus)
+        {
+            string status = disallowAntivirus ? "Developer volumes may not be protected by antivirus filter.\r\n\r\n" : Enterprise;
+            string output = Preamble + status + Machine + VolumeHeader + "    bindflt\r\n"
+                + (noAttachedFilters ? NoAttached : Attached);
+            DevDriveFilterPolicy.TryParseAllowedFilters(output, out DevDriveFilterPolicy.Allowances parsed).ShouldBeTrue();
+            parsed.Volume.ShouldMatchInOrder("bindflt");
+            parsed.Inherited.Contains("DfmFlt").ShouldBeTrue();
+            parsed.AllowsProjFS.ShouldBeFalse();
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void AllowFilterReachesTheWriteWithRealTerminalOutput(bool noAttachedFilters)
+        {
+            string ending = noAttachedFilters ? NoAttached : Attached;
+            Queue<ProcessResult> results = new Queue<ProcessResult>(new[]
+            {
+                Query(Preamble + Machine + VolumeHeader + "    bindflt\r\n" + ending),
+                Query(Preamble + Machine + VolumeHeader + "    bindflt\r\n" + ending),
+                Query(string.Empty),
+                Query(Preamble + Machine + VolumeHeader + "    bindflt, PrjFlt\r\n" + ending),
+            });
+            bool wrote = false;
+            DevDriveFilterPolicy.TryAllowFilter(
+                Root,
+                command =>
+                {
+                    if (results.Count == 2)
+                    {
+                        command.ShouldEqual("devdrv setfiltersallowed /volume mock:\\volume\\ \"bindflt,PrjFlt\"");
+                        wrote = true;
+                    }
+
+                    return results.Dequeue();
+                },
+                NullTracer.Instance,
+                out string error).ShouldEqual(DevDriveFilterPolicy.AllowFilterResult.Added);
+            wrote.ShouldBeTrue();
+            results.Count.ShouldEqual(0);
+            error.ShouldBeNull();
         }
 
         [TestCase(1)]

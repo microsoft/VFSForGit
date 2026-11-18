@@ -18,6 +18,7 @@ namespace GVFS.Platform.Windows
         private const string MachineHeader = "Filters allowed on any developer volume:";
         private const string GroupPolicyHeader = "Filters allowed on any developer volume, by group policy:";
         private const string AttachedHeader = "Filters currently attached to this developer volume:";
+        private const string NoAttachedFilters = "No filters are currently attached to this developer volume.";
         private static readonly Regex FilterNamePattern = new Regex(@"\A[A-Za-z0-9._-]+\z", RegexOptions.Compiled);
         private static readonly TimeSpan UpdateTimeout = TimeSpan.FromSeconds(30);
         private static readonly Lock PolicyLock = new Lock();
@@ -150,7 +151,7 @@ namespace GVFS.Platform.Windows
         internal static bool TryParseAllowedFilters(string queryOutput, out Allowances allowances)
         {
             allowances = null;
-            if (string.IsNullOrWhiteSpace(queryOutput) || !queryOutput.EndsWith("\n", StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(queryOutput))
             {
                 return false;
             }
@@ -160,6 +161,7 @@ namespace GVFS.Platform.Windows
             bool developerVolume = false;
             bool awaitingContinuation = false;
             bool attachedSectionStarted = false;
+            bool emptyAttachedList = false;
             foreach (string rawLine in queryOutput.Split('\n'))
             {
                 string line = rawLine.Trim();
@@ -174,7 +176,19 @@ namespace GVFS.Platform.Windows
                     continue;
                 }
 
-                if (line == VolumeHeader || line == MachineHeader || line == GroupPolicyHeader || line == AttachedHeader)
+                if (line == NoAttachedFilters)
+                {
+                    if (!developerVolume || awaitingContinuation || attachedSectionStarted)
+                    {
+                        return false;
+                    }
+
+                    sections.Add(AttachedHeader, new List<string>());
+                    attachedSectionStarted = true;
+                    emptyAttachedList = true;
+                    currentSection = null;
+                }
+                else if (line == VolumeHeader || line == MachineHeader || line == GroupPolicyHeader || line == AttachedHeader)
                 {
                     if (!developerVolume || awaitingContinuation || attachedSectionStarted || sections.ContainsKey(line))
                     {
@@ -211,7 +225,8 @@ namespace GVFS.Platform.Windows
                 }
                 else if (!developerVolume || attachedSectionStarted
                     || (line != "Developer volumes are protected by antivirus filter, by group policy."
-                        && line != "Developer volumes are protected by antivirus filter."))
+                        && line != "Developer volumes are protected by antivirus filter."
+                        && line != "Developer volumes may not be protected by antivirus filter."))
                 {
                     return false;
                 }
@@ -220,8 +235,11 @@ namespace GVFS.Platform.Windows
             // fsutil omits an empty volume allowance section. Require the final attached-filter
             // section before treating that omission as empty; an early EOF is not an empty list.
             // Text parsing cannot detect a missing middle section in otherwise complete output.
+            // The attached-filter printer can end at EOF without a newline. Only the explicit
+            // no-filters message establishes an empty attached list.
             if (!developerVolume || !attachedSectionStarted || awaitingContinuation
-                || sections.Any(section => section.Value.Count == 0))
+                || sections.Any(section => section.Value.Count == 0
+                    && (section.Key != AttachedHeader || !emptyAttachedList)))
             {
                 return false;
             }
