@@ -652,6 +652,23 @@ namespace GVFS.Virtualization.Projection
             return false;
         }
 
+        /// <summary>
+        /// Return true when the projection has a file at <paramref name="virtualPath"/> for the
+        /// blob <paramref name="sha"/>. The projection has a file only when its index entry has
+        /// the skip-worktree bit.
+        /// </summary>
+        public virtual bool IsFileProjectedWithSha(string virtualPath, string sha)
+        {
+            this.GetChildNameAndParentKey(virtualPath, out string fileName, out string parentKey);
+            FolderEntryData data = this.GetProjectedFolderEntryData(
+                blobSizesConnection: null,
+                childName: fileName,
+                parentKey: parentKey);
+
+            return data is FileData fileData &&
+                string.Equals(fileData.ConvertShaToString(), sha, StringComparison.OrdinalIgnoreCase);
+        }
+
         public virtual ProjectedFileInfo GetProjectedFileInfo(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,

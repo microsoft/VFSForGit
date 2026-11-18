@@ -120,14 +120,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             return lines;
         }
 
-        private string[] ReadConeLines()
+        protected string[] ReadConeLines()
         {
-            // The mount can replace the file while the test reads it.
+            // The mount can replace the file while the test reads it. Delete sharing lets the
+            // mount replace it during the read.
             for (int attempt = 0; ; attempt++)
             {
                 try
                 {
-                    return ConeLines(File.ReadAllText(this.SparseCheckoutPath));
+                    using (StreamReader reader = new StreamReader(new FileStream(this.SparseCheckoutPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)))
+                    {
+                        return ConeLines(reader.ReadToEnd());
+                    }
                 }
                 catch (IOException) when (attempt < 10)
                 {

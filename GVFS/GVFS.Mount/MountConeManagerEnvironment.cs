@@ -23,21 +23,36 @@ namespace GVFS.Mount
         // The background check stops Git after this long. The cone then keeps the files.
         private const int ListPathsTimeoutMs = 2 * 60 * 1000;
 
+        // The files and folders that Git keeps in its git directory while a merge, rebase,
+        // cherry-pick, or revert waits for the user.
+        private static readonly string[] InProgressOperationMarkers =
+        {
+            "MERGE_HEAD",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+            "rebase-merge",
+            "rebase-apply",
+            "sequencer",
+        };
+
         private readonly GVFSContext context;
         private readonly FileSystemCallbacks fileSystemCallbacks;
         private readonly string coneFileLockPath;
         private readonly string pendingFilePath;
+        private readonly Func<bool> isFolderDehydrateInProgress;
 
-        public MountConeManagerEnvironment(GVFSContext context, FileSystemCallbacks fileSystemCallbacks, string sparseCheckoutPath)
+        public MountConeManagerEnvironment(GVFSContext context, FileSystemCallbacks fileSystemCallbacks, string sparseCheckoutPath, Func<bool> isFolderDehydrateInProgress)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(fileSystemCallbacks);
             ArgumentNullException.ThrowIfNull(sparseCheckoutPath);
+            ArgumentNullException.ThrowIfNull(isFolderDehydrateInProgress);
 
             this.context = context;
             this.fileSystemCallbacks = fileSystemCallbacks;
             this.coneFileLockPath = sparseCheckoutPath + GVFSConstants.DotGit.LockExtension;
             this.pendingFilePath = GetPendingFilePath(context.Enlistment);
+            this.isFolderDehydrateInProgress = isFolderDehydrateInProgress;
             this.SparsityChangeIsIndexOnly = HasBuildOption(context.Enlistment, IndexOnlySparsityFeature);
         }
 
@@ -179,12 +194,6 @@ namespace GVFS.Mount
             return true;
         }
 
-        public bool IsTracked(string gitPath)
-        {
-            string virtualPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
-            return this.fileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out _, out bool isFolder) && !isFolder;
-        }
-
         public long GetRepositoryStamp()
         {
             try
@@ -200,6 +209,72 @@ namespace GVFS.Mount
                 // Unknown: the manager checks again.
                 return DateTime.UtcNow.Ticks;
             }
+        }
+
+        public string GetDehydrateBlocker()
+        {
+            if (this.isFolderDehydrateInProgress())
+            {
+                return "FolderDehydrate";
+            }
+
+            // Git keeps these in the git directory of the worktree while the operation waits
+            // for the user. The index can then have conflicts or a state that the user resolves.
+            string gitDirectory = Path.GetDirectoryName(this.context.Enlistment.GitIndexPath);
+            foreach (string name in InProgressOperationMarkers)
+            {
+                if (this.context.FileSystem.FileExists(Path.Combine(gitDirectory, name)) ||
+                    this.context.FileSystem.DirectoryExists(Path.Combine(gitDirectory, name)))
+                {
+                    return name;
+                }
+            }
+
+            return null;
+        }
+
+        public bool TryGetBlobsThatMatchHead(IReadOnlyList<string> gitPaths, out IReadOnlyDictionary<string, HeadBlob> blobs, out IReadOnlyCollection<string> notInIndex, out string error)
+        {
+            StringComparer pathComparer = GVFSPlatform.Instance.Constants.PathComparer;
+            Dictionary<string, HeadBlob> matching = new Dictionary<string, HeadBlob>(pathComparer);
+            List<string> missing = new List<string>();
+            GitProcess.Result result = new GitProcess(this.context.Enlistment).GetBlobsThatMatchHead(gitPaths, pathComparer, matching, missing);
+            if (result.ExitCodeIsFailure)
+            {
+                blobs = null;
+                notInIndex = null;
+                error = result.Errors;
+                return false;
+            }
+
+            blobs = matching;
+            notInIndex = missing;
+            error = null;
+            return true;
+        }
+
+        public CleanFileDehydrateResult TryDehydrateCleanFile(string gitPath, HeadBlob blob)
+        {
+            return this.fileSystemCallbacks.TryDehydrateCleanFile(gitPath, blob);
+        }
+
+        public bool TryRestoreModifiedPath(string gitPath)
+        {
+            return this.fileSystemCallbacks.TryRestoreModifiedPath(gitPath);
+        }
+
+        public bool IsProjectedFile(string gitPath, string sha)
+        {
+            string virtualPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            return this.fileSystemCallbacks.GitIndexProjection.IsFileProjectedWithSha(virtualPath, sha);
+        }
+
+        public void InvalidateProjection()
+        {
+            // The projection does not include an entry without the skip-worktree bit. Git set
+            // the bit of each dehydrated file, so the projection must include them again. The
+            // file system callbacks wait for the new projection.
+            this.fileSystemCallbacks.GitIndexProjection.InvalidateProjection();
         }
 
         private static bool HasBuildOption(GVFSEnlistment enlistment, string option)

@@ -1,9 +1,11 @@
 using GVFS.Common.FileSystem;
+using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -899,8 +901,9 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
-        /// List the tracked paths that differ between HEAD and the index or the working tree,
-        /// with <c>git status --porcelain=v2</c>.
+        /// List the paths that differ between HEAD and the index or the working tree, with
+        /// <c>git status --porcelain=v2</c>: tracked paths that changed, and untracked files and
+        /// folders (a folder ends with a slash).
         /// </summary>
         /// <remarks>
         /// <c>git status</c> reads a sparse index without expanding it, and it compares the
@@ -908,15 +911,15 @@ namespace GVFS.Common.Git
         /// again is not listed. <c>--no-optional-locks</c> stops Git from writing the refreshed
         /// index, so this does not need the GVFS lock. <c>--no-deserialize</c> stops Git from
         /// reading the GVFS status cache. The virtual file system stays on, so Git checks only
-        /// the paths that the mount reports. <c>COMMAND_HOOK_LOCK</c> makes Git skip the
-        /// pre-command and post-command hooks.
+        /// the paths that the mount reports, also for untracked files. Git does not list ignored
+        /// files. <c>COMMAND_HOOK_LOCK</c> makes Git skip the pre-command and post-command hooks.
         /// </remarks>
         public Result ListPathsThatDifferFromHead(Action<string> onPath, int timeoutMs)
         {
             ArgumentNullException.ThrowIfNull(onPath);
 
             return this.InvokeGitImpl(
-                "--no-optional-locks status --porcelain=v2 -z --untracked-files=no --no-renames --ignore-submodules=all --no-deserialize",
+                "--no-optional-locks status --porcelain=v2 -z --untracked-files=normal --no-renames --ignore-submodules=all --no-deserialize",
                 workingDirectory: this.workingDirectoryRoot,
                 dotGitDirectory: null,
                 useReadObjectHook: true,
@@ -963,11 +966,200 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
+        /// Read the blob of each path in the index (stage 0) with <c>git ls-files --sparse -s</c>
+        /// and in HEAD with <c>git ls-tree -l</c>. Add each path that has the same regular-file
+        /// blob in both to <paramref name="matchingBlobs"/>, and each path that the index does not
+        /// have to <paramref name="notInIndex"/>.
+        /// </summary>
+        /// <remarks>
+        /// Neither command writes the index. <c>--sparse</c> stops <c>ls-files</c> from expanding
+        /// a sparse index. <c>--literal-pathspecs</c> makes Git match each path exactly. The
+        /// commands need no skip-worktree bits, so the virtual file system is off, and Git does
+        /// not run its hook. <c>sparse.expectFilesOutsideOfPatterns</c> stops Git from looking
+        /// for projected files outside the cone. The paths
+        /// go on the command line, in several commands when they are too long for one, so Git
+        /// does not read standard input and the output streams while Git runs. The read-object
+        /// hook stays on, because the HEAD tree can be not local yet. <c>COMMAND_HOOK_LOCK</c>
+        /// makes Git skip the pre-command and post-command hooks.
+        /// </remarks>
+        public Result GetBlobsThatMatchHead(IReadOnlyList<string> gitPaths, StringComparer pathComparer, IDictionary<string, HeadBlob> matchingBlobs, ICollection<string> notInIndex)
+        {
+            ArgumentNullException.ThrowIfNull(gitPaths);
+            ArgumentNullException.ThrowIfNull(pathComparer);
+            ArgumentNullException.ThrowIfNull(matchingBlobs);
+            ArgumentNullException.ThrowIfNull(notInIndex);
+
+            Dictionary<string, string> indexBlobs = new Dictionary<string, string>(pathComparer);
+            Dictionary<string, HeadBlob> headBlobs = new Dictionary<string, HeadBlob>(pathComparer);
+            Result result = new Result(string.Empty, string.Empty, Result.SuccessCode);
+            foreach (string pathspecs in GetPathspecArguments(gitPaths))
+            {
+                result = this.InvokeGitImpl(
+                    "-c core.virtualfilesystem= -c sparse.expectFilesOutsideOfPatterns=true --literal-pathspecs ls-files --sparse -s -z -- " + pathspecs,
+                    workingDirectory: this.workingDirectoryRoot,
+                    dotGitDirectory: null,
+                    useReadObjectHook: false,
+                    writeStdIn: null,
+                    parseStdOutLine: null,
+                    timeoutMs: -1,
+                    usePreCommandHook: false,
+                    parseStdOutToken: record =>
+                    {
+                        if (TryParseLsFilesStageRecord(record, out string path, out string sha))
+                        {
+                            indexBlobs[path] = sha;
+                        }
+                    });
+                if (result.ExitCodeIsFailure)
+                {
+                    return result;
+                }
+
+                result = this.InvokeGitImpl(
+                    "-c core.virtualfilesystem= -c sparse.expectFilesOutsideOfPatterns=true --literal-pathspecs ls-tree -l -z HEAD -- " + pathspecs,
+                    workingDirectory: this.workingDirectoryRoot,
+                    dotGitDirectory: null,
+                    useReadObjectHook: true,
+                    writeStdIn: null,
+                    parseStdOutLine: null,
+                    timeoutMs: -1,
+                    usePreCommandHook: false,
+                    parseStdOutToken: record =>
+                    {
+                        if (TryParseLsTreeLongRecord(record, out string path, out HeadBlob blob))
+                        {
+                            headBlobs[path] = blob;
+                        }
+                    });
+                if (result.ExitCodeIsFailure)
+                {
+                    return result;
+                }
+            }
+
+            foreach (string path in gitPaths)
+            {
+                if (!indexBlobs.TryGetValue(path, out string indexSha))
+                {
+                    notInIndex.Add(path);
+                }
+                else if (headBlobs.TryGetValue(path, out HeadBlob headBlob) &&
+                    string.Equals(indexSha, headBlob.Sha, StringComparison.Ordinal))
+                {
+                    matchingBlobs[path] = headBlob;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Quote the paths for a command line, and split them into groups that fit in one command.
+        /// </summary>
+        internal static IEnumerable<string> GetPathspecArguments(IReadOnlyList<string> gitPaths, int maxLength = 24000)
+        {
+            StringBuilder arguments = new StringBuilder();
+            foreach (string path in gitPaths)
+            {
+                string quoted = "\"" + path + "\"";
+                if (arguments.Length > 0 && arguments.Length + quoted.Length + 1 > maxLength)
+                {
+                    yield return arguments.ToString();
+                    arguments.Clear();
+                }
+
+                if (arguments.Length > 0)
+                {
+                    arguments.Append(' ');
+                }
+
+                arguments.Append(quoted);
+            }
+
+            if (arguments.Length > 0)
+            {
+                yield return arguments.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Parse a <c>git ls-files -s -z</c> record of a regular file at stage 0:
+        /// "&lt;mode&gt; &lt;oid&gt; 0\t&lt;path&gt;". Return false for any other record, for
+        /// example a sparse-directory entry, a symbolic link, or a conflict stage.
+        /// </summary>
+        internal static bool TryParseLsFilesStageRecord(string record, out string path, out string sha)
+        {
+            path = null;
+            sha = null;
+            int tab = record?.IndexOf('\t') ?? -1;
+            if (tab <= 0 || tab == record.Length - 1)
+            {
+                return false;
+            }
+
+            string[] fields = record.Substring(0, tab).Split(' ');
+            if (fields.Length != 3 || !IsRegularFileMode(fields[0]) || !IsSha(fields[1]) || fields[2] != "0")
+            {
+                return false;
+            }
+
+            path = record.Substring(tab + 1);
+            sha = fields[1].ToLowerInvariant();
+            return true;
+        }
+
+        /// <summary>
+        /// Parse a <c>git ls-tree -l -z</c> record of a regular file:
+        /// "&lt;mode&gt; blob &lt;oid&gt; &lt;size&gt;\t&lt;path&gt;" (Git pads the size with spaces).
+        /// Return false for any other record.
+        /// </summary>
+        internal static bool TryParseLsTreeLongRecord(string record, out string path, out HeadBlob blob)
+        {
+            path = null;
+            blob = default;
+            int tab = record?.IndexOf('\t') ?? -1;
+            if (tab <= 0 || tab == record.Length - 1)
+            {
+                return false;
+            }
+
+            string[] fields = record.Substring(0, tab).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length != 4 ||
+                !IsRegularFileMode(fields[0]) ||
+                fields[1] != "blob" ||
+                !IsSha(fields[2]) ||
+                !long.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out long size))
+            {
+                return false;
+            }
+
+            path = record.Substring(tab + 1);
+            blob = new HeadBlob(fields[2].ToLowerInvariant(), size);
+            return true;
+        }
+
+        private static bool IsRegularFileMode(string mode)
+        {
+            return mode == "100644" || mode == "100755";
+        }
+
+        private static bool IsSha(string value)
+        {
+            return value.Length == GVFSConstants.ShaStringLength && SHA1Util.IsValidShaFormat(value);
+        }
+
+        /// <summary>
         /// Return the path of a <c>git status --porcelain=v2 -z</c> record for a changed or
-        /// unmerged tracked entry, or null for any other record.
+        /// unmerged tracked entry, or for an untracked file or folder, or null for any other record.
         /// </summary>
         internal static string GetPorcelainV2Path(string record)
         {
+            // "? path" for an untracked file, or for a folder with a trailing slash.
+            if (record.StartsWith("? ", StringComparison.Ordinal))
+            {
+                return record.Length > 2 ? record.Substring(2) : null;
+            }
+
             // "1 XY sub mH mI mW hH hI path" and "u XY sub m1 m2 m3 mW h1 h2 h3 path". The path
             // is the rest of the record, so it can contain spaces.
             int pathField;

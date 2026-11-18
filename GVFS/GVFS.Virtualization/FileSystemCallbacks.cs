@@ -14,6 +14,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 
 namespace GVFS.Virtualization
@@ -23,6 +25,16 @@ namespace GVFS.Virtualization
         private const string EtwArea = nameof(FileSystemCallbacks);
         private const int NumberOfRetriesCheckingForDeleted = 10;
         private const int MillisecondsToSleepBeforeCheckingForDeleted = 1;
+
+        // AllowDirtyData discards the bytes on disk, so it is used only for a file whose bytes
+        // are proven to be the blob (see TryDehydrateCleanFile).
+        private const UpdatePlaceholderType CleanFileDehydrateFlags =
+            UpdatePlaceholderType.AllowDirtyMetadata |
+            UpdatePlaceholderType.AllowReadOnly |
+            UpdatePlaceholderType.AllowDirtyData;
+
+        private const int ErrorSharingViolation = 32;
+        private const int ErrorLockViolation = 33;
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
             GitCommandLineParser.Verbs.AddOrStage |
@@ -382,6 +394,161 @@ namespace GVFS.Virtualization
             }
 
             return string.IsNullOrEmpty(errorMessage);
+        }
+
+        /// <summary>
+        /// Return a modified file that has the content of <paramref name="blob"/> to a placeholder
+        /// for that blob, and remove it from ModifiedPaths.
+        /// </summary>
+        /// <remarks>
+        /// A full file that is not a modified path loses later in-place and memory-mapped writes:
+        /// the file system reports no event that makes it a modified path again, so Git does not
+        /// see the write. A placeholder becomes a modified path at its first write. The conversion
+        /// discards the bytes on disk, so this method first proves that they are exactly the blob:
+        /// it opens the file without write sharing, compares the size, and hashes the bytes as Git
+        /// hashes a blob. While that handle is open, no process can open the file for writing, and
+        /// the open fails if a process already has it open for writing. Delete sharing lets the
+        /// virtualization layer convert the file.
+        /// <para>
+        /// Order: (1) convert the file, (2) add the placeholder, (3) remove the modified path. The
+        /// file has the content of the blob after each step, so a stop between two steps loses
+        /// nothing. A path that is not a modified path while its index entry has no skip-worktree
+        /// bit becomes a modified path again at the next validation of the modified paths.
+        /// </para>
+        /// <para>
+        /// The caller must hold the GVFS lock for a Git command that waits, and must make Git
+        /// write the index afterwards, so that Git sets the skip-worktree bit of the file.
+        /// </para>
+        /// </remarks>
+        /// <param name="gitPath">The path relative to the working-tree root, with forward slashes.</param>
+        /// <param name="blob">The blob that the index entry and HEAD have for the path.</param>
+        public CleanFileDehydrateResult TryDehydrateCleanFile(string gitPath, HeadBlob blob)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(gitPath);
+            string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            if (!this.modifiedPaths.Contains(platformPath, isFolder: false))
+            {
+                return CleanFileDehydrateResult.NotModifiedPath;
+            }
+
+            string fullPath = Path.Combine(this.context.Enlistment.WorkingDirectoryBackingRoot, platformPath);
+            try
+            {
+                using (Stream stream = this.context.FileSystem.OpenFileStream(
+                    fullPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read | FileShare.Delete,
+                    FileOptions.SequentialScan,
+                    callFlushFileBuffers: false))
+                {
+                    if (stream.Length != blob.Size || !HasBlobContent(stream, blob))
+                    {
+                        return CleanFileDehydrateResult.ContentDiffers;
+                    }
+
+                    DateTime now = DateTime.UtcNow;
+                    FileSystemResult result = this.fileSystemVirtualizer.UpdatePlaceholderIfNeeded(
+                        platformPath,
+                        creationTime: now,
+                        lastAccessTime: now,
+                        lastWriteTime: now,
+                        changeTime: now,
+                        fileAttributes: FileAttributes.Archive,
+                        endOfFile: blob.Size,
+                        shaContentId: blob.Sha,
+                        updateFlags: CleanFileDehydrateFlags,
+                        failureReason: out UpdateFailureReason failureReason);
+                    if (result.Result != FSResult.Ok)
+                    {
+                        EventMetadata metadata = this.CreateEventMetadata(platformPath);
+                        metadata.Add("Result", result.Result.ToString());
+                        metadata.Add("RawResult", result.RawResult);
+                        metadata.Add("FailureReason", failureReason.ToString());
+                        this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.TryDehydrateCleanFile) + "_UpdateFailed", metadata);
+                        return CleanFileDehydrateResult.PlaceholderUpdateFailed;
+                    }
+                }
+            }
+            catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+            {
+                return CleanFileDehydrateResult.NotFound;
+            }
+            catch (IOException e) when (IsSharingViolation(e))
+            {
+                return CleanFileDehydrateResult.InUse;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(platformPath, e);
+                this.context.Tracer.RelatedWarning(metadata, nameof(this.TryDehydrateCleanFile) + ": the file could not be checked");
+                return CleanFileDehydrateResult.Failed;
+            }
+
+            try
+            {
+                this.placeholderDatabase.AddFile(platformPath, blob.Sha);
+            }
+            catch (GVFSDatabaseException e)
+            {
+                // The file is a placeholder with the content of the blob, and it stays a modified
+                // path, so Git still sees it.
+                EventMetadata metadata = this.CreateEventMetadata(platformPath, e);
+                this.context.Tracer.RelatedWarning(metadata, nameof(this.TryDehydrateCleanFile) + ": the placeholder could not be added");
+                return CleanFileDehydrateResult.Failed;
+            }
+
+            if (!this.modifiedPaths.TryRemove(platformPath, isFolder: false, isRetryable: out _))
+            {
+                return CleanFileDehydrateResult.ModifiedPathNotRemoved;
+            }
+
+            return CleanFileDehydrateResult.Dehydrated;
+        }
+
+        /// <summary>
+        /// Add a file that <see cref="TryDehydrateCleanFile"/> removed back to ModifiedPaths.
+        /// </summary>
+        /// <param name="gitPath">The path relative to the working-tree root, with forward slashes.</param>
+        public bool TryRestoreModifiedPath(string gitPath)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(gitPath);
+            string platformPath = gitPath.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar);
+            return this.modifiedPaths.TryAdd(platformPath, isFolder: false, isRetryable: out _);
+        }
+
+        /// <summary>
+        /// Return true when <paramref name="stream"/> has the bytes of <paramref name="blob"/>:
+        /// the SHA-1 of "blob &lt;size&gt;\0" and the bytes is the object id.
+        /// </summary>
+        internal static bool HasBlobContent(Stream stream, HeadBlob blob)
+        {
+            using (IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1))
+            {
+                hash.AppendData(Encoding.ASCII.GetBytes("blob " + blob.Size.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\0"));
+                byte[] buffer = new byte[81920];
+                long total = 0;
+                int read;
+                while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    total += read;
+                    if (total > blob.Size)
+                    {
+                        return false;
+                    }
+
+                    hash.AppendData(buffer, 0, read);
+                }
+
+                return total == blob.Size &&
+                    string.Equals(SHA1Util.HexStringFromBytes(hash.GetHashAndReset()), blob.Sha, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private static bool IsSharingViolation(IOException e)
+        {
+            int win32Error = e.HResult & 0xFFFF;
+            return win32Error == ErrorSharingViolation || win32Error == ErrorLockViolation;
         }
 
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)

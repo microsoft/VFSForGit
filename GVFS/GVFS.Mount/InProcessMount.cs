@@ -91,6 +91,10 @@ namespace GVFS.Mount
         // a folder dehydrate request
         private volatile bool resetForDehydrateInProgress;
 
+        // Above zero from the start to the end of a folder dehydrate request. The cone manager
+        // then does not return clean files to placeholders.
+        private int folderDehydrateCount;
+
         public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, string mountId, string primaryEnlistmentId, CacheServerInfo cacheServer, RetryConfig retryConfig, GitStatusCacheConfig gitStatusCacheConfig, bool showDebugWindow)
         {
             this.tracer = tracer;
@@ -939,7 +943,15 @@ namespace GVFS.Mount
                         break;
 
                     case NamedPipeMessages.DehydrateFolders.Dehydrate:
-                        this.HandleDehydrateFolders(message, connection);
+                        Interlocked.Increment(ref this.folderDehydrateCount);
+                        try
+                        {
+                            this.HandleDehydrateFolders(message, connection);
+                        }
+                        finally
+                        {
+                            Interlocked.Decrement(ref this.folderDehydrateCount);
+                        }
                         break;
 
                     case NamedPipeMessages.PrefetchCommits.Request:
@@ -1068,6 +1080,10 @@ namespace GVFS.Mount
                 resetIndexMetadata.Add(nameof(refreshIndexResult.Errors), refreshIndexResult.Errors);
                 resetIndexMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.HandleDehydrateFolders)}: Reset git index");
                 this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.HandleDehydrateFolders)}_ResetIndex", resetIndexMetadata);
+
+                // The reset widened the sparse-index cone for the folders. The next Git command
+                // collapses them again.
+                this.coneManager?.RequestApply();
             }
             else
             {
@@ -1857,7 +1873,7 @@ namespace GVFS.Mount
                 this.context.FileSystem,
                 sparseCheckoutPath,
                 ignoreCase,
-                new MountConeManagerEnvironment(this.context, this.fileSystemCallbacks, sparseCheckoutPath));
+                new MountConeManagerEnvironment(this.context, this.fileSystemCallbacks, sparseCheckoutPath, () => Volatile.Read(ref this.folderDehydrateCount) > 0));
         }
 
         private void ValidateGitVersion()
