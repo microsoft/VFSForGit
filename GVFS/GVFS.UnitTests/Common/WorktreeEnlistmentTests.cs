@@ -1,6 +1,7 @@
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Sparse;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -90,6 +91,15 @@ namespace GVFS.UnitTests.Common
         {
             GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
             enlistment.IsWorktree.ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void SparseCheckoutFileIsInTheWorktreeGitDir()
+        {
+            GVFSEnlistment enlistment = this.CreateWorktreeEnlistment();
+
+            SparseCheckoutPathResolver.GetSparseCheckoutFilePath(enlistment)
+                .ShouldEqual(Path.Combine(this.worktreeGitDir, "info", "sparse-checkout"));
         }
 
         [TestCase]
