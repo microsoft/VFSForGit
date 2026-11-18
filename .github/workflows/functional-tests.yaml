@@ -38,6 +38,21 @@ on:
         required: false
         type: string
         default: ''
+      git_overlay_url:
+        description: 'URL of a zip to copy over the installed Git after its installation; {arch} becomes x64 or arm64 (empty: no overlay)'
+        required: false
+        type: string
+        default: ''
+      git_overlay_sha256_x64:
+        description: 'Expected SHA-256 of the x64 overlay zip'
+        required: false
+        type: string
+        default: ''
+      git_overlay_sha256_arm64:
+        description: 'Expected SHA-256 of the arm64 overlay zip'
+        required: false
+        type: string
+        default: ''
     secrets:
       vfs_token:
         description: 'Token for downloading VFSForGit artifacts (required for cross-repository downloads; defaults to GITHUB_TOKEN)'
@@ -163,6 +178,37 @@ jobs:
       if: steps.skip.outputs.result != 'true'
       shell: cmd
       run: git\install.bat
+
+    - name: Install Git overlay
+      if: steps.skip.outputs.result != 'true' && inputs.git_overlay_url != ''
+      shell: pwsh
+      env:
+        OVERLAY_URL: ${{ inputs.git_overlay_url }}
+        OVERLAY_SHA256: ${{ matrix.architecture == 'arm64' && inputs.git_overlay_sha256_arm64 || inputs.git_overlay_sha256_x64 }}
+        OVERLAY_ARCH: ${{ matrix.architecture }}
+      run: |
+        $url = $env:OVERLAY_URL.Replace('{arch}', $env:OVERLAY_ARCH)
+        $zip = Join-Path $env:RUNNER_TEMP 'git-overlay.zip'
+        $dir = Join-Path $env:RUNNER_TEMP 'git-overlay'
+        Invoke-WebRequest -Uri $url -OutFile $zip
+        $actual = (Get-FileHash $zip -Algorithm SHA256).Hash
+        if (-not $env:OVERLAY_SHA256 -or $actual -ne $env:OVERLAY_SHA256.Trim()) {
+          Write-Host "::error::SHA-256 mismatch for $url (expected '$env:OVERLAY_SHA256', actual $actual)"
+          exit 1
+        }
+        New-Item -ItemType Directory -Force $dir | Out-Null
+        & "$env:SystemRoot\System32\tar.exe" -xf $zip -C $dir
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        robocopy $dir 'C:\Program Files\Git' /E /NFL /NDL /NJH /NJS /NS /NC
+        if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+        $options = & 'C:\Program Files\Git\cmd\git.exe' version --build-options
+        $options | Write-Host
+        if (-not ($options | Where-Object { $_.Trim() -eq 'feature: vfs-sparse-index' })) {
+          Write-Host "::error::The git with the overlay does not report 'feature: vfs-sparse-index'"
+          exit 1
+        }
+        Write-Host "::notice title=Git overlay::$url SHA-256 $actual"
+        exit 0
 
     - name: Install VFS for Git
       if: steps.skip.outputs.result != 'true'

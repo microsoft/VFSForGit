@@ -1,6 +1,6 @@
 name: VFS for Git
 
-run-name: ${{ inputs.run_name || 'VFS for Git' }}
+run-name: "${{ inputs.run_name || (inputs.git_overlay_url && format('VFS for Git: {0} (preview git)', inputs.source_ref || github.ref_name)) || (inputs.source_ref && format('VFS for Git: {0}', inputs.source_ref)) || 'VFS for Git' }}"
 
 on:
   pull_request:
@@ -17,6 +17,27 @@ on:
         description: 'Optional display name for this run (used for cross-repo automation)'
         required: false
         type: string
+      source_ref:
+        description: 'Commit or branch to build and test (leave empty for the dispatched ref; workflows and their scripts always come from the dispatched ref)'
+        required: false
+        type: string
+      git_overlay_url:
+        description: 'URL of a zip that overlays the installed microsoft/git in the functional tests; use {arch} for x64 or arm64 (leave empty to test the released git)'
+        required: false
+        type: string
+      git_overlay_sha256_x64:
+        description: 'Expected SHA-256 of the x64 overlay zip (required with git_overlay_url)'
+        required: false
+        type: string
+      git_overlay_sha256_arm64:
+        description: 'Expected SHA-256 of the arm64 overlay zip (required with git_overlay_url)'
+        required: false
+        type: string
+      require_sparse_index_tests:
+        description: 'Fail if a sparse-index functional test (AutoSparseIndex*, SparseIndexMountTests, ConeManagementHookTests) is ignored or skipped, or if none ran'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,11 +53,12 @@ jobs:
     name: Validation
     outputs:
       skip: ${{ steps.check.outputs.result }}
+      source_sha: ${{ steps.source.outputs.sha }}
 
     steps:
     - name: Look for prior successful runs
       id: check
-      if: github.event.inputs.git_version == ''
+      if: github.event.inputs.git_version == '' && github.event.inputs.source_ref == '' && github.event.inputs.git_overlay_url == ''
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
@@ -201,6 +223,52 @@ jobs:
       if: steps.check.outputs.result == ''
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+    - name: Resolve source ref
+      id: source
+      if: inputs.source_ref != ''
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SOURCE_REF: ${{ inputs.source_ref }}
+      run: |
+        $ref = [uri]::EscapeDataString($env:SOURCE_REF)
+        $sha = gh api "repos/$env:GITHUB_REPOSITORY/commits/$ref" --jq .sha
+        if ($LASTEXITCODE -ne 0 -or $sha -notmatch '^[0-9a-f]{40}$') {
+          Write-Host "::error::Cannot resolve source_ref '$env:SOURCE_REF'"
+          exit 1
+        }
+        "sha=$sha" >> $env:GITHUB_OUTPUT
+        Write-Host "::notice title=Source::Building and testing $env:SOURCE_REF ($sha)"
+
+    - name: Verify git overlay checksums
+      if: inputs.git_overlay_url != ''
+      shell: pwsh
+      env:
+        OVERLAY_URL: ${{ inputs.git_overlay_url }}
+        OVERLAY_SHA256_X64: ${{ inputs.git_overlay_sha256_x64 }}
+        OVERLAY_SHA256_ARM64: ${{ inputs.git_overlay_sha256_arm64 }}
+      run: |
+        if (-not $env:OVERLAY_URL.Contains('{arch}')) {
+          Write-Host "::error::git_overlay_url must contain {arch}"
+          exit 1
+        }
+        foreach ($arch in 'x64', 'arm64') {
+          $expected = [Environment]::GetEnvironmentVariable("OVERLAY_SHA256_$($arch.ToUpperInvariant())")
+          if (-not $expected) {
+            Write-Host "::error::git_overlay_sha256_$arch is required with git_overlay_url"
+            exit 1
+          }
+          $url = $env:OVERLAY_URL.Replace('{arch}', $arch)
+          $zip = Join-Path $env:RUNNER_TEMP "git-overlay-$arch.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($actual -ne $expected.Trim()) {
+            Write-Host "::error::SHA-256 mismatch for $url (expected $expected, actual $actual)"
+            exit 1
+          }
+          Write-Host "::notice title=Git overlay::$url SHA-256 $actual"
+        }
+
     - name: Validate Microsoft Git version
       if: steps.check.outputs.result == ''
       shell: pwsh
@@ -280,6 +348,7 @@ jobs:
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         path: src
+        ref: ${{ needs.validate.outputs.source_sha }}
 
     - name: Install .NET SDK
       if: steps.skip.outputs.result != 'true'
@@ -333,6 +402,103 @@ jobs:
     uses: ./.github/workflows/functional-tests.yaml
     with:
       skip: ${{ needs.validate.outputs.skip }}
+      git_overlay_url: ${{ inputs.git_overlay_url }}
+      git_overlay_sha256_x64: ${{ inputs.git_overlay_sha256_x64 }}
+      git_overlay_sha256_arm64: ${{ inputs.git_overlay_sha256_arm64 }}
+
+  sparse_index_summary:
+    runs-on: ubuntu-latest
+    name: Sparse-Index Test Summary
+    needs: [validate, functional_tests]
+    if: always() && needs.validate.result == 'success' && (inputs.git_overlay_url != '' || inputs.require_sparse_index_tests)
+    permissions:
+      actions: read
+
+    steps:
+    - name: Download functional test results
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: FunctionalTests_Results_*
+        path: results
+
+    - name: Summarize sparse-index tests
+      shell: pwsh
+      env:
+        OVERLAY_URL: ${{ inputs.git_overlay_url }}
+        OVERLAY_SHA256_X64: ${{ inputs.git_overlay_sha256_x64 }}
+        OVERLAY_SHA256_ARM64: ${{ inputs.git_overlay_sha256_arm64 }}
+        SOURCE_SHA: ${{ needs.validate.outputs.source_sha || github.sha }}
+        REQUIRE_SPARSE_INDEX_TESTS: ${{ inputs.require_sparse_index_tests }}
+      run: |
+        $all = [ordered]@{ passed = 0; failed = 0; ignored = 0 }
+        $sparse = [ordered]@{ passed = 0; failed = 0; ignored = 0 }
+        $fixtures = @{}
+        $slices = Get-ChildItem results -Recurse -Filter TestResult.xml
+        foreach ($file in $slices) {
+          [xml]$xml = Get-Content $file.FullName -Raw
+          foreach ($case in $xml.SelectNodes('//test-case')) {
+            $outcome = switch ($case.result) { 'Passed' { 'passed' } 'Failed' { 'failed' } default { 'ignored' } }
+            $all[$outcome]++
+            $fixture = ($case.classname -split '\.')[-1]
+            if ($fixture -like 'AutoSparseIndex*' -or $fixture -in 'SparseIndexMountTests', 'ConeManagementHookTests') {
+              $sparse[$outcome]++
+              if (-not $fixtures.ContainsKey($fixture)) { $fixtures[$fixture] = [ordered]@{ passed = 0; failed = 0; ignored = 0 } }
+              $fixtures[$fixture][$outcome]++
+            }
+          }
+        }
+
+        $release = if ($env:OVERLAY_URL -match '/releases/download/([^/]+)/') { $Matches[1] } else { $env:OVERLAY_URL }
+        $summary = [ordered]@{
+          source_sha = $env:SOURCE_SHA
+          git_overlay_release = $release
+          git_overlay_url = $env:OVERLAY_URL
+          git_overlay_sha256_x64 = $env:OVERLAY_SHA256_X64
+          git_overlay_sha256_arm64 = $env:OVERLAY_SHA256_ARM64
+          slices = $slices.Count
+          all = $all
+          sparse_index = $sparse
+          fixtures = $fixtures
+        }
+        $summary | ConvertTo-Json -Depth 4 | Set-Content sparse-index-summary.json
+
+        $md = @(
+          '## Sparse-index functional tests',
+          '',
+          "- Source: ``$env:SOURCE_SHA``",
+          "- Git overlay: $(if ($env:OVERLAY_URL) { "[$release]($env:OVERLAY_URL)" } else { 'none (released microsoft/git)' })",
+          "- Overlay SHA-256: x64 ``$env:OVERLAY_SHA256_X64``, arm64 ``$env:OVERLAY_SHA256_ARM64``",
+          "- Result files: $($slices.Count)",
+          "- All tests: $($all.passed) passed, $($all.failed) failed, $($all.ignored) ignored",
+          "- Sparse-index tests: $($sparse.passed) passed, $($sparse.failed) failed, $($sparse.ignored) ignored",
+          '',
+          '| Fixture | Passed | Failed | Ignored |',
+          '|---|---|---|---|'
+        )
+        foreach ($name in $fixtures.Keys | Sort-Object) {
+          $f = $fixtures[$name]
+          $md += "| $name | $($f.passed) | $($f.failed) | $($f.ignored) |"
+        }
+        $md -join "`n" >> $env:GITHUB_STEP_SUMMARY
+
+        if ($env:REQUIRE_SPARSE_INDEX_TESTS -eq 'true') {
+          if ($sparse.ignored -gt 0) {
+            Write-Host "::error::$($sparse.ignored) sparse-index functional tests were ignored or skipped"
+            exit 1
+          }
+          if ($sparse.passed + $sparse.failed -eq 0) {
+            Write-Host "::error::No sparse-index functional test ran"
+            exit 1
+          }
+        }
+
+    - name: Upload summary
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: SparseIndexSummary
+        path: sparse-index-summary.json
+        if-no-files-found: ignore
 
   upgrade_tests:
     name: Upgrade Tests
