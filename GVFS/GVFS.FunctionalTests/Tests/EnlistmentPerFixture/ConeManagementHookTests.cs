@@ -57,9 +57,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     "add " + Path.GetFileName(OutOfConeFile),
                     TraceEnvironment);
                 outOfCone.ExitCode.ShouldEqual(0, outOfCone.Errors);
-                outOfCone.Errors.ShouldContain(
-                    "gvfs cone-management: widen not applied: Rejected",
-                    "gvfs cone-management: narrow not applied: Rejected");
+                outOfCone.Errors.ShouldNotContain(
+                    ignoreCase: false,
+                    "gvfs cone-management: widen not applied",
+                    "gvfs cone-management: narrow not applied",
+                    "GVFS could not prepare the sparse index");
 
                 GitProcess.Invoke(this.Enlistment.RepoRoot, "diff --cached --name-only")
                     .ShouldContain(InConeFile, OutOfConeFile);

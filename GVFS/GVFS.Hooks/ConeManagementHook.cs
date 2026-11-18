@@ -17,9 +17,11 @@ namespace GVFS.Hooks
     /// runs. Otherwise Git expands the whole sparse index in memory to find those paths.
     /// The post-command hook asks the mount to narrow the cone again.
     /// <para>
-    /// Cone management must never fail a Git command. Every failure, including no mount, a
-    /// mount that does not know the request, a slow mount, and an exception, lets Git run.
-    /// Git is then slower, but correct. The hook waits at most
+    /// This class never fails a Git command itself. Every failure, including no mount, a mount
+    /// that does not know the request, a slow mount, and an exception, gives an outcome, and
+    /// <see cref="PreCommandConeRequests"/> decides with it: a command that writes the index
+    /// stops before Git runs, and other commands run (Git is then slower, but correct).
+    /// The hook waits at most
     /// <see cref="NamedPipeMessages.ConeManagement.WidenWaitBudgetMs"/> to connect and send
     /// a widen. After it sent a widen, it waits for the reply, at most
     /// <see cref="NamedPipeMessages.ConeManagement.WidenReplyCeilingMs"/>: the mount applies
@@ -87,6 +89,12 @@ namespace GVFS.Hooks
         /// </summary>
         /// <returns>The value of the feature flag.</returns>
         internal delegate bool ReadSparseIndexConfig(out bool ignoreCase);
+
+        /// <summary>
+        /// The widen that the hook sent and stopped waiting for (<see cref="ConeRequestOutcome.ReplyTimedOut"/>),
+        /// or null. The mount can still run Git for it.
+        /// </summary>
+        public Task AbandonedRequest { get; private set; }
 
         /// <summary>
         /// If the command names paths outside the cone, ask the mount to widen the cone. Never
@@ -273,6 +281,13 @@ namespace GVFS.Hooks
                 }
             }
 
+            // The mount refuses such a widen every time, so the hook does not send it (see
+            // PreCommandConeRequests.WidenLeavesNoGap).
+            if (paths.Count > AutoSparseIndexConeManager.MaxWidenPaths)
+            {
+                return ConeRequestOutcome.TooManyPaths;
+            }
+
             NamedPipeMessages.ConeManagement.WidenParameters parameters =
                 new NamedPipeMessages.ConeManagement.WidenParameters(GetCommandId(args), paths);
 
@@ -325,6 +340,7 @@ namespace GVFS.Hooks
                 case ConeRequestOutcome.SkippedStash:
                 case ConeRequestOutcome.SkippedInCone:
                 case ConeRequestOutcome.NoResolvablePaths:
+                case ConeRequestOutcome.TooManyPaths:
                     this.trace($"{request} skipped: {outcome}");
                     break;
 
@@ -363,8 +379,8 @@ namespace GVFS.Hooks
                         return ConeRequestOutcome.MountUnavailable;
                     }
 
-                    // After the budget ends, the hook lets Git run. A request sent after that
-                    // could make the mount run Git while the user's Git runs.
+                    // After the budget ends, the hook does not wait for this task. A request sent
+                    // after that could make the mount run Git while the user's Git runs.
                     lock (sendGate)
                     {
                         if (sendAbandoned)
@@ -378,9 +394,21 @@ namespace GVFS.Hooks
                     sending.TrySetResult(true);
                     pipeClient.SendRequest(new NamedPipeMessages.Message(header, body));
                     NamedPipeMessages.Message response = pipeClient.ReadResponse();
-                    return response.Header == NamedPipeMessages.ConeManagement.SuccessResult
-                        ? ConeRequestOutcome.Applied
-                        : ConeRequestOutcome.Rejected;
+                    switch (response.Header)
+                    {
+                        case NamedPipeMessages.ConeManagement.SuccessResult:
+                            return ConeRequestOutcome.Applied;
+
+                        case NamedPipeMessages.ConeManagement.NotLockHolderResult:
+                            return ConeRequestOutcome.NotLockHolder;
+
+                        case NamedPipeMessages.ConeManagement.NotEnabledResult:
+                            // The mount has no cone manager, so it never changes the cone.
+                            return ConeRequestOutcome.FeatureDisabled;
+
+                        default:
+                            return ConeRequestOutcome.Rejected;
+                    }
                 }
             });
 
@@ -401,7 +429,13 @@ namespace GVFS.Hooks
             int replyWaitMs = replyCeilingMs ?? Math.Max(0, waitBudgetMs - (int)stopwatch.ElapsedMilliseconds);
             if (!task.Wait(replyWaitMs))
             {
-                return replyCeilingMs.HasValue ? ConeRequestOutcome.ReplyTimedOut : ConeRequestOutcome.TimedOut;
+                if (replyCeilingMs.HasValue)
+                {
+                    this.AbandonedRequest = task;
+                    return ConeRequestOutcome.ReplyTimedOut;
+                }
+
+                return ConeRequestOutcome.TimedOut;
             }
 
             return task.Result;

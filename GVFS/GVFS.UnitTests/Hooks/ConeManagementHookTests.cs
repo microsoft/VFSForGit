@@ -1,4 +1,5 @@
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Sparse;
 using GVFS.Hooks;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.Tests.Should;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.UnitTests.Hooks
@@ -194,13 +196,48 @@ namespace GVFS.UnitTests.Hooks
         [TestCase(NamedPipeMessages.UnknownRequest)]
         [TestCase(NamedPipeMessages.MountNotReadyResult)]
         [TestCase(NamedPipeMessages.ConeManagement.FailureResult)]
-        [TestCase(NamedPipeMessages.ConeManagement.NotEnabledResult)]
-        public void WidenWithNonSuccessReplyLetsGitRun(string responseHeader)
+        public void WidenWithNonSuccessReplyIsRejected(string responseHeader)
         {
             this.clientFactory = () => ReplyWith(responseHeader);
 
             this.Widen("add", "Z/z.txt").ShouldEqual(ConeRequestOutcome.Rejected);
             this.createdClients[0].Requests.Count.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void WidenToAMountWithoutConeManagementIsFeatureDisabled()
+        {
+            // The mount has no cone manager, so a command that writes the index must not stop.
+            this.clientFactory = () => ReplyWith(NamedPipeMessages.ConeManagement.NotEnabledResult);
+
+            this.Widen("add", "Z/z.txt").ShouldEqual(ConeRequestOutcome.FeatureDisabled);
+        }
+
+        [TestCase]
+        public void WidenMapsTheNotLockHolderReply()
+        {
+            this.clientFactory = () => ReplyWith(NamedPipeMessages.ConeManagement.NotLockHolderResult);
+
+            this.Widen("add", "Z/z.txt").ShouldEqual(ConeRequestOutcome.NotLockHolder);
+        }
+
+        [TestCase]
+        public void WidenWithMorePathsThanTheMountAcceptsSendsNoRequest()
+        {
+            // The mount refuses such a widen every time, so the hook does not send it.
+            string[] paths = Enumerable.Range(0, AutoSparseIndexConeManager.MaxWidenPaths + 1).Select(i => $"Z{i}/z.txt").ToArray();
+
+            this.Widen(new[] { "add" }.Concat(paths).ToArray()).ShouldEqual(ConeRequestOutcome.TooManyPaths);
+            this.createdClients.ShouldBeEmpty();
+        }
+
+        [TestCase]
+        public void WidenWithAsManyPathsAsTheMountAcceptsIsSent()
+        {
+            string[] paths = Enumerable.Range(0, AutoSparseIndexConeManager.MaxWidenPaths).Select(i => $"Z{i}/z.txt").ToArray();
+
+            this.Widen(new[] { "add" }.Concat(paths).ToArray()).ShouldEqual(ConeRequestOutcome.Applied);
+            this.GetSingleWidenRequest().Paths.Count.ShouldEqual(AutoSparseIndexConeManager.MaxWidenPaths);
         }
 
         [TestCase]
@@ -238,10 +275,16 @@ namespace GVFS.UnitTests.Hooks
             this.clientFactory = () => ReplyAfter(releaseReply);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            this.CreateHook().TrySendWiden(BuildArgs("add", "Z/z.txt"), waitBudgetMs: ReplyBudgetMs, replyCeilingMs: 50)
+            ConeManagementHook hook = this.CreateHook();
+            hook.TrySendWiden(BuildArgs("add", "Z/z.txt"), waitBudgetMs: ReplyBudgetMs, replyCeilingMs: 50)
                 .ShouldEqual(ConeRequestOutcome.ReplyTimedOut);
             stopwatch.Stop();
+
+            // The hook keeps the request, so that it can wait for the mount before it stops Git.
+            hook.AbandonedRequest.ShouldNotBeNull();
+            hook.AbandonedRequest.IsCompleted.ShouldBeFalse();
             releaseReply.Set();
+            hook.AbandonedRequest.Wait(ReplyBudgetMs).ShouldBeTrue();
 
             (stopwatch.ElapsedMilliseconds < 5000).ShouldBeTrue("The hook must not wait for the reply after the ceiling ends.");
         }

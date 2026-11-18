@@ -2,6 +2,7 @@ using GVFS.Common.NamedPipes;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,7 +25,8 @@ namespace GVFS.Hooks
     /// applied yet, as it can miss any change that a concurrent command makes.
     /// </para>
     /// <para>
-    /// As for the other cone requests, every failure lets Git run. When the mount replies that
+    /// This class returns every failure as an outcome, and <see cref="PreCommandConeRequests"/>
+    /// decides if Git runs. When the mount replies that
     /// the feature is off, or does not know the request, the hook deletes the pending file,
     /// because that mount never applies the change.
     /// </para>
@@ -37,9 +39,10 @@ namespace GVFS.Hooks
         // The release must reach the mount, or the lock stays with the Git process until it ends.
         private const int ReleaseConnectTimeoutMs = 5000;
 
-        // After a timeout, the hook of a command without the lock still waits this long for the
-        // mount to finish, so that it does not release the lock while the mount changes the index.
-        private const int ApplyCompletionWaitMs = 60000;
+        // After a timeout, a hook still waits this long for the mount to finish before it releases
+        // the GVFS lock or ends, so that the next Git command does not start while the mount
+        // changes the index.
+        internal const int ApplyCompletionWaitMs = 60000;
 
         // Built-in commands that read the index or the working tree through the index and do not
         // take the GVFS lock. "status" is here for "--no-optional-locks", which only checks the
@@ -78,6 +81,13 @@ namespace GVFS.Hooks
             this.createPipeClient = createPipeClient ?? throw new ArgumentNullException(nameof(createPipeClient));
             this.trace = trace ?? (message => { });
         }
+
+        /// <summary>
+        /// The apply that the hook sent for a command that holds the GVFS lock and stopped waiting
+        /// for (<see cref="ConeRequestOutcome.ReplyTimedOut"/>), or null. The mount can still run
+        /// Git for it.
+        /// </summary>
+        public Task AbandonedRequest { get; private set; }
 
         /// <summary>
         /// If a cone change is pending, ask the mount to apply it, and wait for the reply. Never throws.
@@ -125,6 +135,30 @@ namespace GVFS.Hooks
             return args != null && args.Length > 1 && args[1] != null && UnlockedIndexReaders.Contains(args[1]);
         }
 
+        /// <summary>
+        /// Return true when the mount's pending file exists, and also when the hook cannot tell.
+        /// An apply with nothing pending costs one request, but a missed pending change makes a
+        /// command miss a working-tree change outside the cone.
+        /// </summary>
+        /// <param name="getAttributes">Returns the attributes of a path, or throws when it does not exist.</param>
+        internal static bool IsPendingFilePresentOrUnknown(Func<string> getPendingFilePath, Func<string, FileAttributes> getAttributes, Action<string> trace)
+        {
+            try
+            {
+                getAttributes(getPendingFilePath());
+                return true;
+            }
+            catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+            {
+                return false;
+            }
+            catch (Exception e) when (!(e is OutOfMemoryException))
+            {
+                trace?.Invoke($"cannot check for a pending cone change: {e.Message}");
+                return true;
+            }
+        }
+
         private ConeRequestOutcome Apply(string[] args, bool holdsLock, Func<int, NamedPipeMessages.LockRequest> createLockRequest, int waitBudgetMs, int lockWaitBudgetMs)
         {
             if (!this.isPending())
@@ -135,7 +169,14 @@ namespace GVFS.Hooks
             string commandId = ConeManagementHook.GetCommandId(args);
             if (holdsLock)
             {
-                return this.WaitForApply(this.StartApply(commandId), waitBudgetMs);
+                Task<ConeRequestOutcome> heldApply = this.StartApply(commandId);
+                ConeRequestOutcome outcome = this.WaitForApply(heldApply, waitBudgetMs);
+                if (outcome == ConeRequestOutcome.ReplyTimedOut)
+                {
+                    this.AbandonedRequest = heldApply;
+                }
+
+                return outcome;
             }
 
             if (!IsUnlockedIndexReader(args))
@@ -258,6 +299,9 @@ namespace GVFS.Hooks
                     {
                         case NamedPipeMessages.ConeManagement.SuccessResult:
                             return ConeRequestOutcome.Applied;
+
+                        case NamedPipeMessages.ConeManagement.NotLockHolderResult:
+                            return ConeRequestOutcome.NotLockHolder;
 
                         case NamedPipeMessages.ConeManagement.NotEnabledResult:
                         case NamedPipeMessages.UnknownRequest:

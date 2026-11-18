@@ -7,6 +7,8 @@ using GVFS.Hooks.HooksPlatform;
 using GVFS.Platform.Windows;
 using System;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace GVFS.Hooks
 {
@@ -24,11 +26,19 @@ namespace GVFS.Hooks
         // True when the pre-command hook took the GVFS lock for the Git command.
         private static bool commandHoldsGVFSLock;
 
+        // The hooks that sent the widen and the apply of this command, or null.
+        private static ConeManagementHook widenHook;
+        private static PendingConeChangeHook applyHook;
+
+        // True when a read of the cone file or of the feature flag failed since the last reset.
+        private static bool coneStateReadFailed;
+
         private static ConeRequestOutcome TrySendConeWiden(string[] args)
         {
             try
             {
-                return CreateConeManagementHook().TrySendWiden(args);
+                widenHook = CreateConeManagementHook();
+                return widenHook.TrySendWiden(args);
             }
             catch (Exception e)
             {
@@ -45,7 +55,8 @@ namespace GVFS.Hooks
         {
             try
             {
-                return new PendingConeChangeHook(IsConeChangePending, DeleteConeChangePendingFile, () => new NamedPipeClient(enlistmentPipename), TraceConeDiagnostic)
+                applyHook = new PendingConeChangeHook(IsConeChangePending, DeleteConeChangePendingFile, () => new NamedPipeClient(enlistmentPipename), TraceConeDiagnostic);
+                return applyHook
                     .TryApply(
                         args,
                         commandHoldsGVFSLock,
@@ -64,21 +75,55 @@ namespace GVFS.Hooks
         }
 
         /// <summary>
+        /// Before the hook stops a command, wait for a widen or an apply that it stopped waiting
+        /// for. The mount can still run Git for it, and that Git holds the index lock. The GVFS
+        /// lock of this command is released when the command ends, so the next Git command could
+        /// otherwise start while the mount still writes the index.
+        /// </summary>
+        private static void WaitForAbandonedConeRequests()
+        {
+            Task[] abandoned = new[] { widenHook?.AbandonedRequest, applyHook?.AbandonedRequest }
+                .Where(task => task != null && !task.IsCompleted)
+                .ToArray();
+            if (abandoned.Length == 0)
+            {
+                return;
+            }
+
+            Console.Error.WriteLine("Waiting for GVFS to finish the sparse index change...");
+            try
+            {
+                if (!Task.WaitAll(abandoned, PendingConeChangeHook.ApplyCompletionWaitMs))
+                {
+                    TraceConeDiagnostic("cone request still running; stopping the command");
+                }
+            }
+            catch (AggregateException e)
+            {
+                TraceConeDiagnostic($"cone request failed: {e.InnerException?.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Return false only when it is known that GVFS does not manage a sparse-index cone for
+        /// this worktree. When the hook cannot read the cone file or the feature flag, it cannot
+        /// tell, and a command that writes the index must stop.
+        /// </summary>
+        private static bool MayManageSparseIndexCone()
+        {
+            coneStateReadFailed = false;
+            return IsSparseIndexConeManaged() || coneStateReadFailed;
+        }
+
+        /// <summary>
         /// Return true when the mount's pending file exists (see
-        /// <see cref="GVFSConstants.DotGVFS.ConeChangePending"/>). When nothing is pending, this
-        /// is the only cost that cone management adds to a command that names no paths.
+        /// <see cref="GVFSConstants.DotGVFS.ConeChangePending"/>), or when the hook cannot check it.
+        /// When nothing is pending, this is the only cost that cone management adds to a command
+        /// that names no paths.
         /// </summary>
         private static bool IsConeChangePending()
         {
-            try
-            {
-                return File.Exists(GetConeChangePendingPath());
-            }
-            catch (Exception e)
-            {
-                TraceConeDiagnostic($"cannot check for a pending cone change: {e.Message}");
-                return false;
-            }
+            return PendingConeChangeHook.IsPendingFilePresentOrUnknown(GetConeChangePendingPath, File.GetAttributes, TraceConeDiagnostic);
         }
 
         private static void DeleteConeChangePendingFile()
@@ -125,6 +170,7 @@ namespace GVFS.Hooks
             }
             catch (Exception e)
             {
+                coneStateReadFailed = true;
                 TraceConeDiagnostic($"cannot check for a sparse-index cone: {e.Message}");
                 return false;
             }
@@ -162,6 +208,7 @@ namespace GVFS.Hooks
             }
             catch (Exception e)
             {
+                coneStateReadFailed = true;
                 TraceConeDiagnostic($"cannot read {GVFSConstants.GitConfig.AutoSparseIndex}: {e.Message}");
                 return GVFSConstants.GitConfig.AutoSparseIndexDefault;
             }
@@ -199,6 +246,7 @@ namespace GVFS.Hooks
 
                 if ((file.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Device)) != 0)
                 {
+                    coneStateReadFailed = true;
                     TraceConeDiagnostic($"cone file not read: {sparseCheckoutPath} is not a regular file");
                     return null;
                 }
@@ -213,6 +261,7 @@ namespace GVFS.Hooks
                         content.Write(buffer, 0, read);
                         if (content.Length > MaxConeFileBytes)
                         {
+                            coneStateReadFailed = true;
                             TraceConeDiagnostic($"cone file not read: {sparseCheckoutPath} is larger than {MaxConeFileBytes} bytes");
                             return null;
                         }
@@ -223,6 +272,7 @@ namespace GVFS.Hooks
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
+                coneStateReadFailed = true;
                 TraceConeDiagnostic($"cone file not read: {e.Message}");
                 return null;
             }

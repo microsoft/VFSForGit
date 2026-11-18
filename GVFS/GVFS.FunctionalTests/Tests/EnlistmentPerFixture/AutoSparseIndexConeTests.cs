@@ -125,7 +125,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult diff = this.GitWithTrace($"diff --stat -- {file}", out _);
 
             diff.ExitCode.ShouldEqual(0, diff.Errors);
-            diff.Errors.ShouldContain(HookFailurePrefix + ": Rejected");
+            diff.Errors.ShouldContain(HookFailurePrefix + ": NotLockHolder");
             this.ReadConeFile().ShouldEqual(coneBefore);
         }
 

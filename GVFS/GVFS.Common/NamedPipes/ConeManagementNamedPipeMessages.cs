@@ -15,11 +15,13 @@ namespace GVFS.Common.NamedPipes
         /// <c>CommandId</c> after Git runs, so that the mount can remove the cone entries that
         /// it added for that command.
         /// <para>
-        /// The hook treats every reply other than <see cref="SuccessResult"/> as "not applied"
-        /// and lets Git run. This includes <see cref="FailureResult"/> and
+        /// The hook treats every reply other than <see cref="SuccessResult"/> as "not applied".
+        /// This includes <see cref="FailureResult"/>, <see cref="NotLockHolderResult"/>,
         /// <see cref="NotEnabledResult"/>, <see cref="UnknownRequest"/> from an older mount that
         /// does not handle these messages, <see cref="MountNotReadyResult"/>, no reply within the
-        /// wait budget, and no mount. Git then expands the sparse index in memory.
+        /// wait budget, and no mount. For a read-only command, Git then runs and expands the
+        /// sparse index in memory. A command that writes the index stops before Git runs when a
+        /// widen or an apply that it sent is not applied, unless the feature is off.
         /// </para>
         /// <para>
         /// A widen request carries only repo-relative git-form paths that the hook resolved
@@ -64,9 +66,16 @@ namespace GVFS.Common.NamedPipes
             public const string NotEnabledResult = "NE";
 
             /// <summary>
+            /// The mount did not apply a widen or an apply, because the requesting Git process
+            /// does not hold the GVFS lock. A hook that does not know this result treats it as
+            /// <see cref="FailureResult"/>.
+            /// </summary>
+            public const string NotLockHolderResult = "NL";
+
+            /// <summary>
             /// The time that the pre-command hook allows to connect and send a widen request. If
-            /// the hook cannot send the request in this time, it lets Git run, and it does not
-            /// send the request.
+            /// the hook cannot send the request in this time, it does not send the request, and
+            /// the widen fails (see <c>PreCommandConeRequests</c> in the hooks).
             /// </summary>
             public const int WidenWaitBudgetMs = 1000;
 

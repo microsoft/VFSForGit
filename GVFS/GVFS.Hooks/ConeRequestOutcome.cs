@@ -55,5 +55,15 @@ namespace GVFS.Hooks
 
         /// <summary>The hook could not take the GVFS lock for a command that does not take it, so it did not send the request.</summary>
         LockUnavailable,
+
+        /// <summary>The mount did not apply the request, because the Git command does not hold the GVFS lock.</summary>
+        NotLockHolder,
+
+        /// <summary>
+        /// The command names more paths outside the cone than the mount widens for one command
+        /// (see <c>AutoSparseIndexConeManager.MaxWidenPaths</c>), so the hook did not send a widen
+        /// (see <see cref="PreCommandConeRequests.WidenLeavesNoGap"/>).
+        /// </summary>
+        TooManyPaths,
     }
 }

@@ -1,9 +1,12 @@
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 
@@ -113,6 +116,60 @@ namespace GVFS.UnitTests.Hooks
         }
 
         [TestCase]
+        public void PendingFileThatExistsIsPending()
+        {
+            PendingConeChangeHook.IsPendingFilePresentOrUnknown(() => @"mock:\.gvfs\ConeChangePending", path => FileAttributes.Normal, trace: null)
+                .ShouldBeTrue();
+        }
+
+        [TestCase(typeof(FileNotFoundException))]
+        [TestCase(typeof(DirectoryNotFoundException))]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void PendingFileThatDoesNotExistIsNotPending(Type exceptionType)
+        {
+            PendingConeChangeHook.IsPendingFilePresentOrUnknown(() => @"mock:\.gvfs\ConeChangePending", path => throw (Exception)Activator.CreateInstance(exceptionType), trace: null)
+                .ShouldBeFalse();
+        }
+
+        [TestCase(typeof(UnauthorizedAccessException))]
+        [TestCase(typeof(IOException))]
+        [TestCase(typeof(ArgumentException))]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void PendingFileThatCannotBeCheckedCountsAsPending(Type exceptionType)
+        {
+            // A missed pending change makes a command miss a working-tree change outside the cone.
+            List<string> traces = new List<string>();
+            PendingConeChangeHook.IsPendingFilePresentOrUnknown(() => @"mock:\.gvfs\ConeChangePending", path => throw (Exception)Activator.CreateInstance(exceptionType), traces.Add)
+                .ShouldBeTrue();
+            traces.Count.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void LockHolderKeepsTheApplyThatTimedOut()
+        {
+            // The event is not disposed, because the abandoned request task still waits on it.
+            ManualResetEventSlim releaseReply = new ManualResetEventSlim(initialState: false);
+            this.clients.Enqueue(new MockNamedPipeClient
+            {
+                ReadResponseCallback = () =>
+                {
+                    releaseReply.Wait();
+                    return new NamedPipeMessages.Message(NamedPipeMessages.ConeManagement.SuccessResult, null);
+                },
+            });
+
+            PendingConeChangeHook hook = this.CreateHook();
+            hook.TryApply(BuildArgs("commit", "-a"), holdsLock: true, this.CreateLockRequest, waitBudgetMs: 10)
+                .ShouldEqual(ConeRequestOutcome.ReplyTimedOut);
+
+            // The hook keeps the request, so that it can wait for the mount before it stops Git.
+            hook.AbandonedRequest.ShouldNotBeNull();
+            hook.AbandonedRequest.IsCompleted.ShouldBeFalse();
+            releaseReply.Set();
+            hook.AbandonedRequest.Wait(30000).ShouldBeTrue();
+        }
+
+        [TestCase]
         public void UnlockedIndexReaderKeepsTheLockUntilTheMountFinishesAfterATimeout()
         {
             List<string> events = new List<string>();
@@ -167,6 +224,16 @@ namespace GVFS.UnitTests.Hooks
             this.clients.Enqueue(ReplyWith(NamedPipeMessages.MountNotReadyResult));
 
             this.Apply(holdsLock: true, "status").ShouldEqual(ConeRequestOutcome.Rejected);
+
+            this.pendingFileDeleted.ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ApplyForACommandThatDoesNotHoldTheLockKeepsThePendingFile()
+        {
+            this.clients.Enqueue(ReplyWith(NamedPipeMessages.ConeManagement.NotLockHolderResult));
+
+            this.Apply(holdsLock: true, "add").ShouldEqual(ConeRequestOutcome.NotLockHolder);
 
             this.pendingFileDeleted.ShouldBeFalse();
         }

@@ -28,6 +28,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\GVFS.Hooks\ConeCommandClassifier.cs">
+      <Link>Hooks\ConeCommandClassifier.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Hooks\ConeManagementHook.cs">
       <Link>Hooks\ConeManagementHook.cs</Link>
     </Compile>
