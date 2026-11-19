@@ -151,6 +151,51 @@ namespace GVFS.UnitTests.Common.Git
             Assert.That(killAttempts, Is.EqualTo(1));
         }
 
+        [Test]
+        public void CancellationObservesProcessExitWithoutASecondKill()
+        {
+            using CancellationTokenSource cancellation = new CancellationTokenSource();
+            TaskCompletionSource<GitProcess.Result> read = new TaskCompletionSource<GitProcess.Result>();
+            int killAttempts = 0;
+            int waitAttempts = 0;
+            Task<GitProcess.Result> result = GitProcessConfigReader.ReadWithProcessCleanupAsync(
+                () => read.Task,
+                () => false,
+                () => ++killAttempts,
+                cancellation.Token,
+                () =>
+                {
+                    ++waitAttempts;
+                    return true;
+                });
+
+            cancellation.Cancel();
+            read.SetCanceled(cancellation.Token);
+
+            Assert.CatchAsync<OperationCanceledException>(async () => await result.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.That(killAttempts, Is.EqualTo(1));
+            Assert.That(waitAttempts, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void FailedExitObservationReportsAProcessFailure()
+        {
+            using CancellationTokenSource cancellation = new CancellationTokenSource();
+            TaskCompletionSource<GitProcess.Result> read = new TaskCompletionSource<GitProcess.Result>();
+            Task<GitProcess.Result> result = GitProcessConfigReader.ReadWithProcessCleanupAsync(
+                () => read.Task,
+                () => false,
+                () => { },
+                cancellation.Token,
+                () => false);
+
+            cancellation.Cancel();
+            read.SetCanceled(cancellation.Token);
+
+            Win32Exception failure = Assert.ThrowsAsync<Win32Exception>(async () => await result.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.That(failure.Message, Does.Contain("did not exit"));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void CancellationReportsTheOriginalKillFailure(bool isTreeFailure)

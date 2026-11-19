@@ -72,9 +72,19 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public static bool TryAttach(string enlistmentRoot, out string errorMessage)
+        /// <summary>
+        /// Attaches the ProjFS filter driver to the volume containing the enlistment, reporting the
+        /// raw FilterAttach result so that callers can react to a specific failure.
+        /// </summary>
+        /// <param name="attachResult">
+        /// The value returned by FilterAttach, or <see cref="OkResult"/> when the attach did not get
+        /// far enough to call it.
+        /// </param>
+        private static bool TryAttach(string enlistmentRoot, out string errorMessage, out uint attachResult, out string volumeRoot)
         {
             errorMessage = null;
+            attachResult = OkResult;
+            volumeRoot = null;
             try
             {
                 StringBuilder volumePathName = new StringBuilder(GVFSConstants.MaxPath);
@@ -84,7 +94,9 @@ namespace GVFS.Platform.Windows
                     return false;
                 }
 
-                uint result = NativeMethods.FilterAttach(DriverName, volumePathName.ToString(), null);
+                volumeRoot = volumePathName.ToString();
+                uint result = NativeMethods.FilterAttach(DriverName, volumeRoot, null);
+                attachResult = result;
                 if (result != OkResult && result != NameCollisionErrorResult)
                 {
                     errorMessage = string.Format("Attaching the filter driver resulted in: {0}", result);
@@ -102,38 +114,110 @@ namespace GVFS.Platform.Windows
 
         /// <summary>
         /// Attempts to attach the ProjFS filter driver to the volume containing the enlistment.
-        /// If an unelevated caller gets ACCESS_DENIED but the ProjFS service is already running,
-        /// the filter is presumed to already be attached and the call succeeds.
+        /// On non-ReFS volumes, an unelevated caller can presume attachment when the driver runs.
+        /// ReFS callers must ask the service to verify attachment.
         /// </summary>
         public static bool TryAttachToVolume(string enlistmentRoot, ITracer tracer, out string errorMessage)
         {
-            if (TryAttach(enlistmentRoot, out errorMessage))
+            return TryAttachToVolume(enlistmentRoot, tracer, out errorMessage, out bool _, out string _);
+        }
+
+        /// <summary>
+        /// Attempts to attach the ProjFS filter driver to the volume containing the enlistment.
+        /// On non-ReFS volumes, an unelevated caller can presume attachment when the driver runs.
+        /// ReFS callers must ask the service to verify attachment.
+        /// </summary>
+        /// <param name="devDriveFilterRejected">
+        /// True when the attach failed because the volume is a developer volume (Dev Drive) that
+        /// does not allow this filter. The filter can only attach after PrjFlt is added to the
+        /// volume's filter allow list.
+        /// </param>
+        public static bool TryAttachToVolume(string enlistmentRoot, ITracer tracer, out string errorMessage, out bool devDriveFilterRejected, out string volumeRoot)
+        {
+            return TryAttachToVolume(
+                enlistmentRoot,
+                tracer,
+                TryAttach,
+                WindowsPlatform.IsElevatedImplementation,
+                () => IsServiceRunning(tracer),
+                TryGetVolumeFormat,
+                out errorMessage,
+                out devDriveFilterRejected,
+                out volumeRoot);
+        }
+
+        internal delegate bool AttachFilter(string enlistmentRoot, out string error, out uint result, out string volumeRoot);
+        internal delegate bool GetVolumeFormat(string volumeRoot, out string format);
+
+        internal static bool TryAttachToVolume(
+            string enlistmentRoot,
+            ITracer tracer,
+            AttachFilter attach,
+            Func<bool> isElevated,
+            Func<bool> isServiceRunning,
+            GetVolumeFormat getVolumeFormat,
+            out string errorMessage,
+            out bool devDriveFilterRejected,
+            out string volumeRoot)
+        {
+            devDriveFilterRejected = false;
+
+            if (attach(enlistmentRoot, out errorMessage, out uint attachResult, out volumeRoot))
             {
                 return true;
             }
 
-            // FilterAttach requires SE_LOAD_DRIVER_PRIVILEGE, which is typically only
-            // granted to administrators. An UNELEVATED caller therefore always gets
-            // ACCESS_DENIED regardless of whether the filter is actually attached, so
-            // when the ProjFS service is confirmed running we presume the (already
-            // elevated) service attached the filter and treat this as success.
+            devDriveFilterRejected = attachResult == unchecked((uint)HResultExtensions.CantAttachToDevVolume);
+
+            // Unelevated NTFS callers retain the existing assumption that a running driver is
+            // attached. ReFS needs the service to check: a Dev Drive can reject attachment even
+            // while the driver runs. Do not depend on the persistent Dev Drive flag here.
             //
             // We intentionally do NOT tolerate ACCESS_DENIED for an ELEVATED caller
             // (e.g. GVFS.Service, which runs as LocalSystem): an elevated caller holds
             // the privilege, so ACCESS_DENIED there is a genuine failure (AV/EDR lock,
             // Group Policy, or driver corruption) that must surface rather than be
             // silently swallowed and leave the mount in a broken state.
-            if (errorMessage != null
-                && errorMessage.Contains(AccessDeniedResult.ToString())
-                && !WindowsPlatform.IsElevatedImplementation()
-                && IsServiceRunning(tracer))
+            if (attachResult == AccessDeniedResult
+                && !isElevated()
+                && isServiceRunning())
             {
+                if (!getVolumeFormat(volumeRoot, out string volumeFormat))
+                {
+                    errorMessage = "The volume format could not be read. GVFS.Service must verify ProjFS attachment.";
+                    tracer.RelatedWarning(errorMessage);
+                    return false;
+                }
+
+                if (volumeFormat.Equals("ReFS", StringComparison.OrdinalIgnoreCase))
+                {
+                    errorMessage = "GVFS.Service must verify ProjFS attachment on ReFS.";
+                    tracer.RelatedInfo(errorMessage);
+                    return false;
+                }
+
                 tracer.RelatedInfo($"{nameof(TryAttachToVolume)}: FilterAttach returned ACCESS_DENIED to an unelevated caller, but ProjFS service is running. Proceeding.");
                 errorMessage = null;
                 return true;
             }
 
             return false;
+        }
+
+        private static bool TryGetVolumeFormat(string volumeRoot, out string format)
+        {
+            StringBuilder buffer = new StringBuilder(GVFSConstants.MaxPath);
+            bool success = NativeMethods.GetVolumeInformation(
+                volumeRoot,
+                null,
+                0,
+                out uint _,
+                out uint _,
+                out uint _,
+                buffer,
+                GVFSConstants.MaxPath);
+            format = success ? buffer.ToString() : null;
+            return success;
         }
 
         public static bool IsServiceRunning(ITracer tracer)
@@ -662,6 +746,18 @@ namespace GVFS.Platform.Windows
 
         private static class NativeMethods
         {
+            [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool GetVolumeInformation(
+                string rootPath,
+                StringBuilder volumeName,
+                uint volumeNameLength,
+                out uint serialNumber,
+                out uint maximumComponentLength,
+                out uint fileSystemFlags,
+                StringBuilder fileSystemName,
+                uint fileSystemNameLength);
+
             [DllImport("fltlib.dll", CharSet = CharSet.Unicode)]
             public static extern uint FilterAttach(
                 string filterName,
