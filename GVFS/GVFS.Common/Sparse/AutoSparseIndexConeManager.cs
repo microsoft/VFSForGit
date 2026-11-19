@@ -3,10 +3,13 @@ using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.Common.Sparse
 {
@@ -15,7 +18,8 @@ namespace GVFS.Common.Sparse
     /// <c>gvfs.auto-sparse-index</c> is true.
     /// </summary>
     /// <remarks>
-    /// The cone is computed from the modified paths plus the transient paths of every Git
+    /// The cone is computed from the modified paths that can differ from HEAD, plus the changed
+    /// paths that the modified paths do not have yet, plus the transient paths of every Git
     /// command that widened and did not narrow yet (see <see cref="TransientConeState"/>).
     /// When the last command narrows, the cone is again the cone of the modified paths.
     /// <para>
@@ -23,15 +27,17 @@ namespace GVFS.Common.Sparse
     /// so that the index has entries for the new directories before Git runs. If Git fails,
     /// restore the previous cone file. Only the Git command that holds the GVFS lock can
     /// widen: it waits in its pre-command hook, so no other Git command writes the index.
-    /// The cone does not include the directory of a deleted file that a sparse-directory entry
-    /// hides (see <see cref="SparseDirectoryExpansionGuard"/>).
+    /// Unless Git changes only the index when the cone changes
+    /// (<see cref="IConeManagerEnvironment.SparsityChangeIsIndexOnly"/>), the cone does not
+    /// include the directory of a deleted file that a sparse-directory entry hides (see
+    /// <see cref="SparseDirectoryExpansionGuard"/>).
     /// </para>
     /// <para>
-    /// Narrow: write the new cone file only. The narrow arrives after the post-command hook
-    /// released the GVFS lock, so the mount cannot replace the index (see
-    /// <see cref="IConeManagerEnvironment.CanWriteIndex"/>). The index keeps the expanded
-    /// entries, all skip-worktree, until the next widen collapses every directory outside the
-    /// cone.
+    /// Narrow: write the new cone file only, after the post-command hook of a command that
+    /// widened, or after a background check (see below). The mount cannot replace the index then
+    /// (see <see cref="IConeManagerEnvironment.CanWriteIndex"/>). The index keeps the expanded
+    /// entries until the next widen collapses each directory outside the cone whose entries
+    /// are all skip-worktree.
     /// </para>
     /// <para>
     /// Locks: a process-internal lock serializes all requests. Then the manager takes the lock
@@ -45,8 +51,30 @@ namespace GVFS.Common.Sparse
     /// Every failure lets Git run, because the hook treats any reply other than success as
     /// "not applied". Git then expands the index in memory, which is slower but correct.
     /// </para>
+    /// <para>
+    /// Working-tree changes: Git sees a change to a file only when the index has an entry for
+    /// it, and <c>git add</c> takes a path only when the cone includes it. The file system
+    /// callbacks report every created, written, renamed, or deleted path (see
+    /// <see cref="OnWorkingDirectoryPathChanged"/>). When the applied cone does not include the
+    /// path, the manager creates the pending file (see
+    /// <see cref="IConeManagerEnvironment.TrySetConeChangePending"/>). The callback does not
+    /// wait for a Git command. The pre-command hook of the next Git command that reads the
+    /// index sees the file and sends an apply request while that command holds the GVFS lock.
+    /// The apply widens the cone like a widen without request paths. If the apply fails, the
+    /// change stays pending for the next Git command.
+    /// </para>
+    /// <para>
+    /// Clean paths: the cone includes a modified path only while the path can differ from HEAD.
+    /// After a Git command releases the GVFS lock, and when changes inside the applied cone stop
+    /// for <see cref="DefaultChangeCheckDelayMs"/>, a background check (see
+    /// <see cref="TryReconcile"/>) asks Git which paths differ from HEAD. A modified
+    /// file that matches HEAD, the index, and the working tree is clean, and the manager writes
+    /// a cone file without it. Git cannot collapse its directory while the file is a modified
+    /// path, because the virtual file system hook clears its skip-worktree bit, so the index
+    /// keeps its entry. The next change to the file makes it a candidate again.
+    /// </para>
     /// </remarks>
-    public class AutoSparseIndexConeManager
+    public class AutoSparseIndexConeManager : IWorkingDirectoryChangeObserver
     {
         /// <summary>A widen with more paths is refused, and Git expands the index in memory.</summary>
         public const int MaxWidenPaths = 1000;
@@ -58,8 +86,16 @@ namespace GVFS.Common.Sparse
         /// </summary>
         public const string SparseIndexFeature = "feature: vfs-sparse-index";
 
+        /// <summary>
+        /// After a change inside the applied cone, the manager waits until no change came for
+        /// this long, and then checks which modified files match HEAD again.
+        /// </summary>
+        public const int DefaultChangeCheckDelayMs = 2000;
+
         private const string WidenEventName = "ConeWiden";
         private const string NarrowEventName = "ConeNarrow";
+        private const string ApplyEventName = "ConeApply";
+        private const string ReconcileEventName = "ConeReconcile";
         private const int MaxTracedPaths = 10;
 
         // The mount does not start Git for a widen later than this after it got the request:
@@ -71,6 +107,12 @@ namespace GVFS.Common.Sparse
         // refuses only when reapply could not finish inside the ceiling.
         internal const int DefaultMaxElapsedBeforeApplyMs = NamedPipeMessages.ConeManagement.WidenReplyCeilingMs / 2;
 
+        // A check that cannot write the cone file tries again after the change-check delay, at
+        // most this many times in a row. The next Git command that ends tries again too.
+        private const int MaxReconcileWriteRetries = 5;
+
+        private static readonly IReadOnlyList<string> NoPaths = new List<string>();
+
         private readonly ITracer tracer;
         private readonly PhysicalFileSystem fileSystem;
         private readonly ConeFileWriter coneFileWriter;
@@ -80,6 +122,14 @@ namespace GVFS.Common.Sparse
         private readonly int maxElapsedBeforeApplyMs;
         private readonly TransientConeState transientState = new TransientConeState();
         private readonly Lock coneLock = new Lock();
+        private readonly Lock pendingLock = new Lock();
+        private readonly Lock reconcileScheduleLock = new Lock();
+        private readonly StringComparer pathComparer;
+        private readonly int changeCheckDelayMs;
+        private readonly Timer changeCheckTimer;
+
+        // The working-tree paths that changed since an apply or a check last used them.
+        private readonly ConcurrentDictionary<string, PathChange> changedPaths;
 
         // True when the index can have sparse-directory entries that do not match the cone
         // file: before the first widen of this mount, after a narrow, and after a failure.
@@ -95,13 +145,40 @@ namespace GVFS.Common.Sparse
         // in the cone file either.
         private HashSet<string> hiddenModifiedPaths = new HashSet<string>(StringComparer.Ordinal);
 
+        // The modified files that the last check found equal to HEAD, the index, and the working
+        // tree. The cone leaves them out. Guarded by coneLock.
+        private HashSet<string> cleanPaths;
+
+        // Changed paths that an apply used before the modified paths had them (see
+        // ConsumeChanges). The cone includes them. Guarded by coneLock.
+        private HashSet<string> unconfirmedPaths;
+
+        // The directories that the cone file includes and the index expands, or null when that
+        // is not known.
+        private AppliedConeSnapshot appliedCone;
+
+        private long changeSequence;
+        private bool isPending;
+
+        // Changes when an apply or a widen uses the changed paths, so that a check that started
+        // before it does not use its result. Guarded by coneLock.
+        private long consumeEpoch;
+
+        // The state that the last check saw. A check with the same state does not run Git again.
+        private (long ChangeSequence, long ConsumeEpoch, long RepositoryStamp)? lastReconcileState;
+
+        private bool reconcileRunning;
+        private bool reconcileRequested;
+        private int reconcileWriteRetries;
+        private volatile bool isStopped;
+
         public AutoSparseIndexConeManager(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             string sparseCheckoutPath,
             bool ignoreCase,
             IConeManagerEnvironment environment)
-            : this(tracer, fileSystem, sparseCheckoutPath, ignoreCase, environment, DefaultMaxElapsedBeforeApplyMs)
+            : this(tracer, fileSystem, sparseCheckoutPath, ignoreCase, environment, DefaultMaxElapsedBeforeApplyMs, DefaultChangeCheckDelayMs)
         {
         }
 
@@ -111,7 +188,8 @@ namespace GVFS.Common.Sparse
             string sparseCheckoutPath,
             bool ignoreCase,
             IConeManagerEnvironment environment,
-            int maxElapsedBeforeApplyMs)
+            int maxElapsedBeforeApplyMs,
+            int changeCheckDelayMs)
         {
             ArgumentNullException.ThrowIfNull(tracer);
             ArgumentNullException.ThrowIfNull(fileSystem);
@@ -125,6 +203,12 @@ namespace GVFS.Common.Sparse
             this.ignoreCase = ignoreCase;
             this.environment = environment;
             this.maxElapsedBeforeApplyMs = maxElapsedBeforeApplyMs;
+            this.pathComparer = ignoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+            this.changedPaths = new ConcurrentDictionary<string, PathChange>(this.pathComparer);
+            this.cleanPaths = new HashSet<string>(this.pathComparer);
+            this.unconfirmedPaths = new HashSet<string>(this.pathComparer);
+            this.changeCheckDelayMs = changeCheckDelayMs;
+            this.changeCheckTimer = new Timer(_ => this.ScheduleReconcile(), state: null, Timeout.Infinite, Timeout.Infinite);
         }
 
         private enum ConeChange
@@ -148,6 +232,12 @@ namespace GVFS.Common.Sparse
             WriteFailed,
             ApplyFailed,
             UnexpectedException,
+            ConeChangePending,
+            NothingChanged,
+            StateChanged,
+            CleanPathChanged,
+            DiffFailed,
+            Stopped,
         }
 
         /// <summary>
@@ -162,8 +252,9 @@ namespace GVFS.Common.Sparse
         }
 
         /// <summary>
-        /// Handle a <see cref="NamedPipeMessages.ConeManagement.WidenRequest"/> or
-        /// <see cref="NamedPipeMessages.ConeManagement.NarrowRequest"/> and return the reply.
+        /// Handle a <see cref="NamedPipeMessages.ConeManagement.WidenRequest"/>,
+        /// <see cref="NamedPipeMessages.ConeManagement.NarrowRequest"/>, or
+        /// <see cref="NamedPipeMessages.ConeManagement.ApplyRequest"/> and return the reply.
         /// </summary>
         /// <param name="manager">The cone manager, or null when the feature is off.</param>
         /// <param name="tracer">Traces a request that is not valid.</param>
@@ -201,6 +292,16 @@ namespace GVFS.Common.Sparse
                     succeeded = manager.TryNarrow(narrow);
                     break;
 
+                case NamedPipeMessages.ConeManagement.ApplyRequest:
+                    if (!NamedPipeMessages.ConeManagement.ApplyParameters.TryParse(message.Body, out NamedPipeMessages.ConeManagement.ApplyParameters apply))
+                    {
+                        TraceInvalidRequest(tracer, message.Header);
+                        return NamedPipeMessages.ConeManagement.FailureResult;
+                    }
+
+                    succeeded = manager.TryApply(apply);
+                    break;
+
                 default:
                     throw new ArgumentException($"'{message.Header}' is not a cone request.", nameof(message));
             }
@@ -210,7 +311,7 @@ namespace GVFS.Common.Sparse
 
         /// <summary>
         /// Add the paths of a Git command to the cone and update the index. The hook waits for
-        /// the result before Git runs.
+        /// the result before Git runs. The cone also gets every pending working-tree change.
         /// </summary>
         /// <returns>True when the cone and the index include the paths.</returns>
         public bool TryWiden(NamedPipeMessages.ConeManagement.WidenParameters parameters)
@@ -221,12 +322,163 @@ namespace GVFS.Common.Sparse
             EventMetadata metadata = this.CreateMetadata(parameters.CommandId);
             metadata.Add("PathCount", parameters.Paths.Count);
 
-            ConeChange change = this.RunAndCatch(() => this.Widen(parameters, stopwatch, metadata), metadata);
+            ApplyAttempt attempt = new ApplyAttempt();
+            ConeChange change = this.RunAndCatch(() => this.Widen(parameters, attempt, stopwatch, metadata), metadata);
+            this.RearmPendingAfterAttempt(attempt, change, requestHasPaths: true, metadata);
             bool succeeded = change == ConeChange.Applied || change == ConeChange.ConeUnchanged;
 
             // A widen slower than WidenWaitBudgetMs is a warning. The hook waits for the reply up
             // to WidenReplyCeilingMs, so the user's Git command waits for the widen.
             this.TraceResult(WidenEventName, change, stopwatch.ElapsedMilliseconds, NamedPipeMessages.ConeManagement.WidenWaitBudgetMs, metadata);
+            return succeeded;
+        }
+
+        /// <summary>
+        /// Apply the pending working-tree changes to the cone and the index before a Git command
+        /// reads the index. The hook waits for the result before Git runs.
+        /// </summary>
+        /// <returns>True when the cone and the index include every pending change.</returns>
+        public bool TryApply(NamedPipeMessages.ConeManagement.ApplyParameters parameters)
+        {
+            ArgumentNullException.ThrowIfNull(parameters);
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            EventMetadata metadata = this.CreateMetadata(parameters.CommandId);
+
+            ApplyAttempt attempt = new ApplyAttempt();
+            ConeChange change = this.RunAndCatch(
+                () => TryGetProcessId(parameters.CommandId, out int processId)
+                    ? this.ApplyCone(processId, NoPaths, attempt, stopwatch, metadata)
+                    : ConeChange.NoCommandId,
+                metadata);
+            this.RearmPendingAfterAttempt(attempt, change, requestHasPaths: false, metadata);
+            bool succeeded = change == ConeChange.Applied || change == ConeChange.ConeUnchanged;
+
+            this.TraceResult(ApplyEventName, change, stopwatch.ElapsedMilliseconds, NamedPipeMessages.ConeManagement.ApplyWaitBudgetMs, metadata);
+            return succeeded;
+        }
+
+        /// <summary>
+        /// Start to track working-tree changes. Changes made while no mount ran do not reach the
+        /// manager, so the first Git command applies the cone of every modified path.
+        /// </summary>
+        public void Start()
+        {
+            this.SetPending();
+        }
+
+        /// <summary>Stop the background checks. Requests and callbacks after this do nothing.</summary>
+        public void Stop()
+        {
+            this.isStopped = true;
+            this.changeCheckTimer.Dispose();
+        }
+
+        /// <inheritdoc/>
+        public void OnWorkingDirectoryPathChanged(string relativePath, bool isFolder)
+        {
+            if (this.isStopped || string.IsNullOrEmpty(relativePath))
+            {
+                return;
+            }
+
+            try
+            {
+                string path = NormalizeModifiedPath(relativePath, isFolder);
+                if (path.Length == 0 || path == GVFSConstants.GitPathSeparatorString)
+                {
+                    return;
+                }
+
+                // Record the change before reading the cone. A cone change then either sees this
+                // record, or this method sees the new cone (see PublishCone).
+                long sequence = Interlocked.Increment(ref this.changeSequence);
+                PathChange uncovered = new PathChange(sequence, WasCovered: false);
+                this.changedPaths[path] = uncovered;
+
+                AppliedConeSnapshot cone = Volatile.Read(ref this.appliedCone);
+                if (cone != null && cone.IsCovered(path))
+                {
+                    this.changedPaths.TryUpdate(path, new PathChange(sequence, WasCovered: true), uncovered);
+
+                    // The file can have the content of HEAD again. Check when the changes stop.
+                    this.changeCheckTimer.Change(this.changeCheckDelayMs, Timeout.Infinite);
+                }
+                else
+                {
+                    this.SetPending();
+                }
+            }
+            catch (ObjectDisposedException) when (this.isStopped)
+            {
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // The cone can miss this change. The next Git command that names the path, or the
+                // next mount, adds it.
+                EventMetadata metadata = this.CreateMetadata(commandId: null);
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedWarning(metadata, nameof(this.OnWorkingDirectoryPathChanged) + " failed", Keywords.Telemetry);
+            }
+        }
+
+        /// <summary>
+        /// A Git command released the GVFS lock. Start a background check for modified files
+        /// that match HEAD again (see <see cref="TryReconcile"/>). Returns at once.
+        /// </summary>
+        public void OnGitCommandCompleted()
+        {
+            this.ScheduleReconcile();
+        }
+
+        /// <summary>
+        /// Ask Git which paths differ from HEAD, and write a cone file without the modified files
+        /// that match HEAD. A clean file that differs again goes back into the cone. Git does not
+        /// write the index, and the manager does not wait for the GVFS lock.
+        /// </summary>
+        /// <returns>True when the check ran or was not needed.</returns>
+        public bool TryReconcile()
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            EventMetadata metadata = this.CreateMetadata(commandId: null);
+            ConeChange change = this.RunAndCatch(() => this.Reconcile(metadata), metadata);
+
+            bool succeeded;
+            switch (change)
+            {
+                case ConeChange.NothingChanged:
+                case ConeChange.ConeChangePending:
+                case ConeChange.StateChanged:
+                case ConeChange.Stopped:
+                    // Nothing to report: the check did not change anything.
+                    return true;
+
+                case ConeChange.Narrowed:
+                case ConeChange.ConeUnchanged:
+                case ConeChange.CleanPathChanged:
+                    Interlocked.Exchange(ref this.reconcileWriteRetries, 0);
+                    succeeded = true;
+                    break;
+
+                case ConeChange.WriteFailed:
+                case ConeChange.ConeFileLocked:
+                    // Another process can have the cone file open, or a Git sparse-checkout
+                    // command can hold its lock. No Git command has to end before the next try.
+                    if (Interlocked.Increment(ref this.reconcileWriteRetries) <= MaxReconcileWriteRetries)
+                    {
+                        metadata.Add("RetryAfterMs", this.changeCheckDelayMs);
+                        this.changeCheckTimer.Change(this.changeCheckDelayMs, Timeout.Infinite);
+                    }
+
+                    succeeded = false;
+                    break;
+
+                default:
+                    succeeded = false;
+                    break;
+            }
+
+            this.TraceResult(ReconcileEventName, change, stopwatch.ElapsedMilliseconds, waitBudgetMs: int.MaxValue, metadata);
             return succeeded;
         }
 
@@ -281,6 +533,7 @@ namespace GVFS.Common.Sparse
                 case ConeChange.WriteFailed:
                 case ConeChange.ApplyFailed:
                 case ConeChange.UnexpectedException:
+                case ConeChange.DiffFailed:
                     return true;
 
                 default:
@@ -288,7 +541,20 @@ namespace GVFS.Common.Sparse
             }
         }
 
-        private ConeChange Widen(NamedPipeMessages.ConeManagement.WidenParameters parameters, Stopwatch stopwatch, EventMetadata metadata)
+        private static string NormalizeModifiedPath(string path, bool isFolder)
+        {
+            // The same form as the modified-paths database: forward slashes, no leading or
+            // trailing slash, and a trailing slash for a folder.
+            string normalized = path.Replace('\\', GVFSConstants.GitPathSeparator).Trim(GVFSConstants.GitPathSeparator);
+            return isFolder ? normalized + GVFSConstants.GitPathSeparatorString : normalized;
+        }
+
+        private static bool IsFolderPath(string modifiedPath)
+        {
+            return modifiedPath.EndsWith(GVFSConstants.GitPathSeparatorString, StringComparison.Ordinal);
+        }
+
+        private ConeChange Widen(NamedPipeMessages.ConeManagement.WidenParameters parameters, ApplyAttempt attempt, Stopwatch stopwatch, EventMetadata metadata)
         {
             if (!parameters.IsValid())
             {
@@ -306,6 +572,21 @@ namespace GVFS.Common.Sparse
                 return ConeChange.NoCommandId;
             }
 
+            if (parameters.Paths.Count <= MaxTracedPaths)
+            {
+                metadata.Add("Paths", string.Join(";", parameters.Paths));
+            }
+
+            return this.ApplyCone(processId, parameters.Paths, attempt, stopwatch, metadata);
+        }
+
+        /// <summary>
+        /// Write the cone of the modified paths, the transient paths, and
+        /// <paramref name="requestPaths"/>, and apply it to the index for the Git process that
+        /// holds the GVFS lock.
+        /// </summary>
+        private ConeChange ApplyCone(int processId, IReadOnlyList<string> requestPaths, ApplyAttempt attempt, Stopwatch stopwatch, EventMetadata metadata)
+        {
             // Refuse a command that does not hold the GVFS lock before it waits for other
             // requests. The check runs again under the lock, because the holder can change.
             if (!this.environment.CanWriteIndex(processId))
@@ -320,11 +601,6 @@ namespace GVFS.Common.Sparse
                     return ConeChange.NotLockHolder;
                 }
 
-                if (parameters.Paths.Count <= MaxTracedPaths)
-                {
-                    metadata.Add("Paths", string.Join(";", parameters.Paths));
-                }
-
                 this.RemoveEndedCommands(metadata);
 
                 if (!this.TryGetStartTime(processId, out long startTime))
@@ -332,7 +608,7 @@ namespace GVFS.Common.Sparse
                     return ConeChange.CommandEnded;
                 }
 
-                if (this.transientState.IsNarrowed(processId, startTime))
+                if (requestPaths.Count > 0 && this.transientState.IsNarrowed(processId, startTime))
                 {
                     return ConeChange.CommandAlreadyNarrowed;
                 }
@@ -342,13 +618,34 @@ namespace GVFS.Common.Sparse
                     return ConeChange.QueueWaitTooLong;
                 }
 
+                // From here, this request applies every change that is pending now. A change
+                // after this point makes the pending file again (see OnWorkingDirectoryPathChanged).
+                attempt.ClearedPending = this.ClearPending();
+                long consumedSequence = Interlocked.Read(ref this.changeSequence);
+
                 List<string> modifiedPaths = new List<string>(this.environment.GetModifiedPaths());
+                this.ConsumeChanges(consumedSequence, modifiedPaths, metadata);
 
                 // A modified file that exists keeps its content when Git expands its directory.
-                // A deleted file, or a modified folder, does not. Only those need the list of
-                // sparse-directory entries.
-                List<string> unsafePaths = modifiedPaths.FindAll(
-                    path => path.EndsWith(GVFSConstants.GitPathSeparatorString, StringComparison.Ordinal) || !this.environment.IsFileInWorkingDirectory(path));
+                // A deleted file, or a modified folder, does not, unless Git changes only the
+                // index. Only those need the list of sparse-directory entries, and only when the
+                // applied cone does not already expand them. A clean path has no index entry that
+                // differs from the working tree.
+                AppliedConeSnapshot applied = Volatile.Read(ref this.appliedCone);
+                List<string> unsafePaths = new List<string>();
+                if (!this.environment.SparsityChangeIsIndexOnly)
+                {
+                    foreach (string path in modifiedPaths.Concat(this.unconfirmedPaths))
+                    {
+                        if ((IsFolderPath(path) || !this.environment.IsFileInWorkingDirectory(path)) &&
+                            !this.cleanPaths.Contains(path) &&
+                            (applied == null || !applied.IsCovered(path)))
+                        {
+                            unsafePaths.Add(path);
+                        }
+                    }
+                }
+
                 List<string> hidden = new List<string>();
                 if (unsafePaths.Count > 0)
                 {
@@ -370,7 +667,7 @@ namespace GVFS.Common.Sparse
                 }
 
                 List<string> conePaths = this.GetConePaths(modifiedPaths, hiddenSet);
-                conePaths.AddRange(parameters.Paths);
+                conePaths.AddRange(requestPaths);
                 if (!this.TryBuildCone(conePaths, metadata, out ConePatternSet cone))
                 {
                     return ConeChange.InvalidPath;
@@ -420,7 +717,8 @@ namespace GVFS.Common.Sparse
                         this.coneFileMayBeStale = false;
                         if (writeResult == ConeFileWriteResult.Unchanged && !this.indexMayDifferFromCone)
                         {
-                            this.transientState.Add(processId, startTime, parameters.Paths);
+                            this.AddTransientPaths(processId, startTime, requestPaths);
+                            this.PublishCone(cone);
                             return ConeChange.ConeUnchanged;
                         }
 
@@ -430,11 +728,18 @@ namespace GVFS.Common.Sparse
                         {
                             keepBackup = !this.TryRollBack(writeResult, coneFileExisted, backupPath, metadata);
                             this.coneFileMayBeStale = keepBackup;
+                            if (keepBackup)
+                            {
+                                // The cone file now has directories that the index did not expand.
+                                this.PublishCone(null);
+                            }
+
                             return ConeChange.ApplyFailed;
                         }
 
                         this.indexMayDifferFromCone = false;
-                        this.transientState.Add(processId, startTime, parameters.Paths);
+                        this.AddTransientPaths(processId, startTime, requestPaths);
+                        this.PublishCone(cone);
                         return ConeChange.Applied;
                     }
                     finally
@@ -469,44 +774,75 @@ namespace GVFS.Common.Sparse
                     return ConeChange.NothingToNarrow;
                 }
 
-                // Until the cone file is written, a later request must write it again.
-                this.coneFileMayBeStale = true;
-
-                List<string> modifiedPaths = new List<string>(this.environment.GetModifiedPaths());
-                if (!this.TryBuildCone(this.GetConePaths(modifiedPaths, this.hiddenModifiedPaths), metadata, out ConePatternSet cone))
+                ConeChange change = this.WriteNarrowerCone(metadata);
+                if (change == ConeChange.Narrowed)
                 {
-                    return ConeChange.InvalidPath;
+                    // The index keeps the directories of the transient paths until the next widen.
+                    this.indexMayDifferFromCone = true;
                 }
 
-                if (!this.environment.TryLockConeFile(out IDisposable coneFileLock, out Exception lockError))
+                return change;
+            }
+        }
+
+        /// <summary>
+        /// Write the cone of the modified paths and the transient paths without running Git.
+        /// The caller holds <see cref="coneLock"/>, and the new cone does not include a directory
+        /// that the index does not expand.
+        /// </summary>
+        private ConeChange WriteNarrowerCone(EventMetadata metadata)
+        {
+            // Until the cone file is written, a later request must write it again.
+            this.coneFileMayBeStale = true;
+
+            List<string> modifiedPaths = new List<string>(this.environment.GetModifiedPaths());
+            List<string> conePaths = this.GetConePaths(modifiedPaths, this.hiddenModifiedPaths);
+            if (!this.TryBuildCone(conePaths, metadata, out ConePatternSet cone))
+            {
+                return ConeChange.InvalidPath;
+            }
+
+            // A modified path that is newer than the last apply can be in a directory that the
+            // index does not expand. The cone file then has it, so the next apply must run Git
+            // even when the cone file does not change.
+            AppliedConeSnapshot applied = Volatile.Read(ref this.appliedCone);
+            bool hasUnappliedPaths = applied == null || conePaths.Exists(path => !applied.IsCovered(path));
+
+            if (!this.environment.TryLockConeFile(out IDisposable coneFileLock, out Exception lockError))
+            {
+                metadata.Add("LockError", lockError?.ToString());
+                return ConeChange.ConeFileLocked;
+            }
+
+            using (coneFileLock)
+            {
+                ConeFileWriteResult writeResult = this.coneFileWriter.Write(this.sparseCheckoutPath, cone, out string backupPath, out Exception writeError);
+                metadata.Add("WriteResult", writeResult.ToString());
+
+                // A narrow does not run Git, so it never restores the previous file.
+                this.DeleteBackup(backupPath, metadata);
+
+                switch (writeResult)
                 {
-                    metadata.Add("LockError", lockError?.ToString());
-                    return ConeChange.ConeFileLocked;
-                }
+                    case ConeFileWriteResult.Failed:
+                        metadata.Add("WriteError", writeError?.ToString());
+                        return ConeChange.WriteFailed;
 
-                using (coneFileLock)
-                {
-                    ConeFileWriteResult writeResult = this.coneFileWriter.Write(this.sparseCheckoutPath, cone, out string backupPath, out Exception writeError);
-                    metadata.Add("WriteResult", writeResult.ToString());
+                    case ConeFileWriteResult.Unchanged:
+                        this.coneFileMayBeStale = false;
+                        this.PublishConeIfKnown(cone);
+                        return ConeChange.ConeUnchanged;
 
-                    // The narrow does not run Git, so it never restores the previous file.
-                    this.DeleteBackup(backupPath, metadata);
-
-                    switch (writeResult)
-                    {
-                        case ConeFileWriteResult.Failed:
-                            metadata.Add("WriteError", writeError?.ToString());
-                            return ConeChange.WriteFailed;
-
-                        case ConeFileWriteResult.Unchanged:
-                            this.coneFileMayBeStale = false;
-                            return ConeChange.ConeUnchanged;
-
-                        default:
-                            this.coneFileMayBeStale = false;
+                    default:
+                        this.coneFileMayBeStale = false;
+                        if (hasUnappliedPaths)
+                        {
+                            metadata.Add("HasUnappliedPaths", true);
                             this.indexMayDifferFromCone = true;
-                            return ConeChange.Narrowed;
-                    }
+                        }
+
+                        this.PublishConeIfKnown(cone);
+                        return ConeChange.Narrowed;
                 }
             }
         }
@@ -592,14 +928,408 @@ namespace GVFS.Common.Sparse
             List<string> paths = new List<string>(modifiedPaths.Count);
             foreach (string modifiedPath in modifiedPaths)
             {
-                if (!excludedModifiedPaths.Contains(modifiedPath))
+                if (!excludedModifiedPaths.Contains(modifiedPath) && !this.cleanPaths.Contains(modifiedPath))
                 {
                     paths.Add(modifiedPath);
                 }
             }
 
+            foreach (string unconfirmedPath in this.unconfirmedPaths)
+            {
+                if (!excludedModifiedPaths.Contains(unconfirmedPath))
+                {
+                    paths.Add(unconfirmedPath);
+                }
+            }
+
             paths.AddRange(this.transientState.GetAllPaths());
             return paths;
+        }
+
+        private void AddTransientPaths(int processId, long startTime, IReadOnlyList<string> requestPaths)
+        {
+            if (requestPaths.Count > 0)
+            {
+                this.transientState.Add(processId, startTime, requestPaths);
+            }
+        }
+
+        /// <summary>
+        /// Use the working-tree changes up to <paramref name="sequence"/>: a clean file that
+        /// changed can differ from HEAD again. The caller holds <see cref="coneLock"/>.
+        /// </summary>
+        /// <remarks>
+        /// The mount adds a changed path to the modified paths in a background task, and that
+        /// task waits while a Git command holds the GVFS lock. So a change can arrive before
+        /// its modified path. Such a path stays in the cone as an unconfirmed path until the
+        /// modified paths have it, or until a check finds it clean.
+        /// </remarks>
+        private void ConsumeChanges(long sequence, List<string> modifiedPaths, EventMetadata metadata)
+        {
+            HashSet<string> modified = new HashSet<string>(modifiedPaths, this.pathComparer);
+            int consumed = 0;
+            foreach (KeyValuePair<string, PathChange> change in this.changedPaths)
+            {
+                if (change.Value.Sequence <= sequence &&
+                    ((ICollection<KeyValuePair<string, PathChange>>)this.changedPaths).Remove(change))
+                {
+                    this.cleanPaths.Remove(change.Key);
+                    if (!IsModifiedPathOrUnderModifiedFolder(change.Key, modified))
+                    {
+                        this.unconfirmedPaths.Add(change.Key);
+                    }
+
+                    consumed++;
+                }
+            }
+
+            this.RemoveConfirmedAndStalePaths(modified);
+            this.consumeEpoch++;
+            metadata.Add("ConsumedChangeCount", consumed);
+            metadata.Add("CleanPathCount", this.cleanPaths.Count);
+            if (this.unconfirmedPaths.Count > 0)
+            {
+                metadata.Add("UnconfirmedPathCount", this.unconfirmedPaths.Count);
+            }
+        }
+
+        private static bool IsModifiedPathOrUnderModifiedFolder(string path, HashSet<string> modified)
+        {
+            if (modified.Contains(path))
+            {
+                return true;
+            }
+
+            // The modified paths do not list a file or folder inside a modified folder.
+            string trimmed = path.TrimEnd(GVFSConstants.GitPathSeparator);
+            for (int separator = trimmed.LastIndexOf(GVFSConstants.GitPathSeparator); separator > 0; separator = trimmed.LastIndexOf(GVFSConstants.GitPathSeparator, separator - 1))
+            {
+                if (modified.Contains(trimmed.Substring(0, separator + 1)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void RemoveConfirmedAndStalePaths(HashSet<string> modified)
+        {
+            // A dehydrated file leaves the modified paths. It is not clean or dirty any more.
+            this.cleanPaths.RemoveWhere(path => !modified.Contains(path));
+            this.unconfirmedPaths.RemoveWhere(path => IsModifiedPathOrUnderModifiedFolder(path, modified));
+        }
+
+        /// <summary>
+        /// Record that the index has entries for every directory of <paramref name="cone"/>, and
+        /// that the cone file is <paramref name="cone"/>. Null means that this is not known.
+        /// </summary>
+        private void PublishCone(ConePatternSet cone)
+        {
+            this.PublishSnapshot(cone == null ? null : new AppliedConeSnapshot(new ConeCoverage(cone)));
+        }
+
+        /// <summary>
+        /// Record a cone file that the manager wrote without running Git. The index can lack
+        /// entries for a directory that the new cone adds, so only the directories that both
+        /// cones include count as applied.
+        /// </summary>
+        private void PublishConeIfKnown(ConePatternSet cone)
+        {
+            AppliedConeSnapshot current = Volatile.Read(ref this.appliedCone);
+            this.PublishSnapshot(current?.Intersect(new ConeCoverage(cone)));
+        }
+
+        private void PublishSnapshot(AppliedConeSnapshot snapshot)
+        {
+            Volatile.Write(ref this.appliedCone, snapshot);
+            Interlocked.MemoryBarrier();
+
+            // A change that read the previous cone may need the new one. See
+            // OnWorkingDirectoryPathChanged for the order of the two steps.
+            foreach (KeyValuePair<string, PathChange> change in this.changedPaths)
+            {
+                if (snapshot == null || !snapshot.IsCovered(change.Key))
+                {
+                    this.SetPending();
+                    return;
+                }
+            }
+        }
+
+        private void SetPending()
+        {
+            if (Volatile.Read(ref this.isPending))
+            {
+                return;
+            }
+
+            lock (this.pendingLock)
+            {
+                if (this.isPending)
+                {
+                    return;
+                }
+
+                if (this.environment.TrySetConeChangePending(true, out Exception error))
+                {
+                    this.isPending = true;
+                    return;
+                }
+
+                // Without the file, the hook does not ask for the change. The next change, or
+                // the next Git command that names the path, tries again.
+                EventMetadata metadata = this.CreateMetadata(commandId: null);
+                metadata.Add("Exception", error?.ToString());
+                this.tracer.RelatedWarning(metadata, "Could not create the cone change pending file", Keywords.Telemetry);
+            }
+        }
+
+        /// <summary>Delete the pending file. Return true when a change was pending.</summary>
+        private bool ClearPending()
+        {
+            lock (this.pendingLock)
+            {
+                if (!this.isPending)
+                {
+                    return false;
+                }
+
+                if (!this.environment.TrySetConeChangePending(false, out Exception error))
+                {
+                    // The file stays, and so does the pending state: the next request deletes
+                    // the file again. Until then, each Git command sends a request.
+                    EventMetadata metadata = this.CreateMetadata(commandId: null);
+                    metadata.Add("Exception", error?.ToString());
+                    this.tracer.RelatedWarning(metadata, "Could not delete the cone change pending file", Keywords.Telemetry);
+                    return true;
+                }
+
+                Volatile.Write(ref this.isPending, false);
+                return true;
+            }
+        }
+
+        private void RearmPendingAfterAttempt(ApplyAttempt attempt, ConeChange change, bool requestHasPaths, EventMetadata metadata)
+        {
+            if (!attempt.ClearedPending)
+            {
+                return;
+            }
+
+            bool rearm;
+            switch (change)
+            {
+                case ConeChange.Applied:
+                case ConeChange.ConeUnchanged:
+                    return;
+
+                case ConeChange.ExpandsModifiedPath:
+                case ConeChange.InvalidPath:
+                    // The pending changes alone cannot make the same cone valid, so a retry
+                    // fails again until the working tree changes. The request paths can be the
+                    // cause, and an apply without them can succeed.
+                    rearm = requestHasPaths;
+                    break;
+
+                default:
+                    // Without the apply, Git does not see the change, and Git has no fallback
+                    // for that. Every later Git command tries again.
+                    rearm = true;
+                    break;
+            }
+
+            metadata.Add("PendingKept", rearm);
+            if (rearm)
+            {
+                this.SetPending();
+            }
+        }
+
+        /// <summary>Run <see cref="TryReconcile"/> in the background, at most one at a time.</summary>
+        private void ScheduleReconcile()
+        {
+            if (this.isStopped)
+            {
+                return;
+            }
+
+            lock (this.reconcileScheduleLock)
+            {
+                if (this.reconcileRunning)
+                {
+                    this.reconcileRequested = true;
+                    return;
+                }
+
+                this.reconcileRunning = true;
+            }
+
+            // The check runs Git and can take seconds, so it gets its own thread.
+            Task.Factory.StartNew(
+                () =>
+                {
+                    while (true)
+                    {
+                        this.TryReconcile();
+                        lock (this.reconcileScheduleLock)
+                        {
+                            if (!this.reconcileRequested || this.isStopped)
+                            {
+                                this.reconcileRunning = false;
+                                return;
+                            }
+
+                            this.reconcileRequested = false;
+                        }
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+        }
+
+        private ConeChange Reconcile(EventMetadata metadata)
+        {
+            if (this.isStopped)
+            {
+                return ConeChange.Stopped;
+            }
+
+            long startSequence;
+            long epoch;
+            AppliedConeSnapshot cone;
+            List<string> candidates;
+            (long, long, long) state;
+            lock (this.coneLock)
+            {
+                // A pending change can be in a directory that the index does not expand, so Git
+                // does not report it. Check after the next apply.
+                cone = Volatile.Read(ref this.appliedCone);
+                if (Volatile.Read(ref this.isPending) || cone == null)
+                {
+                    return ConeChange.ConeChangePending;
+                }
+
+                startSequence = Interlocked.Read(ref this.changeSequence);
+                epoch = this.consumeEpoch;
+                state = (startSequence, epoch, this.environment.GetRepositoryStamp());
+                if (this.lastReconcileState == state)
+                {
+                    // A failed write leaves the cone file stale. The clean paths are known, so
+                    // write the file again without Git.
+                    return this.coneFileMayBeStale ? this.WriteNarrowerCone(metadata) : ConeChange.NothingChanged;
+                }
+
+                // Only a file that the index has an entry for can be clean: one in an applied
+                // directory, or one that an earlier check found clean while its directory was
+                // applied. Folders stay in the cone.
+                candidates = new List<string>();
+                HashSet<string> seen = new HashSet<string>(this.pathComparer);
+                foreach (string path in this.environment.GetModifiedPaths().Concat(this.unconfirmedPaths))
+                {
+                    if (!IsFolderPath(path) &&
+                        !this.hiddenModifiedPaths.Contains(path) &&
+                        (this.cleanPaths.Contains(path) || cone.IsCovered(path)) &&
+                        seen.Add(path))
+                    {
+                        candidates.Add(path);
+                    }
+                }
+
+                if (candidates.Count == 0)
+                {
+                    this.lastReconcileState = state;
+                    return ConeChange.NothingChanged;
+                }
+            }
+
+            metadata.Add("CandidateCount", candidates.Count);
+            Stopwatch diffStopwatch = Stopwatch.StartNew();
+            if (!this.environment.TryGetPathsThatDifferFromHead(out ICollection<string> differingPaths, out string diffError))
+            {
+                metadata.Add("DiffError", diffError);
+                return ConeChange.DiffFailed;
+            }
+
+            metadata.Add("DiffMs", diffStopwatch.ElapsedMilliseconds);
+            if (this.isStopped)
+            {
+                return ConeChange.Stopped;
+            }
+
+            HashSet<string> differing = new HashSet<string>(differingPaths, this.pathComparer);
+            List<string> untrackedFolders = differingPaths.Where(IsFolderPath).ToList();
+
+            // A file is clean when Git lists neither the file nor an untracked folder that
+            // contains it. Git lists an untracked file, and a deleted tracked file. It does not
+            // list an ignored file, or a created file that was deleted again.
+            Dictionary<string, bool> isClean = new Dictionary<string, bool>(candidates.Count, this.pathComparer);
+            foreach (string path in candidates)
+            {
+                isClean[path] = !differing.Contains(path) &&
+                    !untrackedFolders.Any(folder => path.StartsWith(folder, this.ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+            }
+
+            lock (this.coneLock)
+            {
+                if (this.consumeEpoch != epoch || this.isStopped)
+                {
+                    // An apply changed the clean paths or the index while Git ran.
+                    return ConeChange.StateChanged;
+                }
+
+                int newlyClean = 0;
+                int newlyDirty = 0;
+                foreach (KeyValuePair<string, bool> result in isClean)
+                {
+                    bool changedDuringCheck = this.changedPaths.TryGetValue(result.Key, out PathChange change) &&
+                        (change.Sequence > startSequence || !change.WasCovered);
+                    if (result.Value && !changedDuringCheck)
+                    {
+                        // A clean unconfirmed path is not a modified path (for example, a file
+                        // that Git wrote), so it leaves the cone without becoming a clean path.
+                        if (this.unconfirmedPaths.Remove(result.Key) || this.cleanPaths.Add(result.Key))
+                        {
+                            newlyClean++;
+                        }
+                    }
+                    else if (this.cleanPaths.Remove(result.Key))
+                    {
+                        newlyDirty++;
+                    }
+                }
+
+                // Git saw each change that came before the check in a directory that the index
+                // expands, so the result above already includes it.
+                foreach (KeyValuePair<string, PathChange> change in this.changedPaths)
+                {
+                    if (change.Value.Sequence <= startSequence && change.Value.WasCovered)
+                    {
+                        ((ICollection<KeyValuePair<string, PathChange>>)this.changedPaths).Remove(change);
+                    }
+                }
+
+                this.lastReconcileState = state;
+                metadata.Add("NewlyCleanCount", newlyClean);
+                metadata.Add("NewlyDirtyCount", newlyDirty);
+                metadata.Add("CleanPathCount", this.cleanPaths.Count);
+
+                if (newlyDirty > 0)
+                {
+                    // The cone must include the file again. Its directory still has index
+                    // entries, but only an apply writes a wider cone file.
+                    this.SetPending();
+                    return ConeChange.CleanPathChanged;
+                }
+
+                if (newlyClean == 0)
+                {
+                    return ConeChange.ConeUnchanged;
+                }
+
+                return this.WriteNarrowerCone(metadata);
+            }
         }
 
         private bool TryBuildCone(List<string> paths, EventMetadata metadata, out ConePatternSet cone)
@@ -685,7 +1415,8 @@ namespace GVFS.Common.Sparse
                 metadata.Add("WaitBudgetMs", waitBudgetMs);
             }
 
-            if (IsFailure(change) || exceededWaitBudget || metadata.ContainsKey("DeleteBackupError"))
+            // A hidden modified path stays invisible to Git, so it is a warning too.
+            if (IsFailure(change) || exceededWaitBudget || metadata.ContainsKey("DeleteBackupError") || metadata.ContainsKey("HiddenModifiedPathCount"))
             {
                 this.tracer.RelatedEvent(EventLevel.Warning, eventName, metadata, Keywords.Telemetry);
             }
@@ -700,6 +1431,59 @@ namespace GVFS.Common.Sparse
             lock (this.coneLock)
             {
                 return this.transientState.CommandCount;
+            }
+        }
+
+        /// <summary>A working-tree change: its order, and if the applied cone included the path then.</summary>
+        private readonly record struct PathChange(long Sequence, bool WasCovered);
+
+        /// <summary>Records whether a request cleared the pending file.</summary>
+        private sealed class ApplyAttempt
+        {
+            public bool ClearedPending { get; set; }
+        }
+
+        /// <summary>
+        /// The directories that the cone file includes and the index expands: those that every
+        /// cone in the list includes.
+        /// </summary>
+        private sealed class AppliedConeSnapshot
+        {
+            // More cones make every callback slower. Then the manager treats the state as
+            // unknown, and the next Git command applies the cone again.
+            private const int MaxCones = 4;
+
+            private readonly ConeCoverage[] cones;
+
+            public AppliedConeSnapshot(params ConeCoverage[] cones)
+            {
+                this.cones = cones;
+            }
+
+            public bool IsCovered(string path)
+            {
+                foreach (ConeCoverage cone in this.cones)
+                {
+                    if (!cone.IsCovered(path))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            public AppliedConeSnapshot Intersect(ConeCoverage cone)
+            {
+                if (this.cones.Length >= MaxCones)
+                {
+                    return null;
+                }
+
+                ConeCoverage[] combined = new ConeCoverage[this.cones.Length + 1];
+                this.cones.CopyTo(combined, 0);
+                combined[this.cones.Length] = cone;
+                return new AppliedConeSnapshot(combined);
             }
         }
     }

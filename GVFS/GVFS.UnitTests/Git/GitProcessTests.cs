@@ -30,6 +30,19 @@ namespace GVFS.UnitTests.Git
             tokens.ShouldMatchInOrder("a.txt", "d/b.txt", "d/c.txt");
         }
 
+        [TestCase("1 .M N... 100644 100644 100644 0123 0123 d/a.txt", "d/a.txt")]
+        [TestCase("1 D. N... 100644 000000 000000 0123 0000 d/with space.txt", "d/with space.txt")]
+        [TestCase("u UU N... 100644 100644 100644 100644 0123 0456 0789 d/conflict.txt", "d/conflict.txt")]
+        [TestCase("? d/untracked.txt", "d/untracked.txt")]
+        [TestCase("? d/new folder/", "d/new folder/")]
+        [TestCase("! d/ignored.txt", null)]
+        [TestCase("# branch.oid 0123", null)]
+        [TestCase("1 .M N... 100644", null)]
+        public void GetPorcelainV2PathReturnsThePathOfAChangedEntry(string record, string expectedPath)
+        {
+            GitProcess.GetPorcelainV2Path(record).ShouldEqual(expectedPath);
+        }
+
         [TestCase]
         public void ReadStdOutTokens_EmptyInputYieldsNoTokens()
         {

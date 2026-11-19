@@ -4,6 +4,7 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Sparse;
 using GVFS.Common.Tracing;
 using GVFS.Hooks.HooksPlatform;
+using GVFS.Platform.Windows;
 using System;
 using System.IO;
 
@@ -20,16 +21,88 @@ namespace GVFS.Hooks
         // expands the index for the command.
         private const long MaxConeFileBytes = 16 * 1024 * 1024;
 
-        private static void TrySendConeWiden(string[] args)
+        // True when the pre-command hook took the GVFS lock for the Git command.
+        private static bool commandHoldsGVFSLock;
+
+        private static ConeRequestOutcome TrySendConeWiden(string[] args)
         {
             try
             {
-                CreateConeManagementHook().TrySendWiden(args);
+                return CreateConeManagementHook().TrySendWiden(args);
             }
             catch (Exception e)
             {
                 TraceConeDiagnostic($"widen failed: {e.Message}");
+                return ConeRequestOutcome.Failed;
             }
+        }
+
+        /// <summary>
+        /// Before Git reads the index, make sure that the cone includes every working-tree change
+        /// that the mount saw. A widen that the mount applied already includes them.
+        /// </summary>
+        private static void TryApplyPendingConeChange(string[] args, bool wasPending, ConeRequestOutcome widenOutcome)
+        {
+            if (!wasPending || widenOutcome == ConeRequestOutcome.Applied)
+            {
+                return;
+            }
+
+            try
+            {
+                new PendingConeChangeHook(IsConeChangePending, DeleteConeChangePendingFile, () => new NamedPipeClient(enlistmentPipename), TraceConeDiagnostic)
+                    .TryApply(
+                        args,
+                        commandHoldsGVFSLock,
+                        processId => new NamedPipeMessages.LockRequest(
+                            processId,
+                            GVFSHooksPlatform.IsElevated(),
+                            checkAvailabilityOnly: false,
+                            GenerateFullCommand(args),
+                            GetGitCommandSessionId()));
+            }
+            catch (Exception e)
+            {
+                TraceConeDiagnostic($"apply failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Return true when the mount's pending file exists (see
+        /// <see cref="GVFSConstants.DotGVFS.ConeChangePending"/>). When nothing is pending, this
+        /// is the only cost that cone management adds to a command that names no paths.
+        /// </summary>
+        private static bool IsConeChangePending()
+        {
+            try
+            {
+                return File.Exists(GetConeChangePendingPath());
+            }
+            catch (Exception e)
+            {
+                TraceConeDiagnostic($"cannot check for a pending cone change: {e.Message}");
+                return false;
+            }
+        }
+
+        private static void DeleteConeChangePendingFile()
+        {
+            try
+            {
+                File.Delete(GetConeChangePendingPath());
+            }
+            catch (Exception e)
+            {
+                TraceConeDiagnostic($"cannot delete the pending cone change file: {e.Message}");
+            }
+        }
+
+        private static string GetConeChangePendingPath()
+        {
+            string dotGVFSRoot = currentWorktreeInfo != null
+                ? Path.Combine(currentWorktreeInfo.WorktreeGitDir, WindowsPlatform.DotGVFSRoot)
+                : Path.Combine(enlistmentRoot, WindowsPlatform.DotGVFSRoot);
+            return Path.Combine(dotGVFSRoot, GVFSConstants.DotGVFS.ConeChangePending);
         }
 
         private static void TrySendConeNarrow(string[] args)
