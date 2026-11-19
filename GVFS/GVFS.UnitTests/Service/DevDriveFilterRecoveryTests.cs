@@ -1,3 +1,5 @@
+using GVFS.Common;
+using GVFS.Common.NamedPipes;
 using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using GVFS.Tests.Should;
@@ -10,6 +12,51 @@ namespace GVFS.UnitTests.Service
     [TestFixture]
     public class DevDriveFilterRecoveryTests
     {
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\"}", null, false)]
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\",\"AutoAllowDevDriveFilter\":null}", null, false)]
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\",\"AutoAllowDevDriveFilter\":true}", null, true)]
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\"}", true, true)]
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\",\"AutoAllowDevDriveFilter\":false}", true, false)]
+        [TestCase("{\"EnlistmentRoot\":\"mock:\\\\src\",\"AutoAllowDevDriveFilter\":true}", false, false)]
+        public void WireAndSystemGateControlWhetherPolicyUpdateRuns(string json, bool? system, bool expectedWrite)
+        {
+            NamedPipeMessages.EnableAndAttachProjFSRequest request = NamedPipeMessages.EnableAndAttachProjFSRequest.FromMessage(
+                new NamedPipeMessages.Message("EnableAndAttachProjFSRequest", json));
+            int policyCalls = 0;
+            bool result = DevDriveFilterRecovery.TryRecover(
+                @"mock:\volume\",
+                new MockTracer(),
+                () =>
+                {
+                    bool enabled = DevDriveFilterConfig.IsEnabled(
+                        (string key, out bool? value, out string readError) =>
+                        {
+                            value = system;
+                            readError = null;
+                            return true;
+                        },
+                        request.AutoAllowDevDriveFilter,
+                        "system",
+                        new MockTracer(),
+                        out string reason);
+                    return (enabled, reason);
+                },
+                () =>
+                {
+                    ++policyCalls;
+                    return (DevDriveFilterPolicy.AllowFilterResult.Added, null);
+                },
+                () => (true, false, null),
+                out string error);
+
+            result.ShouldEqual(expectedWrite);
+            policyCalls.ShouldEqual(expectedWrite ? 1 : 0);
+            if (!expectedWrite)
+            {
+                error.ShouldContain("The mounted volume rejected PrjFlt");
+            }
+        }
+
         [TestCase]
         public void DisabledGateDoesNotQueryOrWritePolicy()
         {

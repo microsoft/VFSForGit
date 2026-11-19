@@ -484,12 +484,12 @@ namespace GVFS.Common.NamedPipes
 
             /// <summary>
             /// The value of gvfs.auto-allow-devdrive-filter as resolved by the client against the
-            /// enlistment (system, global, and local git config). Null when the client did not
-            /// resolve a value, including requests from a client that predates this field.
+            /// enlistment (system, global, and local git config). Null when the value is unset
+            /// or the client predates this field. A read failure is sent as false.
             /// </summary>
             /// <remarks>
             /// The service also reads the system config of its selected Git installation.
-            /// A false system value vetoes the write regardless of this client value.
+            /// An explicit true value opts in. A false value at either side vetoes the write.
             /// See GVFSConstants.GitConfig.AutoAllowDevDriveFilter for the configuration contract.
             /// </remarks>
             public bool? AutoAllowDevDriveFilter { get; set; }

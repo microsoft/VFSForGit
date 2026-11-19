@@ -588,12 +588,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     ? null
                     : (string key, out bool? value, out string readError) =>
                         git.TryGetBoolFromConfig(key, GitConfigBoolScope.Merged, DevDriveFilterConfig.ReadTimeout, tracer, out value, out readError);
-                request.AutoAllowDevDriveFilter = DevDriveFilterConfig.IsEnabled(
-                    reader,
-                    clientValue: null,
-                    source: "enlistment",
-                    tracer,
-                    out string _);
+                request.AutoAllowDevDriveFilter = DevDriveFilterConfig.ReadClientValue(reader, tracer);
             }
 
             using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))

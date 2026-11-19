@@ -13,8 +13,9 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class DevDriveFilterConfigTests
     {
-        [TestCase(null, null, true)]
+        [TestCase(null, null, false)]
         [TestCase(true, null, true)]
+        [TestCase(null, true, true)]
         [TestCase(true, true, true)]
         [TestCase(false, true, false)]
         [TestCase(true, false, false)]
@@ -40,8 +41,65 @@ namespace GVFS.UnitTests.Common
             }
             else
             {
-                reason.ShouldContain(system == false ? "system configuration" : "enlistment configuration");
+                if (system == null && client == null)
+                {
+                    reason.ShouldContain("not enabled", "Set", "true");
+                }
+                else
+                {
+                    reason.ShouldContain(system == false ? "system configuration" : "enlistment configuration");
+                }
             }
+        }
+
+        [TestCase(null)]
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ClientPreservesUnsetAndExplicitConfigurationValues(bool? configured)
+        {
+            DevDriveFilterConfig.ReadClientValue(
+                (string key, out bool? value, out string error) =>
+                {
+                    key.ShouldEqual("gvfs.auto-allow-devdrive-filter");
+                    value = configured;
+                    error = null;
+                    return true;
+                },
+                new MockTracer()).ShouldEqual(configured);
+        }
+
+        [TestCase]
+        public void ClientReadFailureVetoesEvenAnExplicitSystemOptIn()
+        {
+            MockTracer tracer = new MockTracer();
+            bool? client = DevDriveFilterConfig.ReadClientValue(
+                (string key, out bool? value, out string error) =>
+                {
+                    value = null;
+                    error = "read denied";
+                    return false;
+                },
+                tracer);
+            client.ShouldEqual(false);
+            tracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            DevDriveFilterConfig.IsEnabled(
+                (string key, out bool? value, out string error) =>
+                {
+                    value = true;
+                    error = null;
+                    return true;
+                },
+                client,
+                "system",
+                tracer,
+                out string reason).ShouldBeFalse();
+            reason.ShouldContain("enlistment configuration");
+        }
+
+        [TestCase]
+        public void MissingClientReaderVetoesAutomaticUpdates()
+        {
+            DevDriveFilterConfig.ReadClientValue(null, new MockTracer()).ShouldEqual(false);
         }
 
         [TestCase("system")]
