@@ -329,6 +329,7 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("Already initialized");
             }
 
+            this.IsAnonymous = false;
             if (this.TryCallGitCredential(tracer, out errorMessage))
             {
                 this.MarkInitialized();

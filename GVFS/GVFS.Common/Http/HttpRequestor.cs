@@ -38,6 +38,11 @@ namespace GVFS.Common.Http
         }
 
         protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
+            : this(tracer, retryConfig, enlistment, handlerOverride: null)
+        {
+        }
+
+        internal HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment, HttpMessageHandler handlerOverride)
         {
             this.RetryConfig = retryConfig;
 
@@ -61,14 +66,19 @@ namespace GVFS.Common.Http
             // GVFS cache servers and Azure DevOps accept PAT/OAuth tokens via the
             // "Authorization: Basic <base64>" header that SendRequest already attaches.
             // Transport-level credentials are redundant and purely wasteful.
-            SocketsHttpHandler handler = new SocketsHttpHandler()
+            HttpMessageHandler handler = handlerOverride;
+            if (handler == null)
             {
-                MaxConnectionsPerServer = Environment.ProcessorCount,
-                PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-            };
+                SocketsHttpHandler socketsHandler = new SocketsHttpHandler()
+                {
+                    MaxConnectionsPerServer = Environment.ProcessorCount,
+                    PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                };
 
-            this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, handler, enlistment.CreateGitProcess());
+                this.authentication.ConfigureSocketsHandlerSslIfNeeded(this.Tracer, socketsHandler, enlistment.CreateGitProcess());
+                handler = socketsHandler;
+            }
 
             this.client = new HttpClient(handler)
             {
@@ -274,20 +284,13 @@ namespace GVFS.Common.Http
                             errorMessage += ". " + bodyReadFailure;
                         }
                     }
-                    else if (ShouldRejectCredentials(response.StatusCode, errorMessage))
-                    {
-                        this.authentication.RejectCredentials(this.Tracer, authString);
-                        if (!this.authentication.IsBackingOff)
-                        {
-                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
-                        }
-                        else
-                        {
-                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
-                        }
-                    }
                     else
                     {
+                        if (ShouldRejectCredentials(response.StatusCode, errorMessage))
+                        {
+                            this.authentication.RejectCredentials(this.Tracer, authString);
+                        }
+
                         errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
                     }
 
