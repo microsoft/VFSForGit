@@ -145,7 +145,8 @@ namespace GVFS.Common.Git
                 ReadResultAsync,
                 () => process.HasExited,
                 () => process.Kill(entireProcessTree: true),
-                cancellation);
+                cancellation,
+                () => process.WaitForExit(5000));
 
             async Task<GitProcess.Result> ReadResultAsync()
             {
@@ -176,7 +177,8 @@ namespace GVFS.Common.Git
             Func<Task<GitProcess.Result>> read,
             Func<bool> hasExited,
             Action killTree,
-            CancellationToken cancellation)
+            CancellationToken cancellation,
+            Func<bool> waitForExit = null)
         {
             TaskCompletionSource<Exception> cancellationKill = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
             CancellationTokenRegistration registration = cancellation.Register(() =>
@@ -222,6 +224,21 @@ namespace GVFS.Common.Git
                             killTree();
                         }
 
+                    }
+                    catch (Exception cleanupFailure) when (failure != null || readFailure != null)
+                    {
+                        failure = failure == null ? cleanupFailure : new AggregateException(failure, cleanupFailure);
+                    }
+                }
+
+                if (waitForExit != null)
+                {
+                    try
+                    {
+                        if (!hasExited() && !waitForExit())
+                        {
+                            throw new Win32Exception("The Git configuration process did not exit within the cleanup deadline.");
+                        }
                     }
                     catch (Exception cleanupFailure) when (failure != null || readFailure != null)
                     {
