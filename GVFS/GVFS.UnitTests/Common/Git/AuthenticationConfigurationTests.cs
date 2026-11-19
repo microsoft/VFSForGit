@@ -6,7 +6,9 @@ using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Win32Exception = System.ComponentModel.Win32Exception;
 
 namespace GVFS.UnitTests.Common.Git
 {
@@ -53,20 +55,38 @@ namespace GVFS.UnitTests.Common.Git
         }
 
         [Test]
-        [Category(CategoryConstants.ExceptionExpected)]
-        public void TreeKillFailuresCannotEscapeTheCancellationCallback()
-        {
-            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new AggregateException(new System.ComponentModel.Win32Exception())), Is.False);
-            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new System.ComponentModel.Win32Exception()), Is.False);
-            Assert.That(GitProcessConfigReader.TryKillProcess(() => throw new InvalidOperationException()), Is.True);
-        }
-
-        [Test]
         public void MalformedAndExcessConfigEntriesAreRejected()
         {
             Assert.That(AuthenticationConfiguration.TryParseEntries("global\0credential.helper\nmanager", out _), Is.False);
             string entries = string.Concat(Enumerable.Repeat("global\0credential.helper\nmanager\0", 129));
             Assert.That(AuthenticationConfiguration.TryParseEntries(entries, out _), Is.False);
+        }
+
+        [TestCase(false, "query-process-error")]
+        [TestCase(true, "query-io-error")]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DiagnosticKillFailuresReportThePrimaryStatusWithoutExceptionDetails(bool readAlsoFails, string status)
+        {
+            Win32Exception nativeFailure = new Win32Exception(5, Secret);
+            InvalidOperationException snapshotFailure = new InvalidOperationException(Secret, nativeFailure);
+            AggregateException processFailure = new AggregateException(nativeFailure, snapshotFailure);
+            Exception failure = readAlsoFails
+                ? new IOException(Secret, new AggregateException(new IOException(Secret), processFailure))
+                : processFailure;
+
+            EventMetadata snapshot = AuthenticationConfiguration.Collect("mock://repo", _ => throw failure);
+
+            Assert.That(snapshot["Status"], Is.EqualTo(status));
+            Assert.That(snapshot.Values.Any(value => value?.ToString().Contains(Secret, StringComparison.Ordinal) == true), Is.False);
+        }
+
+        [Test]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void DiagnosticFailureWithANonProcessErrorIsNotHidden()
+        {
+            AggregateException failure = new AggregateException(new Win32Exception(5), new InvalidOperationException());
+
+            Assert.That(Assert.Throws<AggregateException>(() => AuthenticationConfiguration.Collect("mock://repo", _ => throw failure)), Is.SameAs(failure));
         }
 
         [Test]

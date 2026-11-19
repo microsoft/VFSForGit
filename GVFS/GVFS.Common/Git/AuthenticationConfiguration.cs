@@ -1,7 +1,6 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -231,7 +230,7 @@ namespace GVFS.Common.Git
                 {
                     metadata["Status"] = "query-timeout";
                 }
-                catch (Win32Exception)
+                catch (GitConfigProcessException)
                 {
                     metadata["Status"] = "query-process-error";
                 }
