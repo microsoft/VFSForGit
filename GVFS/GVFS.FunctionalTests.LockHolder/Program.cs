@@ -9,8 +9,9 @@ namespace GVFS.FunctionalTests.LockHolder
     {
         public static void Main(string[] args)
         {
-            if (args.Length > 0 && args[0] == "--read-placeholder")
+            if (args.Length > 0 && (args[0] == "--read-placeholder" || args[0] == "--read-placeholder-success"))
             {
+                bool expectSuccess = args[0] == "--read-placeholder-success";
                 string path = Environment.GetEnvironmentVariable("GVFS_TEST_PLACEHOLDER_PATH");
                 string eventName = Environment.GetEnvironmentVariable("GVFS_TEST_PLACEHOLDER_EVENT_NAME");
                 if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(eventName))
@@ -22,20 +23,29 @@ namespace GVFS.FunctionalTests.LockHolder
                 try
                 {
                     File.ReadAllText(path);
-                    Console.Error.WriteLine("The child unexpectedly opened the placeholder.");
-                    Environment.Exit(1);
+                    if (!expectSuccess)
+                    {
+                        Console.Error.WriteLine("The child unexpectedly opened the placeholder.");
+                        Environment.Exit(1);
+                    }
                 }
                 catch (FileNotFoundException)
                 {
-                    using (EventWaitHandle rejected = EventWaitHandle.OpenExisting(eventName))
+                    if (expectSuccess)
                     {
-                        rejected.Set();
+                        Console.Error.WriteLine("The child could not open the placeholder.");
+                        Environment.Exit(1);
                     }
                 }
                 catch (IOException e)
                 {
                     Console.Error.WriteLine("Child placeholder rejection: 0x" + e.HResult.ToString("X8"));
                     Environment.Exit(1);
+                }
+
+                using (EventWaitHandle completed = EventWaitHandle.OpenExisting(eventName))
+                {
+                    completed.Set();
                 }
 
                 return;

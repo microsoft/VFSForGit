@@ -1,5 +1,6 @@
 using GVFS.Common.Tracing;
 using GVFS.Common.NamedPipes;
+using GVFS.Common;
 using GVFS.Virtualization.FileSystem;
 using Microsoft.Windows.ProjFS;
 using System;
@@ -10,6 +11,24 @@ namespace GVFS.Platform.Windows
 {
     public partial class WindowsFileSystemVirtualizer
     {
+        private static bool IsApplyCommand(NamedPipeMessages.LockData holder)
+        {
+            return new GitCommandLineParser(holder?.ParsedCommand).IsVerb(GitCommandLineParser.Verbs.Apply);
+        }
+
+        private static HResult GetPlaceholderRejectionResult(NamedPipeMessages.LockData holder)
+        {
+            // FileNotFound poisons ProjFS's path-wide negative cache, including the apply owner's next open.
+            return IsApplyCommand(holder) ?
+                (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable : HResult.FileNotFound;
+        }
+
+        private bool CanCreatePlaceholderForRequest(NamedPipeMessages.LockData holder, long? ownerStartTime, uint processId)
+        {
+            return CanCreatePlaceholderForCommand(holder?.ParsedCommand) ||
+                (IsApplyCommand(holder) && this.IsRequestDescendant(processId, holder, ownerStartTime) == true);
+        }
+
         private HResult DeferPlaceholderCreation(int commandId, string virtualPath, uint processId, string processName)
         {
             if (!this.TryRegisterCommand(commandId, out CancellationTokenSource cancellation))
@@ -27,7 +46,7 @@ namespace GVFS.Platform.Windows
             }
 
             NamedPipeMessages.LockData holder = this.Context.Repository.GVFSLock.GetLockHolderForCallbacks(out long? ownerStartTime);
-            if (isFolder || this.IsSpecialGitFile(fileName) || CanCreatePlaceholderForCommand(holder?.ParsedCommand))
+            if (isFolder || this.IsSpecialGitFile(fileName) || this.CanCreatePlaceholderForRequest(holder, ownerStartTime, processId))
             {
                 FileOrNetworkRequest work = new FileOrNetworkRequest(
                     connection => this.GetPlaceholderInformationAsyncHandler(
@@ -49,10 +68,10 @@ namespace GVFS.Platform.Windows
             request.BlockingReason = "GitCommand";
             if (this.ShouldRejectDependentRequest(request, holder, ownerStartTime))
             {
-                request.Result = HResult.FileNotFound;
+                request.Result = GetPlaceholderRejectionResult(holder);
                 this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
                 this.TracePlaceholderWait(request, request.BlockingReason);
-                this.TryCompleteCommand(commandId, HResult.FileNotFound);
+                this.TryCompleteCommand(commandId, request.Result.Value);
                 cancellation.Dispose();
             }
             else if (!this.placeholderWaitQueue.TryEnqueue(request, out bool stopping))
@@ -194,20 +213,19 @@ namespace GVFS.Platform.Windows
                             stop = this.stopping;
                         }
 
-                        bool ready = false;
-                        bool commandAllowsCreation = false;
+                        bool projectionReady = false;
                         NamedPipeMessages.LockData holder = null;
                         long? ownerStartTime = null;
                         if (!stop && snapshot.Count > 0)
                         {
                             holder = this.owner.Context.Repository.GVFSLock.GetLockHolderForCallbacks(out ownerStartTime);
-                            commandAllowsCreation = CanCreatePlaceholderForCommand(holder?.ParsedCommand);
-                            ready = commandAllowsCreation &&
-                                this.owner.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete();
+                            projectionReady = this.owner.FileSystemCallbacks.GitIndexProjection.IsProjectionParseComplete();
                         }
 
                         foreach (Request request in snapshot)
                         {
+                            bool commandAllowsCreation = this.owner.CanCreatePlaceholderForRequest(holder, ownerStartTime, request.ProcessId);
+                            bool ready = commandAllowsCreation && projectionReady;
                             bool schedule = false;
                             string outcome = null;
                             bool rejectDependent = !stop && !request.Scheduled && !request.Token.IsCancellationRequested &&
@@ -238,7 +256,7 @@ namespace GVFS.Platform.Windows
                                     {
                                         this.requests.Remove(request.CommandId);
                                         request.Terminated = true;
-                                        request.Result = HResult.FileNotFound;
+                                        request.Result = GetPlaceholderRejectionResult(holder);
                                         outcome = request.BlockingReason;
                                     }
                                     else
@@ -281,7 +299,7 @@ namespace GVFS.Platform.Windows
 
                                     this.owner.TryCompleteCommand(
                                         request.CommandId,
-                                        rejectDependent ? HResult.FileNotFound :
+                                        rejectDependent ? request.Result.Value :
                                         stop ? (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady :
                                             (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }

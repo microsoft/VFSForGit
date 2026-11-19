@@ -561,6 +561,171 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
         }
 
+        [TestCase(false, "git apply patch.diff", 1234u, false)]
+        [TestCase(false, "git apply patch.diff", 2345u, true)]
+        [TestCase(false, "git apply patch.diff", 2345u, false)]
+        [TestCase(false, "git apply patch.diff", 2345u, null)]
+        [TestCase(true, "git apply patch.diff", 1234u, false)]
+        [TestCase(true, "git apply patch.diff", 2345u, true)]
+        [TestCase(true, "git apply patch.diff", 2345u, false)]
+        [TestCase(true, "git apply patch.diff", 2345u, null)]
+        [TestCase(false, "git checkout-index --stdin", 1234u, false)]
+        [TestCase(true, "git checkout-index --stdin", 1234u, false)]
+        [TestCase(false, "git checkout-index --stdin", 2345u, true)]
+        [TestCase(true, "git checkout-index --stdin", 2345u, true)]
+        public void PlaceholderAdmissionPermitsOnlyTheApplyProcessFamily(
+            bool waitEnabled, string command, uint processId, bool? related)
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, waitEnabled))
+            {
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(id => id, (_, _, _) => related);
+                tester.WindowsVirtualizer.IsRequestDescendant = tree.IsDescendant;
+                ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1234);
+                this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                    new NamedPipeMessages.LockData(1234, false, false, command, string.Empty), out _).ShouldBeTrue();
+                try
+                {
+                    HResult result = tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(
+                        1, "test.txt", processId, "reader");
+                    bool apply = command.StartsWith("git apply");
+                    bool allowed = apply && (processId == 1234 || related == true);
+                    HResult rejected = apply ? (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable : HResult.FileNotFound;
+                    if (allowed)
+                    {
+                        result.ShouldEqual(HResult.Pending);
+                        tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                        tester.MockVirtualization.CreatedPlaceholders.ShouldContain(path => path == "test.txt");
+                        ((MockTracer)this.Repo.Context.Tracer).SnapshotRelatedEvents()
+                            .Any(entry => entry.Name == "PlaceholderLockWait").ShouldBeFalse();
+                    }
+                    else if (!waitEnabled)
+                    {
+                        result.ShouldEqual(rejected);
+                        tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                    }
+                    else if (processId == 1234 || related != false)
+                    {
+                        result.ShouldEqual(HResult.Pending);
+                        tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(rejected);
+                        tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                        EventMetadata metadata = new EventMetadata();
+                        tester.WindowsVirtualizer.AddHeartbeatMetadata(metadata);
+                        ((long)metadata["PlaceholderLockWaitStarted"]).ShouldEqual(0);
+                    }
+                    else
+                    {
+                        result.ShouldEqual(HResult.Pending);
+                        ((MockTracer)this.Repo.Context.Tracer).SnapshotRelatedEvents()
+                            .Any(entry => entry.Name == "PlaceholderLockWait").ShouldBeTrue();
+                        tester.GitIndexProjection.FileInfoRequests.ShouldEqual(0);
+                        this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
+                        tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
+                    }
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                }
+            }
+        }
+
+        [TestCase]
+        public void PlaceholderAncestryValidatesTheOwnerIdentityBeforeGrantingPermission()
+        {
+            long? activeStart = 10;
+            PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(
+                _ => activeStart, (_, _, _) => throw new AssertionException("Owner checks do not require a process snapshot."));
+            NamedPipeMessages.LockData holder = new NamedPipeMessages.LockData(1234, false, false, "git apply -", string.Empty);
+            tree.IsDescendant(1234, holder, 10).ShouldEqual(true);
+            tree.IsDescendant(1234, holder, null).ShouldEqual(null);
+            activeStart = 20;
+            tree.IsDescendant(1234, holder, 10).ShouldEqual(null);
+            activeStart = null;
+            tree.IsDescendant(1234, holder, 10).ShouldEqual(null);
+        }
+
+        [TestCase(false, null)]
+        [TestCase(true, null)]
+        [TestCase(false, 4321L)]
+        [TestCase(true, 4321L)]
+        public void ApplyRejectsAnUnverifiedOwnerWithoutWaitingOrCachingAbsence(bool waitEnabled, long? activeStart)
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, waitEnabled))
+            {
+                PlaceholderRequestProcessTree tree = new PlaceholderRequestProcessTree(_ => activeStart, (_, _, _) => true);
+                tester.WindowsVirtualizer.IsRequestDescendant = tree.IsDescendant;
+                ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1234);
+                this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                    new NamedPipeMessages.LockData(1234, false, false, "git apply -", string.Empty), out _).ShouldBeTrue();
+                try
+                {
+                    HResult result = tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1234, "owner");
+                    if (waitEnabled)
+                    {
+                        result.ShouldEqual(HResult.Pending);
+                        result = tester.MockVirtualization.WaitForCompletionStatus();
+                        EventMetadata metadata = new EventMetadata();
+                        tester.WindowsVirtualizer.AddHeartbeatMetadata(metadata);
+                        ((long)metadata["PlaceholderLockWaitStarted"]).ShouldEqual(0);
+                    }
+
+                    result.ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                    tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
+                }
+            }
+        }
+
+        [TestCase]
+        public void QueuedPlaceholderAdmissionUsesEachRequestersApplyProcessFamily()
+        {
+            using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, true))
+            {
+                tester.WindowsVirtualizer.IsRequestDescendant = (id, holder, _) =>
+                    holder.PID == 1 && id == 4 ? null : holder.PID == id || (holder.PID == 1 && id == 3);
+                tester.GitIndexProjection.ProjectionParseComplete = false;
+                this.HoldCheckoutLock();
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1, "owner").ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(2, "test.txt", 2, "reader").ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(3, "test.txt", 3, "descendant").ShouldEqual(HResult.Pending);
+                tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(4, "test.txt", 4, "unknown").ShouldEqual(HResult.Pending);
+                this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
+                ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1);
+                this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                    new NamedPipeMessages.LockData(1, false, false, "git apply patch.diff", string.Empty), out _).ShouldBeTrue();
+                try
+                {
+                    tester.GitIndexProjection.ProjectionParseComplete = true;
+                    SpinWait.SpinUntil(
+                        () => tester.MockVirtualization.CommandCompletions.Any(entry => entry.CommandId == 1),
+                        TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    tester.MockVirtualization.CommandCompletions.Single(entry => entry.CommandId == 1).Result.ShouldEqual(HResult.Ok);
+                    SpinWait.SpinUntil(
+                        () => tester.MockVirtualization.CommandCompletions.Any(entry => entry.CommandId == 3),
+                        TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    tester.MockVirtualization.CommandCompletions.Single(entry => entry.CommandId == 3).Result.ShouldEqual(HResult.Ok);
+                    SpinWait.SpinUntil(
+                        () => tester.MockVirtualization.CommandCompletions.Any(entry => entry.CommandId == 4),
+                        TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    tester.MockVirtualization.CommandCompletions.Single(entry => entry.CommandId == 4).Result
+                        .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                    SpinWait.SpinUntil(
+                        () => tester.MockVirtualization.CommandCompletions.Any(entry => entry.CommandId == 2),
+                        TimeSpan.FromSeconds(10)).ShouldBeTrue();
+                    tester.MockVirtualization.CommandCompletions.Single(entry => entry.CommandId == 2).Result
+                        .ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                    tester.GitIndexProjection.FileInfoRequests.ShouldEqual(2);
+                }
+                finally
+                {
+                    this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1);
+                }
+            }
+        }
+
         [TestCase]
         public void PlaceholderRequestAncestryHandlesDescendantsUnrelatedAndUnknownChains()
         {
@@ -598,6 +763,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase("none")]
         [TestCase("gvfs")]
         [TestCase("status")]
+        [TestCase("apply")]
         public void UncontendedAndAllowedFirstOpensDoNotUseTheWaitQueue(string holder)
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, true))
@@ -606,19 +772,20 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 {
                     this.Repo.Repository.GVFSLock.TryAcquireLockForGVFS().ShouldBeTrue();
                 }
-                else if (holder == "status")
+                else if (holder == "status" || holder == "apply")
                 {
                     ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1234);
                     this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
-                        new NamedPipeMessages.LockData(1234, false, false, "git status", string.Empty), out _).ShouldBeTrue();
+                        new NamedPipeMessages.LockData(1234, false, false, "git " + holder, string.Empty), out _).ShouldBeTrue();
                 }
 
                 tester.GitIndexProjection.BlockGetProjectedFileInfo(willWaitForRequest: true);
                 try
                 {
+                    uint processId = holder == "apply" ? 1234u : 1u;
                     for (int id = 1; id <= 129; ++id)
                     {
-                        tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(id, "test.txt", 1, "reader").ShouldEqual(HResult.Pending);
+                        tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(id, "test.txt", processId, "reader").ShouldEqual(HResult.Pending);
                     }
 
                     tester.GitIndexProjection.WaitForGetProjectedFileInfo();
@@ -636,7 +803,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     {
                         this.Repo.Repository.GVFSLock.ReleaseLockHeldByGVFS();
                     }
-                    else if (holder == "status")
+                    else if (holder == "status" || holder == "apply")
                     {
                         this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234);
                     }
@@ -1086,8 +1253,10 @@ namespace GVFS.UnitTests.Windows.Virtualization
             }
         }
 
-        [TestCase]
-        public void PlaceholderLockWaitRevalidatesOwnerAfterMetadataLookup()
+        [TestCase("git checkout-index --stdin", false)]
+        [TestCase("git apply patch.diff", false)]
+        [TestCase("git apply patch.diff", true)]
+        public void PlaceholderLockWaitRevalidatesOwnerAfterMetadataLookup(string nextCommand, bool descendant)
         {
             using (WindowsFileSystemVirtualizerTester tester = new WindowsFileSystemVirtualizerTester(this.Repo, true))
             {
@@ -1096,11 +1265,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 tester.MockVirtualization.RequiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", 1, "reader").ShouldEqual(HResult.Pending);
                 this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
                 tester.GitIndexProjection.WaitForGetProjectedFileInfo();
-                this.HoldCheckoutLock();
+                this.Repo.Repository.GVFSLock.TryAcquireLockForExternalRequestor(
+                    new NamedPipeMessages.LockData(1234, false, false, nextCommand, string.Empty), out _).ShouldBeTrue();
+                tester.WindowsVirtualizer.IsRequestDescendant = (_, _, _) => descendant;
                 tester.GitIndexProjection.UnblockGetProjectedFileInfo();
-                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual((HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
-                tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(0);
-                tester.GitIndexProjection.CreationAttempts.ShouldEqual(0);
+                tester.MockVirtualization.WaitForCompletionStatus().ShouldEqual(
+                    descendant ? HResult.Ok : (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
+                tester.MockVirtualization.CreatedPlaceholders.Count.ShouldEqual(descendant ? 1 : 0);
+                tester.GitIndexProjection.CreationAttempts.ShouldEqual(descendant ? 1 : 0);
                 this.Repo.Repository.GVFSLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
             }
         }

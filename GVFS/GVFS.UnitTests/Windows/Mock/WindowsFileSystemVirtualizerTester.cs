@@ -63,7 +63,7 @@ namespace GVFS.UnitTests.Windows.Mock
                     repo.Context.Tracer,
                     () => repo.Context.Repository.TryGetConfigValue(GVFS.Common.GVFSConstants.GitConfig.PlaceholderLockWaitMs, out string value) ? value : null))
             {
-                IsRequestDescendant = (_, _, _) => false,
+                IsRequestDescendant = (id, holder, _) => id == holder.PID,
             };
             return this.WindowsVirtualizer;
         }

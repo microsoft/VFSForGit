@@ -196,13 +196,22 @@ namespace GVFS.Common
             }
         }
 
-        public bool TryAcquirePlaceholderCreation(Func<string, bool> canCreate, out IDisposable lease, out string command)
+        public bool TryAcquirePlaceholderCreation(Func<NamedPipeMessages.LockData, long?, bool> canCreate, out IDisposable lease, out string command)
         {
+            NamedPipeMessages.LockData holder = this.GetLockHolderForCallbacks(out long? ownerStartTime);
+            lease = null;
+            command = holder?.ParsedCommand;
+            // Process ancestry checks must not block lock acquisition or release.
+            if (!canCreate(holder, ownerStartTime))
+            {
+                return false;
+            }
+
             lock (this.acquisitionLock)
             {
-                lease = null;
-                command = this.GetLockedGitCommand();
-                if (!canCreate(command))
+                NamedPipeMessages.LockData current = this.currentLockHolder.GetExternalHolder();
+                command = current?.ParsedCommand;
+                if (!ReferenceEquals(holder, current) || ownerStartTime != this.currentLockHolder.ExternalStartTime)
                 {
                     return false;
                 }

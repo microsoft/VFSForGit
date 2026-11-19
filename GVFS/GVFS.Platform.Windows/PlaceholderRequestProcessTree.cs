@@ -37,11 +37,6 @@ namespace GVFS.Platform.Windows
         internal bool? IsDescendant(uint processId, NamedPipeMessages.LockData holder, long? ownerStartTime)
         {
             int ownerId = holder.PID;
-            if (processId == ownerId)
-            {
-                return true;
-            }
-
             if (processId == 0 || ownerId <= 0 || !ownerStartTime.HasValue)
             {
                 return null;
@@ -51,6 +46,11 @@ namespace GVFS.Platform.Windows
             if (!requestStart.HasValue || this.getStartTime((uint)ownerId) != ownerStartTime)
             {
                 return null;
+            }
+
+            if (processId == ownerId)
+            {
+                return true;
             }
 
             ProcessPair key = new ProcessPair(holder, ownerId, ownerStartTime.Value, processId, requestStart.Value);

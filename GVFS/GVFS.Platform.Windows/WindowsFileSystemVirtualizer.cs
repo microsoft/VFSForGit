@@ -742,22 +742,24 @@ namespace GVFS.Platform.Windows
                     return HResult.FileNotFound;
                 }
 
+                NamedPipeMessages.LockData holder = this.Context.Repository.GVFSLock.GetLockHolderForCallbacks(out long? ownerStartTime);
                 if (!isFolder &&
                     !this.IsSpecialGitFile(fileName) &&
-                    !this.CanCreatePlaceholder())
+                    !this.CanCreatePlaceholderForRequest(holder, ownerStartTime, triggeringProcessId))
                 {
+                    HResult rejectionResult = GetPlaceholderRejectionResult(holder);
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add("commandId", commandId);
                     metadata.Add("triggeringProcessId", triggeringProcessId);
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                    metadata.Add("lockedGitCommand", holder?.ParsedCommand);
+                    metadata.Add("completionResult", rejectionResult.ToString("X"));
                     metadata.Add(TracingConstants.MessageKey.VerboseMessage, $"{nameof(this.GetPlaceholderInfoCallback)}: Not allowed to create placeholder");
                     this.Context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GetPlaceholderInfoCallback), metadata);
 
                     this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
 
-                    // Another process is modifying the working directory so we cannot modify it
-                    // until they are done.
-                    return HResult.FileNotFound;
+                    return rejectionResult;
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -911,9 +913,9 @@ namespace GVFS.Platform.Windows
         {
             error = string.Empty;
 
+            this.IsRequestDescendant ??= new PlaceholderRequestProcessTree(this.Context.Tracer).IsDescendant;
             if (this.placeholderLockWaitMs > 0)
             {
-                this.IsRequestDescendant ??= new PlaceholderRequestProcessTree(this.Context.Tracer).IsDescendant;
                 this.placeholderWaitQueue = new PlaceholderCreationWaitQueue(this);
             }
 
@@ -1372,7 +1374,8 @@ namespace GVFS.Platform.Windows
                 else
                 {
                     if (!this.Context.Repository.GVFSLock.TryAcquirePlaceholderCreation(
-                        CanCreatePlaceholderForCommand, out IDisposable lease, out string blockingCommand))
+                        (holder, ownerStartTime) => this.CanCreatePlaceholderForRequest(holder, ownerStartTime, triggeringProcessId),
+                        out IDisposable lease, out string blockingCommand))
                     {
                         deferredRequest.BlockingReason = "GitCommand";
                         deferredRequest.BlockingCommand = blockingCommand;

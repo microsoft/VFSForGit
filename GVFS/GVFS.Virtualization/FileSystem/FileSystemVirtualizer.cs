@@ -147,11 +147,6 @@ namespace GVFS.Virtualization.FileSystem
         ///
         /// git-mv is also allowed to defer since it needs to create the files it moves.
         /// </remarks>
-        protected bool CanCreatePlaceholder()
-        {
-            return CanCreatePlaceholderForCommand(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-        }
-
         protected static bool CanCreatePlaceholderForCommand(string command)
         {
             GitCommandLineParser gitCommand = new GitCommandLineParser(command);
