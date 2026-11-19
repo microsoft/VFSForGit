@@ -161,7 +161,22 @@ namespace GVFS.UnitTests.CommandLine
 
                 Assert.That(output.ToString(), Does.Contain("Error starting prefetch: Prefetch launch failed"));
                 Assert.That(output.ToString(), Does.Contain("Run 'gvfs prefetch --commits'"));
-                Assert.That(output.ToString(), Does.Not.Contain("has been started"));
+                Assert.That(output.ToString(), Does.Not.Contain("Started history prefetch"));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void BackgroundPrefetchWithoutAProcessReportsFailure(bool hasPrefetchPacks)
+        {
+            using (StringWriter output = new StringWriter())
+            {
+                CloneVerb verb = new CloneVerb { Output = output };
+                verb.StartBackgroundPrefetch(TestRoot, hasPrefetchPacks, _ => null);
+
+                Assert.That(output.ToString(), Does.Contain("Error starting prefetch: Windows did not return a process."));
+                Assert.That(output.ToString(), Does.Contain("Run 'gvfs prefetch --commits'"));
+                Assert.That(output.ToString(), Does.Not.Contain("Started history prefetch"));
             }
         }
 
@@ -182,12 +197,14 @@ namespace GVFS.UnitTests.CommandLine
                     {
                         ++launches;
                         Assert.That(startInfo.FileName, Is.EqualTo(Environment.ProcessPath));
-                        Assert.That(startInfo.Arguments, Is.EqualTo("prefetch --commits"));
+                        Assert.That(startInfo.Arguments, Is.EqualTo(
+                            expectCachedPrefetch ? "prefetch --commits" : "prefetch --commits --from-clone"));
                         Assert.That(startInfo.WorkingDirectory, Is.EqualTo(TestRoot));
                         Assert.That(startInfo.UseShellExecute, Is.True);
                         Assert.That(
                             startInfo.WindowStyle,
                             Is.EqualTo(expectCachedPrefetch ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Minimized));
+                        return 1234;
                     });
 
                 Assert.That(launches, Is.EqualTo(1));
@@ -197,7 +214,8 @@ namespace GVFS.UnitTests.CommandLine
                 }
                 else
                 {
-                    Assert.That(output.ToString(), Does.Contain("Prefetch of commit graph has been started as a background process."));
+                    Assert.That(output.ToString(), Does.Contain("Started history prefetch in a minimized window (client PID 1234)"));
+                    Assert.That(output.ToString(), Does.Contain(TestRoot));
                 }
             }
         }

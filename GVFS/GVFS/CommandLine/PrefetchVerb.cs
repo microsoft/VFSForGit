@@ -47,6 +47,8 @@ namespace GVFS.CommandLine
 
         public bool Verbose { get; set; }
 
+        public bool FromClone { get; set; }
+
         public static System.CommandLine.Command CreateCommand()
         {
             System.CommandLine.Command cmd = new System.CommandLine.Command("prefetch", "Prefetch remote objects for the current head");
@@ -97,6 +99,9 @@ namespace GVFS.CommandLine
             System.CommandLine.Option<bool> verboseOption = new System.CommandLine.Option<bool>("--verbose") { Description = "Show all outputs on the console in addition to writing them to a log file." };
             cmd.Add(verboseOption);
 
+            System.CommandLine.Option<bool> fromCloneOption = new System.CommandLine.Option<bool>("--from-clone") { Hidden = true };
+            cmd.Add(fromCloneOption);
+
             System.CommandLine.Option<string> internalOption = GVFSVerb.CreateInternalParametersOption();
             cmd.Add(internalOption);
 
@@ -112,6 +117,7 @@ namespace GVFS.CommandLine
                     verb.HydrateFiles = result.GetValue(hydrateOption);
                     verb.Commits = result.GetValue(commitsOption);
                     verb.Verbose = result.GetValue(verboseOption);
+                    verb.FromClone = result.GetValue(fromCloneOption);
                 });
 
             return cmd;
@@ -137,8 +143,9 @@ namespace GVFS.CommandLine
 
                 var cacheServerFromConfig = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
+                string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Prefetch);
                 tracer.AddLogFileEventListener(
-                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Prefetch),
+                    logFilePath,
                     EventLevel.Informational,
                     Keywords.Any);
                 tracer.WriteStartEvent(
@@ -148,6 +155,13 @@ namespace GVFS.CommandLine
 
                 try
                 {
+                    bool prefetchOffloadEnabled = !this.FromClone && this.IsPrefetchOffloadEnabled(tracer, enlistment);
+                    this.WriteClonePrefetchContext(
+                        tracer,
+                        enlistment.PrimaryEnlistmentRoot,
+                        logFilePath,
+                        title => Console.Title = title);
+
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Commits", this.Commits);
                     metadata.Add("Files", this.Files);
@@ -157,7 +171,6 @@ namespace GVFS.CommandLine
                     metadata.Add("FilesFromStdIn", this.FilesFromStdIn);
                     metadata.Add("FoldersFromStdIn", this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
-                    bool prefetchOffloadEnabled = this.IsPrefetchOffloadEnabled(tracer, enlistment);
                     metadata.Add("PrefetchOffloadEnabled", prefetchOffloadEnabled);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
@@ -485,6 +498,38 @@ namespace GVFS.CommandLine
                         return false;
                 }
             }
+        }
+
+        internal void WriteClonePrefetchContext(
+            ITracer tracer,
+            string enlistmentRoot,
+            string logFilePath,
+            Action<string> setConsoleTitle)
+        {
+            if (!this.FromClone)
+            {
+                return;
+            }
+
+            try
+            {
+                setConsoleTitle("VFS for Git: history prefetch - " + enlistmentRoot);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                tracer.RelatedWarning(
+                    new EventMetadata { { "Exception", ex.ToString() } },
+                    "Could not set the history prefetch window title.");
+            }
+
+            this.Output.WriteLine("VFS for Git: history prefetch");
+            this.Output.WriteLine("Repository: {0}", enlistmentRoot);
+            this.Output.WriteLine("Prefetch client process ID: {0}", Environment.ProcessId);
+            this.Output.WriteLine("Prefetch downloads commits and trees and builds local pack indexes.");
+            this.Output.WriteLine("After mount succeeds, you can use the repository while prefetch runs.");
+            this.Output.WriteLine("History commands can be slower until prefetch finishes.");
+            this.Output.WriteLine("To retry an interrupted prefetch, run 'gvfs prefetch --commits' from '{0}'.", enlistmentRoot);
+            this.Output.WriteLine("Log: {0}\r\n", logFilePath);
         }
 
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)
