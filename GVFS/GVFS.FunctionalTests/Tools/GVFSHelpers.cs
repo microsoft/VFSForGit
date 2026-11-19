@@ -182,6 +182,25 @@ namespace GVFS.FunctionalTests.Tools
         }
 
         /// <summary>
+        /// Read the entry count from the header of the index file (bytes 8 to 11, big-endian). A
+        /// sparse-directory entry counts as one entry.
+        /// </summary>
+        /// <remarks>
+        /// <c>git ls-files</c> cannot show whether the index on disk is full or sparse: with
+        /// <c>index.sparse</c> true, Git collapses a full index in memory when it reads it.
+        /// </remarks>
+        public static int IndexHeaderEntryCount(GVFSFunctionalTestEnlistment enlistment)
+        {
+            byte[] header = new byte[12];
+            using (FileStream stream = new FileStream(enlistment.GetDotGitPath("index"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                stream.ReadExactly(header, 0, header.Length);
+            }
+
+            return (header[8] << 24) | (header[9] << 16) | (header[10] << 8) | header[11];
+        }
+
+        /// <summary>
         /// Asserts that the modified-paths set, after replaying the on-disk
         /// A/D log, contains exactly <paramref name="gitPaths"/> -- no more,
         /// no fewer. Use this when a test wants to prove that some sequence
