@@ -43,6 +43,7 @@ namespace GVFS.Common
             UpdateIndex = 1 << 7,
             Restore     = 1 << 8,
             Switch      = 1 << 9,
+            Apply       = 1 << 10,
         }
 
         public bool IsValidGitCommand
@@ -130,6 +131,7 @@ namespace GVFS.Common
             switch (verb)
             {
                 case "add": return Verbs.AddOrStage;
+                case "apply": return Verbs.Apply;
                 case "checkout": return Verbs.Checkout;
                 case "commit": return Verbs.Commit;
                 case "mv": return Verbs.Move;

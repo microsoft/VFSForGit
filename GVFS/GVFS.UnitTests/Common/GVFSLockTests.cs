@@ -8,6 +8,7 @@ using GVFS.UnitTests.Virtual;
 using Moq;
 using NUnit.Framework;
 using System;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
 {
@@ -187,8 +188,8 @@ namespace GVFS.UnitTests.Common
         public void PlaceholderCreationLeasesBlockNewOwnersUntilEveryLeaseEnds()
         {
             GVFSLock gvfsLock = new GVFSLock(new MockTracer());
-            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable first, out _).ShouldBeTrue();
-            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable second, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation((_, _) => true, out IDisposable first, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation((_, _) => true, out IDisposable second, out _).ShouldBeTrue();
             try
             {
                 gvfsLock.TryAcquireLockForExternalRequestor(DefaultLockData, out _).ShouldBeFalse();
@@ -206,11 +207,11 @@ namespace GVFS.UnitTests.Common
             }
 
             gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
-            gvfsLock.TryAcquirePlaceholderCreation(_ => true, out IDisposable duringBackgroundWork, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation((_, _) => true, out IDisposable duringBackgroundWork, out _).ShouldBeTrue();
             gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
             duringBackgroundWork.Dispose();
             gvfsLock.ReleaseLockHeldByGVFS();
-            gvfsLock.TryAcquirePlaceholderCreation(_ => false, out _, out _).ShouldBeFalse();
+            gvfsLock.TryAcquirePlaceholderCreation((_, _) => false, out _, out _).ShouldBeFalse();
         }
 
         [TestCase]
@@ -220,7 +221,7 @@ namespace GVFS.UnitTests.Common
             GVFSLock gvfsLock = new GVFSLock(new MockTracer());
             NamedPipeMessages.LockData owner = new NamedPipeMessages.LockData(1234, false, false, "git status", string.Empty);
             gvfsLock.TryAcquireLockForExternalRequestor(owner, out _).ShouldBeTrue();
-            gvfsLock.TryAcquirePlaceholderCreation(command => command == "git status", out IDisposable lease, out _).ShouldBeTrue();
+            gvfsLock.TryAcquirePlaceholderCreation((holder, _) => holder?.ParsedCommand == "git status", out IDisposable lease, out _).ShouldBeTrue();
             using (lease)
             {
                 gvfsLock.IsLockAvailableForExternalRequestor(out NamedPipeMessages.LockData reported).ShouldBeFalse();
@@ -233,6 +234,39 @@ namespace GVFS.UnitTests.Common
             }
 
             gvfsLock.GetStatus().ShouldEqual("Free");
+        }
+
+        [TestCase]
+        public void PlaceholderLeaseChecksAncestryOutsideAcquisitionLockAndRejectsAReplacementOwner()
+        {
+            ((MockPlatform)GVFSPlatform.Instance).ActiveProcesses.Add(1234);
+            GVFSLock gvfsLock = new GVFSLock(new MockTracer());
+            NamedPipeMessages.LockData owner = new NamedPipeMessages.LockData(1234, false, false, "git apply -", string.Empty);
+            gvfsLock.TryAcquireLockForExternalRequestor(owner, out _).ShouldBeTrue();
+            try
+            {
+                gvfsLock.TryAcquirePlaceholderCreation((holder, start) =>
+                {
+                    ReferenceEquals(holder, owner).ShouldBeTrue();
+                    start.ShouldEqual((long?)1234);
+                    Task replacement = Task.Factory.StartNew(() =>
+                    {
+                        gvfsLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
+                        gvfsLock.TryAcquireLockForExternalRequestor(
+                            new NamedPipeMessages.LockData(1234, false, false, "git apply -", string.Empty), out _).ShouldBeTrue();
+                    }, TaskCreationOptions.LongRunning);
+                    replacement.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("The ancestry check blocked lock acquisition or release.");
+                    return true;
+                }, out IDisposable lease, out _).ShouldBeFalse();
+                lease.ShouldBeNull();
+                gvfsLock.ReleaseLockHeldByExternalProcess(1234).ShouldBeTrue();
+                gvfsLock.TryAcquireLockForGVFS().ShouldBeTrue();
+                gvfsLock.ReleaseLockHeldByGVFS();
+            }
+            finally
+            {
+                gvfsLock.ReleaseLockHeldByExternalProcess(1234);
+            }
         }
 
         [TestCase]
