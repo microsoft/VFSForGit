@@ -1,14 +1,59 @@
+using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Http
 {
     [TestFixture]
     public class HttpRequestorTests
     {
+        [TestCase(HttpStatusCode.Unauthorized, "The credential is invalid.", true)]
+        [TestCase(HttpStatusCode.Unauthorized, "Authorization failed for repository 00000000-0000-0000-0000-000000000001", true)]
+        [TestCase(HttpStatusCode.Redirect, "Sign in to continue.", false)]
+        [TestCase(HttpStatusCode.BadRequest, HttpRequestor.CacheServerAuthRequiredBadRequestMessage, false)]
+        public void AuthenticationFailuresDoNotInferCredentialRenewal(HttpStatusCode statusCode, string serverMessage, bool shouldRetry)
+        {
+            const string RepoUrl = "mock://repoUrl";
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult(
+                "config ",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode),
+                matchPrefix: true);
+            gitProcess.SetExpectedCommandResult(
+                "-c credential.\"https://dev.azure.com\".useHttpPath=true credential fill",
+                () => new GitProcess.Result("username=test\r\npassword=unchanged\r\n", string.Empty, GitProcess.Result.SuccessCode));
+            gitProcess.SetExpectedCommandResult(
+                "-c credential.\"https://dev.azure.com\".useHttpPath=true credential reject",
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            using MockTracer tracer = new MockTracer();
+            GitAuthentication authentication = new GitAuthentication(gitProcess, RepoUrl);
+            authentication.TryInitializeAndRequireAuth(tracer, out string error).ShouldEqual(true, error);
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment(
+                @"mock:\repo", RepoUrl, @"mock:\git", gitProcess, authentication);
+            using TestHttpRequestor requestor = new TestHttpRequestor(tracer, enlistment, new ErrorResponseHandler(statusCode, serverMessage));
+
+            for (int rejection = 1; rejection <= 2; ++rejection)
+            {
+                using GitEndPointResponseData response = requestor.Send();
+                response.Error.Message.ShouldEqual(
+                    $"Server returned error code {(int)statusCode} ({statusCode}). Original error message from server: {serverMessage}");
+                response.StatusCode.ShouldEqual(statusCode);
+                response.ShouldRetry.ShouldEqual(shouldRetry);
+                gitProcess.CredentialRejections[RepoUrl].Count.ShouldEqual(rejection);
+                authentication.IsBackingOff.ShouldEqual(rejection == 2);
+            }
+        }
+
         [TestCase]
         public void Unauthorized401RejectsCredentials()
         {
@@ -97,6 +142,38 @@ namespace GVFS.UnitTests.Http
         public void CacheNameTelemetryHasABoundedLength()
         {
             HttpRequestor.GetCacheNameForTelemetry(new string('a', 1000)).ShouldEqual(new string('a', 128));
+        }
+
+        private class TestHttpRequestor : HttpRequestor
+        {
+            public TestHttpRequestor(MockTracer tracer, MockGVFSEnlistment enlistment, HttpMessageHandler handler)
+                : base(tracer, new RetryConfig(), enlistment, handler)
+            {
+            }
+
+            public GitEndPointResponseData Send()
+            {
+                return this.SendRequest(
+                    GetNewRequestId(), new Uri("https://cache.example.com/objects"), HttpMethod.Get, null, CancellationToken.None);
+            }
+        }
+
+        private class ErrorResponseHandler : HttpMessageHandler
+        {
+            private readonly HttpStatusCode statusCode;
+            private readonly string serverMessage;
+
+            public ErrorResponseHandler(HttpStatusCode statusCode, string serverMessage)
+            {
+                this.statusCode = statusCode;
+                this.serverMessage = serverMessage;
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                request.Headers.Authorization.Scheme.ShouldEqual("Basic");
+                return Task.FromResult(new HttpResponseMessage(this.statusCode) { Content = new StringContent(this.serverMessage) });
+            }
         }
     }
 }
